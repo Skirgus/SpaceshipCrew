@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ShipGameMode.h"
 #include "ShipPlayerController.h"
@@ -181,7 +181,7 @@ void AShipGameMode::RebuildGameStateCrewSlots()
 	S->SetCrewSlotsFromAuthority(Slots);
 }
 
-APawn* AShipGameMode::SpawnDefaultPawnFor(AController* NewPlayer, AActor* StartSpot)
+APawn* AShipGameMode::SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot)
 {
 	EnsureCrewSpawned();
 	if (APlayerController* PC = Cast<APlayerController>(NewPlayer))
