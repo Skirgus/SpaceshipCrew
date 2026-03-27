@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,8 +7,8 @@
 #include "EnvQueryContext_Danger.generated.h"
 
 /**
- *  UEnvQueryContext_Danger
- *  Returns the enemy character's last known danger location
+ * UEnvQueryContext_Danger
+ * Возвращает враг персонаж's последний known опасность location
  */
 UCLASS()
 class SPACESHIPCREW_API UEnvQueryContext_Danger : public UEnvQueryContext
@@ -17,7 +17,11 @@ class SPACESHIPCREW_API UEnvQueryContext_Danger : public UEnvQueryContext
 	
 public:
 
-	/** Provides the context locations or actors for this EnvQuery */
+	/** Предоставляет контекстные позиции или акторов для этого EnvQuery */
 	virtual void ProvideContext(FEnvQueryInstance& QueryInstance, FEnvQueryContextData& ContextData) const override;
 
 };
+
+
+
+

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,8 +7,8 @@
 #include "CombatAttacker.generated.h"
 
 /**
- *  CombatAttacker Interface
- *  Provides common functionality to trigger attack animation events.
+ * CombatАтакаer Interface
+ * предоставляет common functionality для триггер атака animation события.
  */
 UINTERFACE(MinimalAPI, NotBlueprintable)
 class UCombatAttacker : public UInterface
@@ -22,15 +22,19 @@ class ICombatAttacker
 
 public:
 
-	/** Performs an attack's collision check. Usually called from a montage's AnimNotify */
+	/** Выполняет атака's коллизия проверить. Usually вызватьed из a montage's AnimNotify */
 	UFUNCTION(BlueprintCallable, Category="Attacker")
 	virtual void DoAttackTrace(FName DamageSourceBone) = 0;
 
-	/** Performs a combo attack's check to continue the string. Usually called from a montage's AnimNotify */
+	/** Выполняет a combo атака's проверить для continue string. Usually вызватьed из a montage's AnimNotify */
 	UFUNCTION(BlueprintCallable, Category="Attacker")
 	virtual void CheckCombo() = 0;
 
-	/** Performs a charged attack's check to loop the charge animation. Usually called from a montage's AnimNotify */
+	/** Выполняет a charged атака's проверить для цикл charge animation. Usually вызватьed из a montage's AnimNotify */
 	UFUNCTION(BlueprintCallable, Category="Attacker")
 	virtual void CheckChargedAttack() = 0;
 };
+
+
+
+

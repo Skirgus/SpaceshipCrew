@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingSoftPlatform.h"
@@ -11,10 +11,10 @@ ASideScrollingSoftPlatform::ASideScrollingSoftPlatform()
 {
  	PrimaryActorTick.bCanEverTick = true;
 
-	// create the root component
+	// создать Корневой компонент
 	RootComponent = Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
-	// create the mesh
+	// создать mesh
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	Mesh->SetupAttachment(Root);
 
@@ -22,7 +22,7 @@ ASideScrollingSoftPlatform::ASideScrollingSoftPlatform()
 	Mesh->SetCollisionObjectType(ECC_WorldStatic);
 	Mesh->SetCollisionResponseToAllChannels(ECR_Block);
 
-	// create the collision check box
+	// создать коллизия проверить box
 	CollisionCheckBox = CreateDefaultSubobject<UBoxComponent>(TEXT("Collision Check Box"));
 	CollisionCheckBox->SetupAttachment(Mesh);
 
@@ -32,16 +32,16 @@ ASideScrollingSoftPlatform::ASideScrollingSoftPlatform()
 	CollisionCheckBox->SetCollisionResponseToAllChannels(ECR_Ignore);
 	CollisionCheckBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 
-	// subscribe to the overlap events
+	// подписаться для пересечение события
 	CollisionCheckBox->OnComponentBeginOverlap.AddDynamic(this, &ASideScrollingSoftPlatform::OnSoftCollisionOverlap);
 }
 
 void ASideScrollingSoftPlatform::OnSoftCollisionOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// have we overlapped a character?
+	// имеет we пересечениеped a персонаж?
 	if (ASideScrollingCharacter* Char = Cast<ASideScrollingCharacter>(OtherActor))
 	{
-		// disable the soft collision channel
+ // отключить soft коллизия channel
 		Char->SetSoftCollision(true);
 	}
 }
@@ -50,10 +50,14 @@ void ASideScrollingSoftPlatform::NotifyActorEndOverlap(AActor* OtherActor)
 {
 	Super::NotifyActorEndOverlap(OtherActor);
 
-	// have we overlapped a character?
+	// имеет we пересечениеped a персонаж?
 	if (ASideScrollingCharacter* Char = Cast<ASideScrollingCharacter>(OtherActor))
 	{
-		// enable the soft collision channel
+ // включить soft коллизия channel
 		Char->SetSoftCollision(false);
 	}
 }
+
+
+
+

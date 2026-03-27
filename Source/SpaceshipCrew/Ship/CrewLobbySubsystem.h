@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -6,7 +6,7 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "CrewLobbySubsystem.generated.h"
 
-/** Placeholder for future lobby / session flow; keeps extension point without shipping net code in MVP. */
+/** Заглушка под будущее лобби/сессии; оставляет точку расширения без добавления сетевого кода в MVP. */
 UCLASS()
 class SPACESHIPCREW_API UCrewLobbySubsystem : public UGameInstanceSubsystem
 {
@@ -16,3 +16,4 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Crew|Lobby")
 	void Stub_RegisterFutureLobbyHooks() {}
 };
+

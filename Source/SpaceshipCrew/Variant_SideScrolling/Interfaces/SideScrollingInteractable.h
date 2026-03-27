@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "SideScrollingInteractable.generated.h"
 
 /**
- *  
+ *
  */
 UINTERFACE(MinimalAPI, NotBlueprintable)
 class USideScrollingInteractable : public UInterface
@@ -16,7 +16,7 @@ class USideScrollingInteractable : public UInterface
 };
 
 /**
- *  Simple interface to allow Actors to interact without having knowledge of their internal implementation.
+ * Simple интерфейс для allow акторы для interact without having knowledge из their internal implementation.
  */
 class ISideScrollingInteractable
 {
@@ -24,8 +24,12 @@ class ISideScrollingInteractable
 
 public:
 
-	/** Triggers an interaction by the provided Actor */
+	/** Triggers interaction через provided актор */
 	UFUNCTION(BlueprintCallable, Category="Interactable")
 	virtual void Interaction(AActor* Interactor) = 0;
 
 };
+
+
+
+

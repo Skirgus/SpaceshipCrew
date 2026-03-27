@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "EnvQueryContext_Player.h"
@@ -9,10 +9,14 @@
 
 void UEnvQueryContext_Player::ProvideContext(FEnvQueryInstance& QueryInstance, FEnvQueryContextData& ContextData) const
 {
-	// get the player pawn for the first local player
+	// получить игрок pawn для первый локальный игрок
 	AActor* PlayerPawn = UGameplayStatics::GetPlayerPawn(QueryInstance.Owner.Get(), 0);
 	check(PlayerPawn);
 
-	// add the actor data to the context
+	// add актор data для контекст
 	UEnvQueryItemType_Actor::SetContextHelper(ContextData, PlayerPawn);
 }
+
+
+
+

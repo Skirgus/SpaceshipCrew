@@ -7,8 +7,8 @@
 #include "CrewRoleDefinition.generated.h"
 
 /**
- * Defines a crew role: display info and which ship stations this role may operate.
- * Station interactables compare RequiredPermission against AllowedStationPermissions.
+ * Определяет роль экипажа: отображаемые данные и станции корабля, доступные этой роли.
+ * Интерактивные станции сравнивают RequiredPermission с AllowedStationPermissions.
  */
 UCLASS(BlueprintType)
 class SPACESHIPCREW_API UCrewRoleDefinition : public UDataAsset
@@ -22,7 +22,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Role")
 	FText DisplayName;
 
-	/** e.g. Reactor, Helm, Medical — must match ShipInteractableBase::RequiredPermission. */
+	/** Например: Reactor, Helm, Medical — должно совпадать с ShipInteractableBase::RequiredPermission. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Role")
 	TSet<FName> AllowedStationPermissions;
 
@@ -32,3 +32,4 @@ public:
 		return StationPermission.IsNone() || AllowedStationPermissions.Contains(StationPermission);
 	}
 };
+

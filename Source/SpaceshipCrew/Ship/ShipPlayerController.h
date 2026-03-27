@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -6,9 +6,10 @@
 #include "SpaceshipCrewPlayerController.h"
 #include "ShipPlayerController.generated.h"
 
-/** Concrete player controller for ship mode (template base class is abstract). */
+/** Конкретный PlayerController для режима корабля (базовый класс шаблона абстрактный). */
 UCLASS()
 class SPACESHIPCREW_API AShipPlayerController : public ASpaceshipCrewPlayerController
 {
 	GENERATED_BODY()
 };
+

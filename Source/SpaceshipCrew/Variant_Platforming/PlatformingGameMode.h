@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "PlatformingGameMode.generated.h"
 
 /**
- *  Simple GameMode for a third person platforming game
+ * Simple GameMode для a third person платформаing game
  */
 UCLASS()
 class APlatformingGameMode : public AGameModeBase
@@ -16,6 +16,10 @@ class APlatformingGameMode : public AGameModeBase
 	
 public:
 
-	/** Constructor */
+	/** Конструктор */
 	APlatformingGameMode();
 };
+
+
+
+

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatCheckpointVolume.h"
@@ -7,41 +7,45 @@
 
 ACombatCheckpointVolume::ACombatCheckpointVolume()
 {
-	// create the box volume
+	// создать box volume
 	RootComponent = Box = CreateDefaultSubobject<UBoxComponent>(TEXT("Box"));
 	check(Box);
 
-	// set the box's extent
+	// установить box's extent
 	Box->SetBoxExtent(FVector(500.0f, 500.0f, 500.0f));
 
-	// set the default collision profile to overlap all dynamic
+	// установить по умолчанию коллизия profile для пересечение all dynamic
 	Box->SetCollisionProfileName(FName("OverlapAllDynamic"));
 
-	// bind the begin overlap 
+	// привязать begin пересечение
 	Box->OnComponentBeginOverlap.AddDynamic(this, &ACombatCheckpointVolume::OnOverlap);
 }
 
 void ACombatCheckpointVolume::OnOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// ensure we use this only once
+	// убедиться we использовать этот только once
 	if (bCheckpointUsed)
 	{
 		return;
 	}
 		
-	// has the player entered this volume?
+	// has игрок входе этот volume?
 	ACombatCharacter* PlayerCharacter = Cast<ACombatCharacter>(OtherActor);
 
 	if (PlayerCharacter)
 	{
 		if (ACombatPlayerController* PC = Cast<ACombatPlayerController>(PlayerCharacter->GetController()))
 		{
-			// raise the checkpoint used flag
+ // поднять проверитьpoint used flag
 			bCheckpointUsed = true;
 
-			// update the player's respawn checkpoint
+ // обновить игрок's респавн проверитьpoint
 			PC->SetRespawnTransform(PlayerCharacter->GetActorTransform());
 		}
 
 	}
 }
+
+
+
+

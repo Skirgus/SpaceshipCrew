@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,9 +8,9 @@
 #include "SideScrollingNPC.generated.h"
 
 /**
- *  Simple platforming NPC
- *  Its behaviors will be dictated by a possessing AI Controller
- *  It can be temporarily deactivated through Actor interactions
+ * Simple платформаing NPC
+ * Its behaviors will be dictated через a possessing AI Контроллер
+ * It can be temporarily deactivated through актор interactions
  */
 UCLASS(abstract)
 class ASideScrollingNPC : public ACharacter, public ISideScrollingInteractable
@@ -19,46 +19,50 @@ class ASideScrollingNPC : public ACharacter, public ISideScrollingInteractable
 
 protected:
 
-	/** Horizontal impulse to apply to the NPC when it's interacted with */
+	/** Horizontal impulse для apply для NPC когда it's interacted с */
 	UPROPERTY(EditAnywhere, Category="NPC", meta = (ClampMin = 0, ClampMax = 10000, Units="cm/s"))
 	float LaunchImpulse = 500.0f;
 
-	/** Vertical impulse to apply to the NPC when it's interacted with */
+	/** Vertical impulse для apply для NPC когда it's interacted с */
 	UPROPERTY(EditAnywhere, Category="NPC", meta = (ClampMin = 0, ClampMax = 10000, Units="cm/s"))
 	float LaunchVerticalImpulse = 500.0f;
 
-	/** Time that the NPC remains deactivated after being interacted with */
+	/** Time который NPC remains deactivated после being interacted с */
 	UPROPERTY(EditAnywhere, Category="NPC", meta = (ClampMin = 0, ClampMax = 10, Units="s"))
 	float DeactivationTime = 3.0f;
 
 public:
 
-	/** If true, this NPC is deactivated and will not be interacted with */
+	/** если true, этот NPC is deactivated и will not be interacted с */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="NPC")
 	bool bDeactivated = false;
 
-	/** Timer to reactivate the NPC */
+	/** таймер для reactivate NPC */
 	FTimerHandle DeactivationTimer;
 
 public:
 
-	/** Constructor */
+	/** Конструктор */
 	ASideScrollingNPC();
 
 public:
 
-	/** Cleanup */
+	/** Очистка */
 	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
 
 public:
 
-//	~begin IInteractable interface 
+//	~begin IInteractable интерфейс
 
-	/** Performs an interaction triggered by another actor */
+	/** Выполняет взаимодействие, вызванное другим актором */
 	virtual void Interaction(AActor* Interactor) override;
 
-//	~end IInteractable interface
+//	~end IInteractable интерфейс
 
-	/** Reactivates the NPC */
+	/** Reactivates NPC */
 	void ResetDeactivation();
 };
+
+
+
+

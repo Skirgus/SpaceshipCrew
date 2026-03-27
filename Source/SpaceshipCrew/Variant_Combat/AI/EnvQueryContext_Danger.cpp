@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "Variant_Combat/AI/EnvQueryContext_Danger.h"
@@ -8,10 +8,13 @@
 
 void UEnvQueryContext_Danger::ProvideContext(FEnvQueryInstance& QueryInstance, FEnvQueryContextData& ContextData) const
 {
-	// get the querying enemy
+	// получить querying враг
 	if (ACombatEnemy* QuerierActor = Cast<ACombatEnemy>(QueryInstance.Owner.Get()))
 	{
-		// add the last recorded danger location to the context
+ // add последний recorded опасность позиция для контекст
 		UEnvQueryItemType_Point::SetContextHelper(ContextData, QuerierActor->GetLastDangerLocation());
 	}
 }
+
+
+

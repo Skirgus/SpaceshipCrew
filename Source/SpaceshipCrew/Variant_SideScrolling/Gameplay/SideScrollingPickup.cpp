@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingPickup.h"
@@ -12,10 +12,10 @@ ASideScrollingPickup::ASideScrollingPickup()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the root comp
+	// создать root comp
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
-	// create the bounding sphere
+	// создать bounding sphere
 	Sphere = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	Sphere->SetupAttachment(RootComponent);
 
@@ -26,30 +26,33 @@ ASideScrollingPickup::ASideScrollingPickup()
 	Sphere->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Sphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 
-	// add the overlap handler
+	// add пересечение handler
 	OnActorBeginOverlap.AddDynamic(this, &ASideScrollingPickup::BeginOverlap);
 }
 
 void ASideScrollingPickup::BeginOverlap(AActor* OverlappedActor, AActor* OtherActor)
 {
-	// have we collided against a character?
+	// имеет we collided against a персонаж?
 	if (ACharacter* OverlappedCharacter = Cast<ACharacter>(OtherActor))
 	{
-		// is this the player character?
+ // is этот игрок персонаж?
 		if (OverlappedCharacter->IsPlayerControlled())
 		{
-			// get the game mode
+ // получить game mode
 			if (ASideScrollingGameMode* GM = Cast<ASideScrollingGameMode>(GetWorld()->GetAuthGameMode()))
 			{
-				// tell the game mode to process a pickup
+ // tell game mode для process a подбор
 				GM->ProcessPickup();
 
-				// disable collision so we don't get picked up again
+ // отключить коллизия so we don't получить picked up again
 				SetActorEnableCollision(false);
 
-				// Call the BP handler. It will be responsible for destroying the pickup
+ // вызвать BP handler. It will be responsible для destroying подбор
 				BP_OnPickedUp();
 			}
 		}
 	}
 }
+
+
+

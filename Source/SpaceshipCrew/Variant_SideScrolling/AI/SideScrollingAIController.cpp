@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingAIController.h"
@@ -6,14 +6,18 @@
 
 ASideScrollingAIController::ASideScrollingAIController()
 {
-	// create the StateTree AI Component
+	// создать StateTree AI Component
 	StateTreeAI = CreateDefaultSubobject<UStateTreeAIComponent>(TEXT("StateTreeAI"));
 	check(StateTreeAI);
 
-	// ensure we start the StateTree when we possess the pawn
+	// убедиться we начать StateTree когда we possess pawn
 	bStartAILogicOnPossess = true;
 
-	// ensure we're attached to the possessed character.
-	// this is necessary for EnvQueries to work correctly
+	// убедиться мы attached для possessed персонаж.
+	// этот is necessary для EnvQueries для work correctly
 	bAttachToPawn = true;
 }
+
+
+
+

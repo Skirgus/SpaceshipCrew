@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,8 +7,8 @@
 #include "SideScrollingUI.generated.h"
 
 /**
- *  Simple Side Scrolling game UI
- *  Displays and manages a pickup counter
+ * Simple Side Scrolling game UI
+ * Displays и manages a подбор counter
  */
 UCLASS(abstract)
 class USideScrollingUI : public UUserWidget
@@ -17,7 +17,11 @@ class USideScrollingUI : public UUserWidget
 	
 public:
 
-	/** Update the widget's pickup counter */
+	/** обновить виджет's подбор counter */
 	UFUNCTION(BlueprintImplementableEvent, Category="UI")
 	void UpdatePickups(int32 Amount);
 };
+
+
+
+

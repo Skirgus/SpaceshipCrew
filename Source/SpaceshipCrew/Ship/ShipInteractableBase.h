@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,8 +10,8 @@ class UShipSystemsComponent;
 class AController;
 
 /**
- * World interactable that forwards authorized actions to UShipSystemsComponent.
- * Bots and players use the same ExecuteInteract path.
+ * Интерактивный объект мира, который передаёт авторизованные действия в UShipSystemsComponent.
+ * Боты и игроки используют один и тот же путь ExecuteInteract.
  */
 UCLASS(Blueprintable)
 class SPACESHIPCREW_API AShipInteractableBase : public AActor
@@ -21,7 +21,7 @@ class SPACESHIPCREW_API AShipInteractableBase : public AActor
 public:
 	AShipInteractableBase();
 
-	/** Actor with UShipSystemsComponent (e.g. AShipActor). If null, first AShipActor in world is used. */
+	/** Актор с UShipSystemsComponent (например, AShipActor). Если не задан, используется первый AShipActor в мире. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
 	TObjectPtr<AActor> OwningShipActor;
 
@@ -34,7 +34,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
 	float Magnitude = 1.f;
 
-	/** Server-only: apply interaction (call from Server RPC on interaction component). */
+	/** Только на сервере: применить взаимодействие (вызов из Server RPC компонента взаимодействия). */
 	UFUNCTION(BlueprintCallable, Category = "Ship")
 	void ExecuteInteract(AController* Issuer);
 
@@ -45,3 +45,4 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Ship")
 	TObjectPtr<class USceneComponent> RootScene;
 };
+

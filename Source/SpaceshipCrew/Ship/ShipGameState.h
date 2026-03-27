@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,8 +8,8 @@
 #include "ShipGameState.generated.h"
 
 /**
- * Replicated crew roster for UI and future lobby / coop handoff.
- * Ship simulation state lives on UShipSystemsComponent (replicated there).
+ * Реплицируемый состав экипажа для UI и будущей передачи слотов в лобби/коопе.
+ * Состояние симуляции корабля хранится в UShipSystemsComponent (и там же реплицируется).
  */
 UCLASS()
 class SPACESHIPCREW_API AShipGameState : public AGameStateBase
@@ -22,7 +22,7 @@ public:
 	UPROPERTY(ReplicatedUsing = OnRep_CrewSlots, BlueprintReadOnly, Category = "Crew")
 	TArray<FCrewSlotReplicationData> CrewSlots;
 
-	/** Call from server / GameMode only. */
+	/** Вызывать только с сервера / из GameMode. */
 	void SetCrewSlotsFromAuthority(const TArray<FCrewSlotReplicationData>& InSlots);
 
 protected:
@@ -31,3 +31,4 @@ protected:
 	UFUNCTION()
 	void OnRep_CrewSlots();
 };
+

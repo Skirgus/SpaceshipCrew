@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -13,44 +13,44 @@ class AAIController;
 class ACombatEnemy;
 
 /**
- *  Instance data struct for the FStateTreeCharacterGroundedCondition condition
+ * Instance data struct для FStateTreeПерсонажGroundedCondition condition
  */
 USTRUCT()
 struct FStateTreeCharacterGroundedConditionInstanceData
 {
 	GENERATED_BODY()
 	
-	/** Character to check grounded status on */
+	/** Персонаж для проверить grounded status на */
 	UPROPERTY(EditAnywhere, Category = "Context")
 	ACharacter* Character;
 
-	/** If true, the condition passes if the character is not grounded instead */
+	/** если true, condition passes если персонаж is not grounded instead */
 	UPROPERTY(EditAnywhere, Category = "Condition")
 	bool bMustBeOnAir = false;
 };
 STATETREE_POD_INSTANCEDATA(FStateTreeCharacterGroundedConditionInstanceData);
 
 /**
- *  StateTree condition to check if the character is grounded
+ * StateTree condition для проверить если персонаж is grounded
  */
 USTRUCT(DisplayName = "Character is Grounded")
 struct FStateTreeCharacterGroundedCondition : public FStateTreeConditionCommonBase
 {
 	GENERATED_BODY()
 
-	/** Set the instance data type */
+	/** Set instance data type */
 	using FInstanceDataType = FStateTreeCharacterGroundedConditionInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Default constructor */
+	/** Default Конструктор */
 	FStateTreeCharacterGroundedCondition() = default;
 	
-	/** Tests the StateTree condition */
+	/** Tests StateTree condition */
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
 
 #if WITH_EDITOR
 
-	/** Provides the description string */
+	/** предоставляет description серии */
 	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
 #endif
 
@@ -59,52 +59,52 @@ struct FStateTreeCharacterGroundedCondition : public FStateTreeConditionCommonBa
 ////////////////////////////////////////////////////////////////////
 
 /**
- *  Instance data struct for the FStateTreeIsInDangerCondition condition
+ * Instance data struct для FStateTreeIsInDangerCondition condition
  */
 USTRUCT()
 struct FStateTreeIsInDangerConditionInstanceData
 {
 	GENERATED_BODY()
 	
-	/** Character to check danger status on */
+	/** Персонаж для проверить опасность status на */
 	UPROPERTY(EditAnywhere, Category = "Context")
 	ACombatEnemy* Character;
 
-	/** Minimum time to wait before reacting to the danger event */
+	/** Minimum time для wait до reacting для опасность событие */
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (Units = "s"))
 	float MinReactionTime = 0.35f;
 
-	/** Maximum time to wait before ignoring the danger event */
+	/** Maximum time для wait до ignoring опасность событие */
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (Units = "s"))
 	float MaxReactionTime = 0.75f;
 
-	/** Line of sight half angle for detecting incoming danger, in degrees*/
+	/** Line из sight half angle для detecting входящий danger, в degrees*/
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (Units = "degrees"))
 	float DangerSightConeAngle = 120.0f;
 };
 STATETREE_POD_INSTANCEDATA(FStateTreeIsInDangerConditionInstanceData);
 
 /**
- *  StateTree condition to check if the character is about to be hit by an attack
+ * StateTree condition для проверить если персонаж is about для be попадание через атака
  */
 USTRUCT(DisplayName = "Character is in Danger")
 struct FStateTreeIsInDangerCondition : public FStateTreeConditionCommonBase
 {
 	GENERATED_BODY()
 
-	/** Set the instance data type */
+	/** Set instance data type */
 	using FInstanceDataType = FStateTreeIsInDangerConditionInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Default constructor */
+	/** Default Конструктор */
 	FStateTreeIsInDangerCondition() = default;
 	
-	/** Tests the StateTree condition */
+	/** Tests StateTree condition */
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
 
 #if WITH_EDITOR
 
-	/** Provides the description string */
+	/** предоставляет description серии */
 	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
 #endif
 
@@ -113,20 +113,20 @@ struct FStateTreeIsInDangerCondition : public FStateTreeConditionCommonBase
 ////////////////////////////////////////////////////////////////////
 
 /**
- *  Instance data struct for the Combat StateTree tasks
+ * Instance data struct для Combat StateTree tasks
  */
 USTRUCT()
 struct FStateTreeAttackInstanceData
 {
 	GENERATED_BODY()
 
-	/** Character that will perform the attack */
+	/** Персонаж который will perform атака */
 	UPROPERTY(EditAnywhere, Category = Context)
 	TObjectPtr<ACombatEnemy> Character;
 };
 
 /**
- *  StateTree task to perform a combo attack
+ * StateTree task для perform a combo атака
  */
 USTRUCT(meta=(DisplayName="Combo Attack", Category="Combat"))
 struct FStateTreeComboAttackTask : public FStateTreeTaskCommonBase
@@ -137,10 +137,10 @@ struct FStateTreeComboAttackTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeAttackInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs when the owning state is entered */
+	/** Runs когда owning состояние is входе */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
-	/** Runs when the owning state is ended */
+	/** Runs когда owning состояние is ended */
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
 #if WITH_EDITOR
@@ -149,7 +149,7 @@ struct FStateTreeComboAttackTask : public FStateTreeTaskCommonBase
 };
 
 /**
- *  StateTree task to perform a charged attack
+ * StateTree task для perform a charged атака
  */
 USTRUCT(meta=(DisplayName="Charged Attack", Category="Combat"))
 struct FStateTreeChargedAttackTask : public FStateTreeTaskCommonBase
@@ -160,10 +160,10 @@ struct FStateTreeChargedAttackTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeAttackInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs when the owning state is entered */
+	/** Runs когда owning состояние is входе */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
-	/** Runs when the owning state is ended */
+	/** Runs когда owning состояние is ended */
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
 #if WITH_EDITOR
@@ -172,7 +172,7 @@ struct FStateTreeChargedAttackTask : public FStateTreeTaskCommonBase
 };
 
 /**
- *  StateTree task to wait for the character to land
+ * StateTree task для wait для персонаж для land
  */
 USTRUCT(meta=(DisplayName="Wait for Landing", Category="Combat"))
 struct FStateTreeWaitForLandingTask : public FStateTreeTaskCommonBase
@@ -183,10 +183,10 @@ struct FStateTreeWaitForLandingTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeAttackInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs when the owning state is entered */
+	/** Runs когда owning состояние is входе */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
-	/** Runs when the owning state is ended */
+	/** Runs когда owning состояние is ended */
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
 #if WITH_EDITOR
@@ -197,24 +197,24 @@ struct FStateTreeWaitForLandingTask : public FStateTreeTaskCommonBase
 ////////////////////////////////////////////////////////////////////
 
 /**
- *  Instance data struct for the Face Towards Actor StateTree task
+ * Instance data struct для Face Towards актор StateTree task
  */
 USTRUCT()
 struct FStateTreeFaceActorInstanceData
 {
 	GENERATED_BODY()
 
-	/** AI Controller that will determine the focused actor */
+	/** AI Контроллер который will determine focused актор */
 	UPROPERTY(EditAnywhere, Category = Context)
 	TObjectPtr<AAIController> Controller;
 
-	/** Actor that will be faced towards */
+	/** актор который will be faced towards */
 	UPROPERTY(EditAnywhere, Category = Input)
 	TObjectPtr<AActor> ActorToFaceTowards;
 };
 
 /**
- *  StateTree task to face an AI-Controlled Pawn towards an Actor
+ * StateTree task для face AI-Controlled Pawn towards актор
  */
 USTRUCT(meta=(DisplayName="Face Towards Actor", Category="Combat"))
 struct FStateTreeFaceActorTask : public FStateTreeTaskCommonBase
@@ -225,10 +225,10 @@ struct FStateTreeFaceActorTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeFaceActorInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs when the owning state is entered */
+	/** Runs когда owning состояние is входе */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
-	/** Runs when the owning state is ended */
+	/** Runs когда owning состояние is ended */
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
 #if WITH_EDITOR
@@ -239,24 +239,24 @@ struct FStateTreeFaceActorTask : public FStateTreeTaskCommonBase
 ////////////////////////////////////////////////////////////////////
 
 /**
- *  Instance data struct for the Face Towards Location StateTree task
+ * Instance data struct для Face Towards Location StateTree task
  */
 USTRUCT()
 struct FStateTreeFaceLocationInstanceData
 {
 	GENERATED_BODY()
 
-	/** AI Controller that will determine the focused location */
+	/** AI Контроллер который will determine focused позиция */
 	UPROPERTY(EditAnywhere, Category = Context)
 	TObjectPtr<AAIController> Controller;
 
-	/** Location that will be faced towards */
+	/** Location который will be faced towards */
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	FVector FaceLocation = FVector::ZeroVector;
 };
 
 /**
- *  StateTree task to face an AI-Controlled Pawn towards a world location
+ * StateTree task для face AI-Controlled Pawn towards a world location
  */
 USTRUCT(meta=(DisplayName="Face Towards Location", Category="Combat"))
 struct FStateTreeFaceLocationTask : public FStateTreeTaskCommonBase
@@ -267,10 +267,10 @@ struct FStateTreeFaceLocationTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeFaceLocationInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs when the owning state is entered */
+	/** Runs когда owning состояние is входе */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
-	/** Runs when the owning state is ended */
+	/** Runs когда owning состояние is ended */
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
 #if WITH_EDITOR
@@ -281,24 +281,24 @@ struct FStateTreeFaceLocationTask : public FStateTreeTaskCommonBase
 ////////////////////////////////////////////////////////////////////
 
 /**
- *  Instance data struct for the Set Character Speed StateTree task
+ * Instance data struct для Set Персонаж Speed StateTree task
  */
 USTRUCT()
 struct FStateTreeSetCharacterSpeedInstanceData
 {
 	GENERATED_BODY()
 
-	/** Character that will be affected */
+	/** Персонаж который will be affected */
 	UPROPERTY(EditAnywhere, Category = Context)
 	TObjectPtr<ACharacter> Character;
 
-	/** Max ground speed to set for the character */
+	/** Max ground speed для установить для персонаж */
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	float Speed = 600.0f;
 };
 
 /**
- *  StateTree task to change a Character's ground speed
+ * StateTree task для change a Персонаж's ground speed
  */
 USTRUCT(meta=(DisplayName="Set Character Speed", Category="Combat"))
 struct FStateTreeSetCharacterSpeedTask : public FStateTreeTaskCommonBase
@@ -309,7 +309,7 @@ struct FStateTreeSetCharacterSpeedTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeSetCharacterSpeedInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs when the owning state is entered */
+	/** Runs когда owning состояние is входе */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
 #if WITH_EDITOR
@@ -320,32 +320,32 @@ struct FStateTreeSetCharacterSpeedTask : public FStateTreeTaskCommonBase
 ////////////////////////////////////////////////////////////////////
 
 /**
- *  Instance data struct for the Get Player Info task
+ * Instance data struct для Get Игрок Info task
  */
 USTRUCT()
 struct FStateTreeGetPlayerInfoInstanceData
 {
 	GENERATED_BODY()
 
-	/** Character that owns this task */
+	/** Персонаж который owns этот task */
 	UPROPERTY(EditAnywhere, Category = Context)
 	TObjectPtr<ACharacter> Character;
 
-	/** Character that owns this task */
+	/** Персонаж который owns этот task */
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<ACharacter> TargetPlayerCharacter;
 
-	/** Last known location for the target */
+	/** Last known позиция для цель */
 	UPROPERTY(VisibleAnywhere)
 	FVector TargetPlayerLocation = FVector::ZeroVector;
 
-	/** Distance to the target */
+	/** Distance для цель */
 	UPROPERTY(VisibleAnywhere)
 	float DistanceToTarget = 0.0f;
 };
 
 /**
- *  StateTree task to get information about the player character
+ * StateTree task для получить information about игрок персонаж
  */
 USTRUCT(meta=(DisplayName="GetPlayerInfo", Category="Combat"))
 struct FStateTreeGetPlayerInfoTask : public FStateTreeTaskCommonBase
@@ -356,10 +356,13 @@ struct FStateTreeGetPlayerInfoTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeGetPlayerInfoInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs while the owning state is active */
+	/** Runs пока owning состояние is active */
 	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override;
 
 #if WITH_EDITOR
 	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
 #endif // WITH_EDITOR
 };
+
+
+

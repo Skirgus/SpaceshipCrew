@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,7 +8,7 @@
 
 class UCrewRoleDefinition;
 
-/** Ordered list of mandatory roles for a ship layout (slot index = array index). */
+/** Упорядоченный список обязательных ролей для конфигурации корабля (индекс слота = индекс в массиве). */
 UCLASS(BlueprintType)
 class SPACESHIPCREW_API UShipCrewManifest : public UDataAsset
 {
@@ -18,3 +18,4 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Crew")
 	TArray<TObjectPtr<UCrewRoleDefinition>> MandatoryRoles;
 };
+

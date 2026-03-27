@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingPlayerController.h"
@@ -17,15 +17,15 @@ void ASideScrollingPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// only spawn touch controls on local player controllers
+	// только спавн сенсорное управление на локальный игрок контроллерs
 	if (ShouldUseTouchControls() && IsLocalPlayerController())
 	{
-		// spawn the mobile controls widget
+ // спавн мобильных controls виджет
 		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
 
 		if (MobileControlsWidget)
 		{
-			// add the controls to the player screen
+ // add controls для игрок screen
 			MobileControlsWidget->AddToPlayerScreen(0);
 
 		} else {
@@ -41,10 +41,10 @@ void ASideScrollingPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// only add IMCs for local player controllers
+	// только add IMCs для локальный игрок контроллерs
 	if (IsLocalPlayerController())
 	{
-		// add the input mapping context
+ // add ввод привязки контекст
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
 			for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
@@ -52,7 +52,7 @@ void ASideScrollingPlayerController::SetupInputComponent()
 				Subsystem->AddMappingContext(CurrentContext, 0);
 			}
 
-			// only add these IMCs if we're not using mobile touch input
+ // только add эти IMCs если мы not using мобильных touch ввод
 			if (!ShouldUseTouchControls())
 			{
 				for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
@@ -68,24 +68,24 @@ void ASideScrollingPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
-	// subscribe to the pawn's OnDestroyed delegate
+	// подписаться для pawn's OnDestroyed delegate
 	InPawn->OnDestroyed.AddDynamic(this, &ASideScrollingPlayerController::OnPawnDestroyed);
 }
 
 void ASideScrollingPlayerController::OnPawnDestroyed(AActor* DestroyedActor)
 {
-	// find the player start
+	// find игрок start
 	TArray<AActor*> ActorList;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), ActorList);
 
 	if (ActorList.Num() > 0)
 	{
-		// spawn a character at the player start
+ // спавн a персонаж в игрок start
 		const FTransform SpawnTransform = ActorList[0]->GetActorTransform();
 
 		if (ASideScrollingCharacter* RespawnedCharacter = GetWorld()->SpawnActor<ASideScrollingCharacter>(CharacterClass, SpawnTransform))
 		{
-			// possess the character
+ // possess персонаж
 			Possess(RespawnedCharacter);
 		}
 	}
@@ -93,6 +93,10 @@ void ASideScrollingPlayerController::OnPawnDestroyed(AActor* DestroyedActor)
 
 bool ASideScrollingPlayerController::ShouldUseTouchControls() const
 {
-	// are we on a mobile platform? Should we force touch?
+	// are we на a мобильных платформа? Should we force touch?
 	return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
 }
+
+
+
+

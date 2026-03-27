@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,7 +9,7 @@
 class AShipInteractableBase;
 
 /**
- * Lightweight task director for MVP bots: priority reacts to ship state and uses the same interactables as players.
+ * Лёгкий директор задач для MVP-ботов: приоритеты зависят от состояния корабля и используют те же interactable, что и игрок.
  */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SPACESHIPCREW_API UCrewBotBrainComponent : public UActorComponent
@@ -19,7 +19,7 @@ class SPACESHIPCREW_API UCrewBotBrainComponent : public UActorComponent
 public:
 	UCrewBotBrainComponent();
 
-	/** GameMode enables this for AI-controlled crew only. */
+	/** GameMode включает это только для экипажа под управлением ИИ. */
 	UPROPERTY(EditAnywhere, Category = "Bot")
 	bool bBrainEnabled = false;
 
@@ -38,3 +38,4 @@ protected:
 	AShipInteractableBase* FindBestInteractable() const;
 	void TryMoveAndInteract(AShipInteractableBase* Target);
 };
+

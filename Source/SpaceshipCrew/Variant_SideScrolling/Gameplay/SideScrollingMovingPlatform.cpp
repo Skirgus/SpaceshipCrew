@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingMovingPlatform.h"
@@ -8,33 +8,37 @@ ASideScrollingMovingPlatform::ASideScrollingMovingPlatform()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the root comp
+	// создать root comp
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 }
 
 void ASideScrollingMovingPlatform::Interaction(AActor* Interactor)
 {
-	// ignore interactions if we're already moving
+	// игнорировать interactions если мы already движущаяся
 	if (bMoving)
 	{
 		return;
 	}
 
-	// raise the movement flag
+	// поднять движение flag
 	bMoving = true;
 
-	// pass control to BP for the actual movement
+	// передать control для BP для actual movement
 	BP_MoveToTarget();
 }
 
 void ASideScrollingMovingPlatform::ResetInteraction()
 {
-	// ignore if this is a one-shot platform
+	// игнорировать если этот is a one-shot платформа
 	if (bOneShot)
 	{
 		return;
 	}
 
-	// reset the movement flag
+	// сбросить движение flag
 	bMoving = false;
 }
+
+
+
+

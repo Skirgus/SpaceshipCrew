@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,8 +10,8 @@ class UInputMappingContext;
 class UUserWidget;
 
 /**
- *  Basic PlayerController class for a third person game
- *  Manages input mappings
+ *  Базовый класс PlayerController для игры от третьего лица
+ *  Управляет контекстами ввода
  */
 UCLASS(abstract)
 class ASpaceshipCrewPlayerController : public APlayerController
@@ -20,33 +20,34 @@ class ASpaceshipCrewPlayerController : public APlayerController
 	
 protected:
 
-	/** Input Mapping Contexts */
+	/** Контексты привязки ввода */
 	UPROPERTY(EditAnywhere, Category ="Input|Input Mappings")
 	TArray<UInputMappingContext*> DefaultMappingContexts;
 
-	/** Input Mapping Contexts */
+	/** Контексты привязки ввода */
 	UPROPERTY(EditAnywhere, Category="Input|Input Mappings")
 	TArray<UInputMappingContext*> MobileExcludedMappingContexts;
 
-	/** Mobile controls widget to spawn */
+	/** Виджет мобильного управления для создания */
 	UPROPERTY(EditAnywhere, Category="Input|Touch Controls")
 	TSubclassOf<UUserWidget> MobileControlsWidgetClass;
 
-	/** Pointer to the mobile controls widget */
+	/** Указатель на виджет мобильного управления */
 	UPROPERTY()
 	TObjectPtr<UUserWidget> MobileControlsWidget;
 
-	/** If true, the player will use UMG touch controls even if not playing on mobile platforms */
+	/** Если true, игрок использует сенсорное управление UMG даже вне мобильных платформ */
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")
 	bool bForceTouchControls = false;
 
-	/** Gameplay initialization */
+	/** Инициализация игрового процесса */
 	virtual void BeginPlay() override;
 
-	/** Input mapping context setup */
+	/** Настройка контекстов ввода */
 	virtual void SetupInputComponent() override;
 
-	/** Returns true if the player should use UMG touch controls */
+	/** Возвращает true, если игрок должен использовать сенсорное управление UMG */
 	bool ShouldUseTouchControls() const;
 
 };
+

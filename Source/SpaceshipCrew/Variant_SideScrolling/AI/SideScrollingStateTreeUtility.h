@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,36 +10,36 @@
 class AAIController;
 
 /**
- *  Instance data for the FStateTreeGetPlayerTask task
+ * Instance data для FStateTreeGetИгрокTask task
  */
 USTRUCT()
 struct FStateTreeGetPlayerInstanceData
 {
 	GENERATED_BODY()
 
-	/** NPC owning this task */
+	/** NPC owning этот task */
 	UPROPERTY(VisibleAnywhere, Category="Context")
 	TObjectPtr<APawn> NPC;
 
-	/** Holds the found player pawn */
+	/** Holds found игрок pawn */
 	UPROPERTY(VisibleAnywhere, Category="Context")
 	TObjectPtr<AAIController> Controller;
 
-	/** Holds the found player pawn */
+	/** Holds found игрок pawn */
 	UPROPERTY(VisibleAnywhere, Category="Output")
 	TObjectPtr<APawn> TargetPlayer;
 
-	/** Is the pawn close enough to be considered a valid target? */
+	/** Is pawn close enough для be considered a валидный цель? */
 	UPROPERTY(VisibleAnywhere, Category="Output")
 	bool bValidTarget = false;
 
-	/** Max distance to be considered a valid target */
+	/** Max дистанция для be considered a валидный цель */
 	UPROPERTY(EditAnywhere, Category="Parameter", meta = (ClampMin = 0, ClampMax = 10000, Units = "cm"))
 	float RangeMax = 1000.0f;
 };
 
 /**
- *  StateTree task to get the player-controlled character
+ * StateTree task для получить игрок-controlled персонаж
  */
 USTRUCT(meta=(DisplayName="Get Player", Category="Side Scrolling"))
 struct FStateTreeGetPlayerTask : public FStateTreeTaskCommonBase
@@ -50,10 +50,13 @@ struct FStateTreeGetPlayerTask : public FStateTreeTaskCommonBase
 	using FInstanceDataType = FStateTreeGetPlayerInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
-	/** Runs while the owning state is active */
+	/** Runs пока owning состояние is active */
 	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override;
 
 #if WITH_EDITOR
 	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
 #endif // WITH_EDITOR
 };
+
+
+

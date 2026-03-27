@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "AnimNotify_EndDash.generated.h"
 
 /**
- *  AnimNotify to finish the dash animation and restore player control
+ * AnimNotify для finish dash animation и restore игрок control
  */
 UCLASS()
 class UAnimNotify_EndDash : public UAnimNotify
@@ -16,9 +16,13 @@ class UAnimNotify_EndDash : public UAnimNotify
 	
 public:
 
-	/** Perform the Anim Notify */
+	/** Выполняет Anim Notify */
 	virtual void Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
 
-	/** Get the notify name */
+	/** Возвращает имя нотифая */
 	virtual FString GetNotifyName_Implementation() const override;
 };
+
+
+
+

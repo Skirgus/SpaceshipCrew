@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatLavaFloor.h"
@@ -9,19 +9,23 @@ ACombatLavaFloor::ACombatLavaFloor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the mesh
+	// создать mesh
 	RootComponent = Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 
-	// bind the hit handler
+	// привязать попадание handler
 	Mesh->OnComponentHit.AddDynamic(this, &ACombatLavaFloor::OnFloorHit);
 }
 
 void ACombatLavaFloor::OnFloorHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	// check if the hit actor is damageable by casting to the interface
+	// проверить если попадание актор is уронable через casting для интерфейс
 	if (ICombatDamageable* Damageable = Cast<ICombatDamageable>(OtherActor))
 	{
-		// damage the actor
+ // урон актор
 		Damageable->ApplyDamage(Damage, this, Hit.ImpactPoint, FVector::ZeroVector);
 	}
 }
+
+
+
+

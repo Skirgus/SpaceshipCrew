@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingCameraManager.h"
@@ -9,55 +9,55 @@
 
 void ASideScrollingCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float DeltaTime)
 {
-	// ensure the view target is a pawn
+	// убедиться view цель is a pawn
 	APawn* TargetPawn = Cast<APawn>(OutVT.Target);
 
-	// is our target valid?
+	// is our цель валидный?
 	if (IsValid(TargetPawn))
 	{
-		// set the view target FOV and rotation
+ // установить view цель FOV и rotation
 		OutVT.POV.Rotation = FRotator(0.0f, -90.0f, 0.0f);
 		OutVT.POV.FOV = 65.0f;
 
-		// cache the current location
+ // cache текущий location
 		FVector CurrentActorLocation = OutVT.Target->GetActorLocation();
 
-		// copy the current camera location
+ // copy текущий камера location
 		FVector CurrentCameraLocation = GetCameraLocation();
 
-		// calculate the "zoom distance" - in reality the distance we want to keep to the target
+ // calculate "zoom distance" - в reality дистанция we want для сохранить для цель
 		float CurrentY = CurrentZoom + CurrentActorLocation.Y;
 
-		// do first-time setup
+ // do first-time setup
 		if (bSetup)
 		{
-			// lower the setup flag
+ // lower setup flag
 			bSetup = false;
 
-			// initialize the camera viewpoint and return
+ // инициализировать камера viewpoint и вернуть
 			OutVT.POV.Location.X = CurrentActorLocation.X;
 			OutVT.POV.Location.Y = CurrentY;
 			OutVT.POV.Location.Z = CurrentActorLocation.Z + CameraZOffset;
 
-			// save the current camera height
+ // сохранить текущий камера height
 			CurrentZ = OutVT.POV.Location.Z;
 
-			// skip the rest of the calculations
+ // skip rest из calculations
 			return;
 		}
 
-		// check if the camera needs to update its height
+ // проверить если камера needs для обновить its height
 		bool bZUpdate = false;
 
-		// is the character moving vertically?
+ // is персонаж движущаяся vertiвызватьy?
 		if (FMath::IsNearlyZero(TargetPawn->GetVelocity().Z))
 		{
-			// determine if we need to do a height update
+ // determine если we need для do a height обновить
 			bZUpdate = FMath::IsNearlyEqual(CurrentZ, CurrentCameraLocation.Z, 25.0f);
 
 		} else {
 
-			// run a trace below the character to determine if we need to do a height update
+ // run a trace below персонаж для determine если we need для do a height обновить
 			FHitResult OutHit;
 
 			const FVector End = CurrentActorLocation + FVector(0.0f, 0.0f, -1000.0f);
@@ -65,41 +65,44 @@ void ASideScrollingCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float De
 			FCollisionQueryParams QueryParams;
 			QueryParams.AddIgnoredActor(TargetPawn);
 
-			// only update height if we're not about to hit ground
+ // только обновить height если мы not about для попадание ground
 			bZUpdate = !GetWorld()->LineTraceSingleByChannel(OutHit, CurrentActorLocation, End, ECC_Visibility, QueryParams);
 
 		}
 
-		// do we need to do a height update?
+ // do we need для do a height обновить?
 		if (bZUpdate)
 		{
 
-			// set the height goal from the actor location
+ // установить height goal из актор location
 			CurrentZ = CurrentActorLocation.Z;
 
 		} else {
 
-			// are we close enough to the target height?
+ // are we close enough для цель height?
 			if (FMath::IsNearlyEqual(CurrentZ, CurrentActorLocation.Z, 100.0f))
 			{
-				// set the height goal from the actor location
+ // установить height goal из актор location
 				CurrentZ = CurrentActorLocation.Z;
 
 			} else {
 
-				// blend the height towards the actor location
+ // blend height towards актор location
 				CurrentZ = FMath::FInterpTo(CurrentZ, CurrentActorLocation.Z, DeltaTime, 2.0f);
 				
 			}
 
 		}
 
-		// clamp the X axis to the min and max camera bounds
+ // clamp X axis для минимальный и максимальный камера bounds
 		float CurrentX = FMath::Clamp(CurrentActorLocation.X, CameraXMinBounds, CameraXMaxBounds);
 
-		// blend towards the new camera location and update the output
+ // blend towards new камера позиция и обновить output
 		FVector TargetCameraLocation(CurrentX, CurrentY, CurrentZ);
 
 		OutVT.POV.Location = FMath::VInterpTo(CurrentCameraLocation, TargetCameraLocation, DeltaTime, 2.0f);
 	}
 }
+
+
+

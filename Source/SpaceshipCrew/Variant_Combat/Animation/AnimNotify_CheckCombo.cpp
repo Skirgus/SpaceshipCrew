@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "AnimNotify_CheckCombo.h"
@@ -7,10 +7,10 @@
 
 void UAnimNotify_CheckCombo::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
-	// cast the owner to the attacker interface
+	// cast owner для атакаer интерфейс
 	if (ICombatAttacker* AttackerInterface = Cast<ICombatAttacker>(MeshComp->GetOwner()))
 	{
-		// tell the actor to check for combo string
+ // tell актор для проверить для combo string
 		AttackerInterface->CheckCombo();
 	}
 }
@@ -19,3 +19,7 @@ FString UAnimNotify_CheckCombo::GetNotifyName_Implementation() const
 {
 	return FString("Check Combo String");
 }
+
+
+
+

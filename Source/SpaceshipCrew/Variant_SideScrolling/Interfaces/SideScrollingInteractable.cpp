@@ -1,6 +1,10 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingInteractable.h"
 
-// Add default functionality here for any IInteractable functions that are not pure virtual.
+// Add по умолчанию functionality here для any IInteractable functions который are not pure virtual.
+
+
+
+

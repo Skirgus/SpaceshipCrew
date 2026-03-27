@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -11,9 +11,9 @@ class ASideScrollingCharacter;
 class UInputMappingContext;
 
 /**
- *  A simple Side Scrolling Player Controller
- *  Manages input mappings
- *  Respawns the player pawn at the player start if it is destroyed
+ * A simple Side Scrolling Игрок Контроллер
+ * Управляет контекстами ввода
+ * Reспавнs игрок pawn в игрок начать если it is destroyed
  */
 UCLASS(abstract, Config="Game")
 class ASideScrollingPlayerController : public APlayerController
@@ -22,46 +22,50 @@ class ASideScrollingPlayerController : public APlayerController
 	
 protected:
 
-	/** Input mapping context for this player */
+	/** Контекст привязки ввода для этого игрока */
 	UPROPERTY(EditAnywhere, Category="Input|Input Mappings")
 	TArray<UInputMappingContext*> DefaultMappingContexts;
 
-	/** Input Mapping Contexts */
+	/** Контексты привязки ввода */
 	UPROPERTY(EditAnywhere, Category="Input|Input Mappings")
 	TArray<UInputMappingContext*> MobileExcludedMappingContexts;
 
-	/** Mobile controls widget to spawn */
+	/** Виджет мобильного управления для создания */
 	UPROPERTY(EditAnywhere, Category="Input|Touch Controls")
 	TSubclassOf<UUserWidget> MobileControlsWidgetClass;
 
-	/** Pointer to the mobile controls widget */
+	/** Указатель на виджет мобильного управления */
 	UPROPERTY()
 	TObjectPtr<UUserWidget> MobileControlsWidget;
 
-	/** If true, the player will use UMG touch controls even if not playing on mobile platforms */
+	/** Если true, игрок использует сенсорное управление UMG даже вне мобильных платформ */
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")
 	bool bForceTouchControls = false;
 
-	/** Character class to respawn when the possessed pawn is destroyed */
+	/** Класс персонажа для повторного спавна после уничтожения управляемой пешки */
 	UPROPERTY(EditAnywhere, Category="Respawn")
 	TSubclassOf<ASideScrollingCharacter> CharacterClass;
 
 protected:
 
-	/** Gameplay initialization */
+	/** Инициализация игрового процесса */
 	virtual void BeginPlay() override;
 
-	/** Initialize input bindings */
+	/** Инициализация привязок ввода */
 	virtual void SetupInputComponent() override;
 
-	/** Pawn initialization */
+	/** Инициализация пешки */
 	virtual void OnPossess(APawn* InPawn) override;
 
-	/** Called if the possessed pawn is destroyed */
+	/** Вызывается при уничтожении управляемой пешки */
 	UFUNCTION()
 	void OnPawnDestroyed(AActor* DestroyedActor);
 
-	/** Returns true if the player should use UMG touch controls */
+	/** Возвращает true, если игрок должен использовать сенсорное управление UMG */
 	bool ShouldUseTouchControls() const;
 
 };
+
+
+
+

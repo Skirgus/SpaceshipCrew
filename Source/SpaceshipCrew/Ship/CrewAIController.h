@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "CrewAIController.generated.h"
 
 /**
- * AI controller for bot crew; uses same pawn and interaction path as players.
+ * AI-контроллер для ботов экипажа; использует ту же пешку и тот же путь взаимодействия, что и игрок.
  */
 UCLASS()
 class SPACESHIPCREW_API ACrewAIController : public AAIController
@@ -17,3 +17,4 @@ class SPACESHIPCREW_API ACrewAIController : public AAIController
 public:
 	ACrewAIController();
 };
+

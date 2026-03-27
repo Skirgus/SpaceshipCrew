@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatCharacter.h"
@@ -20,16 +20,16 @@ ACombatCharacter::ACombatCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// bind the attack montage ended delegate
+	// привязать атака montage ended delegate
 	OnAttackMontageEnded.BindUObject(this, &ACombatCharacter::AttackMontageEnded);
 
-	// Set size for collision capsule
+	// Set size для коллизия capsule
 	GetCapsuleComponent()->InitCapsuleSize(35.0f, 90.0f);
 
-	// Configure character movement
+	// Configure персонаж movement
 	GetCharacterMovement()->MaxWalkSpeed = 400.0f;
 
-	// create the camera boom
+	// создать камера boom
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 
@@ -38,25 +38,25 @@ ACombatCharacter::ACombatCharacter()
 	CameraBoom->bEnableCameraLag = true;
 	CameraBoom->bEnableCameraRotationLag = true;
 
-	// create the orbiting camera
+	// создать orbiting камера
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
-	// create the life bar widget component
+	// создать life bar виджет component
 	LifeBar = CreateDefaultSubobject<UWidgetComponent>(TEXT("LifeBar"));
 	LifeBar->SetupAttachment(RootComponent);
 
-	// set the player tag
+	// установить игрок tag
 	Tags.Add(FName("Player"));
 }
 
 void ACombatCharacter::Move(const FInputActionValue& Value)
 {
-	// input is a Vector2D
+	// ввод is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	// route the input
+	// route ввод
 	DoMove(MovementVector.X, MovementVector.Y);
 }
 
@@ -64,31 +64,31 @@ void ACombatCharacter::Look(const FInputActionValue& Value)
 {
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	// route the input
+	// route ввод
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
 void ACombatCharacter::ComboAttackPressed()
 {
-	// route the input
+	// route ввод
 	DoComboAttackStart();
 }
 
 void ACombatCharacter::ChargedAttackPressed()
 {
-	// route the input
+	// route ввод
 	DoChargedAttackStart();
 }
 
 void ACombatCharacter::ChargedAttackReleased()
 {
-	// route the input
+	// route ввод
 	DoChargedAttackEnd();
 }
 
 void ACombatCharacter::ToggleCamera()
 {
-	// call the BP hook
+	// вызвать BP hook
 	BP_ToggleCamera();
 }
 
@@ -96,17 +96,17 @@ void ACombatCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
-		// find out which way is forward
+ // find out which way is forward
 		const FRotator Rotation = GetController()->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		// get forward vector
+ // получить вперёд vector
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-		// get right vector 
+ // получить right vector
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-		// add movement 
+ // add movement
 		AddMovementInput(ForwardDirection, Forward);
 		AddMovementInput(RightDirection, Right);
 	}
@@ -116,7 +116,7 @@ void ACombatCharacter::DoLook(float Yaw, float Pitch)
 {
 	if (GetController() != nullptr)
 	{
-		// add yaw and pitch input to controller
+ // add yaw и pitch ввод для контроллер
 		AddControllerYawInput(Yaw);
 		AddControllerPitchInput(Pitch);
 	}
@@ -124,32 +124,32 @@ void ACombatCharacter::DoLook(float Yaw, float Pitch)
 
 void ACombatCharacter::DoComboAttackStart()
 {
-	// are we already playing an attack animation?
+	// are we already playing атака animation?
 	if (bIsAttacking)
 	{
-		// cache the input time so we can check it later
+ // cache ввод time so we can проверить it later
 		CachedAttackInputTime = GetWorld()->GetTimeSeconds();
 
 		return;
 	}
 
-	// perform a combo attack
+	// perform a combo атака
 	ComboAttack();
 }
 
 void ACombatCharacter::DoComboAttackEnd()
 {
-	// stub
+	// заглушка
 }
 
 void ACombatCharacter::DoChargedAttackStart()
 {
-	// raise the charging attack flag
+	// поднять charging атака flag
 	bIsChargingAttack = true;
 
 	if (bIsAttacking)
 	{
-		// cache the input time so we can check it later
+ // cache ввод time so we can проверить it later
 		CachedAttackInputTime = GetWorld()->GetTimeSeconds();
 
 		return;
@@ -160,10 +160,10 @@ void ACombatCharacter::DoChargedAttackStart()
 
 void ACombatCharacter::DoChargedAttackEnd()
 {
-	// lower the charging attack flag
+	// lower charging атака flag
 	bIsChargingAttack = false;
 
-	// if we've done the charge loop at least once, release the charged attack right away
+	// если we've done charge цикл в least once, отпускании charged атака right away
 	if (bHasLoopedChargedAttack)
 	{
 		CheckChargedAttack();
@@ -172,33 +172,33 @@ void ACombatCharacter::DoChargedAttackEnd()
 
 void ACombatCharacter::ResetHP()
 {
-	// reset the current HP total
+	// сбросить текущий HP total
 	CurrentHP = MaxHP;
 
-	// update the life bar
+	// обновить life bar
 	LifeBarWidget->SetLifePercentage(1.0f);
 }
 
 void ACombatCharacter::ComboAttack()
 {
-	// raise the attacking flag
+	// поднять атаки flag
 	bIsAttacking = true;
 
-	// reset the combo count
+	// сбросить combo count
 	ComboCount = 0;
 
-	// notify enemies they are about to be attacked
+	// уведомить враги they are about для be атакован
 	NotifyEnemiesOfIncomingAttack();
 
-	// play the attack montage
+	// play атака montage
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
 		const float MontageLength = AnimInstance->Montage_Play(ComboAttackMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
 
-		// subscribe to montage completed and interrupted events
+ // подписаться для montage завершённые и прерванные события
 		if (MontageLength > 0.0f)
 		{
-			// set the end delegate for the montage
+ // установить делегат завершения для montage
 			AnimInstance->Montage_SetEndDelegate(OnAttackMontageEnded, ComboAttackMontage);
 		}
 	}
@@ -207,24 +207,24 @@ void ACombatCharacter::ComboAttack()
 
 void ACombatCharacter::ChargedAttack()
 {
-	// raise the attacking flag
+	// поднять атаки flag
 	bIsAttacking = true;
 
-	// reset the charge loop flag
+	// сбросить charge цикл flag
 	bHasLoopedChargedAttack = false;
 
-	// notify enemies they are about to be attacked
+	// уведомить враги they are about для be атакован
 	NotifyEnemiesOfIncomingAttack();
 
-	// play the charged attack montage
+	// play charged атака montage
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
 		const float MontageLength = AnimInstance->Montage_Play(ChargedAttackMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
 
-		// subscribe to montage completed and interrupted events
+ // подписаться для montage завершённые и прерванные события
 		if (MontageLength > 0.0f)
 		{
-			// set the end delegate for the montage
+ // установить делегат завершения для montage
 			AnimInstance->Montage_SetEndDelegate(OnAttackMontageEnded, ChargedAttackMontage);
 		}
 	}
@@ -232,21 +232,21 @@ void ACombatCharacter::ChargedAttack()
 
 void ACombatCharacter::AttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	// reset the attacking flag
+	// сбросить атаки flag
 	bIsAttacking = false;
 
-	// check if we have a non-stale cached input
+	// проверить если we имеет a non-stale cached ввод
 	if (GetWorld()->GetTimeSeconds() - CachedAttackInputTime <= AttackInputCacheTimeTolerance)
 	{
-		// are we holding the charged attack button?
+ // are we holding charged атака button?
 		if (bIsChargingAttack)
 		{
-			// do a charged attack
+ // do a charged атака
 			ChargedAttack();
 		}
 		else
 		{
-			// do a regular attack
+ // do a regular атака
 			ComboAttack();
 		}
 	}
@@ -254,43 +254,43 @@ void ACombatCharacter::AttackMontageEnded(UAnimMontage* Montage, bool bInterrupt
 
 void ACombatCharacter::DoAttackTrace(FName DamageSourceBone)
 {
-	// sweep for objects in front of the character to be hit by the attack
+	// трассировка для объекты в front из персонаж для be попадание через атака
 	TArray<FHitResult> OutHits;
 
-	// start at the provided socket location, sweep forward
+	// начать в provided socket location, трассировка forward
 	const FVector TraceStart = GetMesh()->GetSocketLocation(DamageSourceBone);
 	const FVector TraceEnd = TraceStart + (GetActorForwardVector() * MeleeTraceDistance);
 
-	// check for pawn and world dynamic collision object types
+	// проверить для pawn и world dynamic коллизия объект types
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 
-	// use a sphere shape for the sweep
+	// использовать a sphere форма для sweep
 	FCollisionShape CollisionShape;
 	CollisionShape.SetSphere(MeleeTraceRadius);
 
-	// ignore self
+	// игнорировать self
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
 
 	if (GetWorld()->SweepMultiByObjectType(OutHits, TraceStart, TraceEnd, FQuat::Identity, ObjectParams, CollisionShape, QueryParams))
 	{
-		// iterate over each object hit
+ // перебрать over each объект hit
 		for (const FHitResult& CurrentHit : OutHits)
 		{
-			// check if we've hit a damageable actor
+ // проверить если we've попадание a уронable актор
 			ICombatDamageable* Damageable = Cast<ICombatDamageable>(CurrentHit.GetActor());
 
 			if (Damageable)
 			{
-				// knock upwards and away from the impact normal
+ // knock upwards и away из impact normal
 				const FVector Impulse = (CurrentHit.ImpactNormal * -MeleeKnockbackImpulse) + (FVector::UpVector * MeleeLaunchImpulse);
 
-				// pass the damage event to the actor
+ // передать урон событие для актор
 				Damageable->ApplyDamage(MeleeDamage, this, CurrentHit.ImpactPoint, Impulse);
 
-				// call the BP handler to play effects, etc.
+ // вызвать BP handler для play effects, etc.
 				DealtDamage(MeleeDamage, CurrentHit.ImpactPoint);
 			}
 		}
@@ -299,25 +299,25 @@ void ACombatCharacter::DoAttackTrace(FName DamageSourceBone)
 
 void ACombatCharacter::CheckCombo()
 {
-	// are we playing a non-charge attack animation?
+	// are we playing a non-charge атака animation?
 	if (bIsAttacking && !bIsChargingAttack)
 	{
-		// is the last attack input not stale?
+ // is последний атака ввод not stale?
 		if (GetWorld()->GetTimeSeconds() - CachedAttackInputTime <= ComboInputCacheTimeTolerance)
 		{
-			// consume the attack input so we don't accidentally trigger it twice
+ // consume атака ввод so we don't accidentally триггер it twice
 			CachedAttackInputTime = 0.0f;
 
-			// increase the combo counter
+ // увеличить combo counter
 			++ComboCount;
 
-			// do we still have a combo section to play?
+ // do we still имеет a combo секция для play?
 			if (ComboCount < ComboSectionNames.Num())
 			{
-				// notify enemies they are about to be attacked
+ // уведомить враги they are about для be атакован
 				NotifyEnemiesOfIncomingAttack();
 
-				// jump to the next combo section
+ // прыжок для следующий combo section
 				if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 				{
 					AnimInstance->Montage_JumpToSection(ComboSectionNames[ComboCount], ComboAttackMontage);
@@ -329,10 +329,10 @@ void ACombatCharacter::CheckCombo()
 
 void ACombatCharacter::CheckChargedAttack()
 {
-	// raise the looped charged attack flag
+	// поднять looped charged атака flag
 	bHasLoopedChargedAttack = true;
 
-	// jump to either the loop or the attack section depending on whether we're still holding the charge button
+	// прыжок для либо цикл или атака секция в зависимости на ли мы still holding charge button
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
 		AnimInstance->Montage_JumpToSection(bIsChargingAttack ? ChargeLoopSection : ChargeAttackSection, ChargedAttackMontage);
@@ -341,36 +341,36 @@ void ACombatCharacter::CheckChargedAttack()
 
 void ACombatCharacter::NotifyEnemiesOfIncomingAttack()
 {
-	// sweep for objects in front of the character to be hit by the attack
+	// трассировка для объекты в front из персонаж для be попадание через атака
 	TArray<FHitResult> OutHits;
 
-	// start at the actor location, sweep forward
+	// начать в актор location, трассировка forward
 	const FVector TraceStart = GetActorLocation();
 	const FVector TraceEnd = TraceStart + (GetActorForwardVector() * DangerTraceDistance);
 
-	// check for pawn object types only
+	// проверить для pawn объект types only
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
 
-	// use a sphere shape for the sweep
+	// использовать a sphere форма для sweep
 	FCollisionShape CollisionShape;
 	CollisionShape.SetSphere(DangerTraceRadius);
 
-	// ignore self
+	// игнорировать self
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
 
 	if (GetWorld()->SweepMultiByObjectType(OutHits, TraceStart, TraceEnd, FQuat::Identity, ObjectParams, CollisionShape, QueryParams))
 	{
-		// iterate over each object hit
+ // перебрать over each объект hit
 		for (const FHitResult& CurrentHit : OutHits)
 		{
-			// check if we've hit a damageable actor
+ // проверить если we've попадание a уронable актор
 			ICombatDamageable* Damageable = Cast<ICombatDamageable>(CurrentHit.GetActor());
 
 			if (Damageable)
 			{
-				// notify the enemy
+ // уведомить враг
 				Damageable->NotifyDanger(GetActorLocation(), this);
 			}
 		}
@@ -379,24 +379,24 @@ void ACombatCharacter::NotifyEnemiesOfIncomingAttack()
 
 void ACombatCharacter::ApplyDamage(float Damage, AActor* DamageCauser, const FVector& DamageLocation, const FVector& DamageImpulse)
 {
-	// pass the damage event to the actor
+	// передать урон событие для актор
 	FDamageEvent DamageEvent;
 	const float ActualDamage = TakeDamage(Damage, DamageEvent, nullptr, DamageCauser);
 
-	// only process knockback and effects if we received nonzero damage
+	// только process knockback и effects если we полученный nonzero урон
 	if (ActualDamage > 0.0f)
 	{
-		// apply the knockback impulse
+ // apply knockback impulse
 		GetCharacterMovement()->AddImpulse(DamageImpulse, true);
 
-		// is the character ragdolling?
+ // is персонаж ragdolling?
 		if (GetMesh()->IsSimulatingPhysics())
 		{
-			// apply an impulse to the ragdoll
+ // apply impulse для ragdoll
 			GetMesh()->AddImpulseAtLocation(DamageImpulse * GetMesh()->GetMass(), DamageLocation);
 		}
 
-		// pass control to BP to play effects, etc.
+ // передать control для BP для play effects, etc.
 		ReceivedDamage(ActualDamage, DamageLocation, DamageImpulse.GetSafeNormal());
 	}
 
@@ -404,66 +404,66 @@ void ACombatCharacter::ApplyDamage(float Damage, AActor* DamageCauser, const FVe
 
 void ACombatCharacter::HandleDeath()
 {
-	// disable movement while we're dead
+	// отключить движение пока мы dead
 	GetCharacterMovement()->DisableMovement();
 
-	// enable full ragdoll physics
+	// включить full ragdoll физика
 	GetMesh()->SetSimulatePhysics(true);
 
-	// hide the life bar
+	// скрыть life bar
 	LifeBar->SetHiddenInGame(true);
 
-	// pull back the camera
+	// pull back камера
 	GetCameraBoom()->TargetArmLength = DeathCameraDistance;
 
-	// schedule respawning
+	// schedule респавнing
 	GetWorld()->GetTimerManager().SetTimer(RespawnTimer, this, &ACombatCharacter::RespawnCharacter, RespawnTime, false);
 }
 
 void ACombatCharacter::ApplyHealing(float Healing, AActor* Healer)
 {
-	// stub
+	// заглушка
 }
 
 void ACombatCharacter::NotifyDanger(const FVector& DangerLocation, AActor* DangerSource)
 {
-	// stub
+	// заглушка
 }
 
 void ACombatCharacter::RespawnCharacter()
 {
-	// destroy the character and let it be respawned by the Player Controller
+	// уничтожить персонаж и let it be респавнed через Игрок Контроллер
 	Destroy();
 }
 
 float ACombatCharacter::TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	// only process damage if the character is still alive
+	// только process урон если персонаж is still alive
 	if (CurrentHP <= 0.0f)
 	{
 		return 0.0f;
 	}
 
-	// reduce the current HP
+	// уменьшить текущий HP
 	CurrentHP -= Damage;
 
-	// have we run out of HP?
+	// имеет we run out из HP?
 	if (CurrentHP <= 0.0f)
 	{
-		// die
+ // die
 		HandleDeath();
 	}
 	else
 	{
-		// update the life bar
+ // обновить life bar
 		LifeBarWidget->SetLifePercentage(CurrentHP / MaxHP);
 
-		// enable partial ragdoll physics, but keep the pelvis vertical
+ // включить partial ragdoll физика, but сохранить pelvis vertical
 		GetMesh()->SetPhysicsBlendWeight(0.5f);
 		GetMesh()->SetBodySimulatePhysics(PelvisBoneName, false);
 	}
 
-	// return the received damage amount
+	// вернуть полученный урон amount
 	return Damage;
 }
 
@@ -471,10 +471,10 @@ void ACombatCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 
-	// is the character still alive?
+	// is персонаж still alive?
 	if (CurrentHP >= 0.0f)
 	{
-		// disable ragdoll physics
+ // отключить ragdoll физика
 		GetMesh()->SetPhysicsBlendWeight(0.0f);
 	}
 }
@@ -483,20 +483,20 @@ void ACombatCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// get the life bar from the widget component
+	// получить life bar из виджет component
 	LifeBarWidget = Cast<UCombatLifeBar>(LifeBar->GetUserWidgetObject());
 	check(LifeBarWidget);
 
-	// initialize the camera
+	// инициализировать камера
 	GetCameraBoom()->TargetArmLength = DefaultCameraDistance;
 
-	// save the relative transform for the mesh so we can reset the ragdoll later
+	// сохранить relative transform для mesh so we can сбросить ragdoll later
 	MeshStartingTransform = GetMesh()->GetRelativeTransform();
 
-	// set the life bar color
+	// установить life bar color
 	LifeBarWidget->SetBarColor(LifeBarColor);
 
-	// reset HP to maximum
+	// сбросить HP для maximum
 	ResetHP();
 }
 
@@ -504,7 +504,7 @@ void ACombatCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// clear the respawn timer
+	// очистить респавн таймер
 	GetWorld()->GetTimerManager().ClearTimer(RespawnTimer);
 }
 
@@ -512,24 +512,24 @@ void ACombatCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	// Set up action bindings
+	// Set up action привязки
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		// Moving
+ // Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACombatCharacter::Move);
 
-		// Looking
+ // Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ACombatCharacter::Look);
 		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &ACombatCharacter::Look);
 
-		// Combo Attack
+ // Combo Атака
 		EnhancedInputComponent->BindAction(ComboAttackAction, ETriggerEvent::Started, this, &ACombatCharacter::ComboAttackPressed);
 
-		// Charged Attack
+ // Charged Атака
 		EnhancedInputComponent->BindAction(ChargedAttackAction, ETriggerEvent::Started, this, &ACombatCharacter::ChargedAttackPressed);
 		EnhancedInputComponent->BindAction(ChargedAttackAction, ETriggerEvent::Completed, this, &ACombatCharacter::ChargedAttackReleased);
 
-		// Camera Side Toggle
+ // Камера Side Toggle
 		EnhancedInputComponent->BindAction(ToggleCameraAction, ETriggerEvent::Triggered, this, &ACombatCharacter::ToggleCamera);
 	}
 }
@@ -538,10 +538,14 @@ void ACombatCharacter::NotifyControllerChanged()
 {
 	Super::NotifyControllerChanged();
 
-	// update the respawn transform on the Player Controller
+	// обновить респавн transform на Игрок Контроллер
 	if (ACombatPlayerController* PC = Cast<ACombatPlayerController>(GetController()))
 	{
 		PC->SetRespawnTransform(GetActorTransform());
 	}
 }
+
+
+
+
 

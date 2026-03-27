@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatActivationVolume.h"
@@ -10,34 +10,34 @@ ACombatActivationVolume::ACombatActivationVolume()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the box volume
+	// создать box volume
 	RootComponent = Box = CreateDefaultSubobject<UBoxComponent>(TEXT("Box"));
 	check(Box);
 
-	// set the box's extent
+	// установить box's extent
 	Box->SetBoxExtent(FVector(500.0f, 500.0f, 500.0f));
 
-	// set the default collision profile to overlap all dynamic
+	// установить по умолчанию коллизия profile для пересечение all dynamic
 	Box->SetCollisionProfileName(FName("OverlapAllDynamic"));
 
-	// bind the begin overlap 
+	// привязать begin пересечение
 	Box->OnComponentBeginOverlap.AddDynamic(this, &ACombatActivationVolume::OnOverlap);
 }
 
 void ACombatActivationVolume::OnOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// has a Character entered the volume?
+	// has a Персонаж входе volume?
 	ACharacter* PlayerCharacter = Cast<ACharacter>(OtherActor);
 
 	if (PlayerCharacter)
 	{
-		// is the Character controlled by a player
+ // is Персонаж controlled через a игрок
 		if (PlayerCharacter->IsPlayerControlled())
 		{
-			// process the actors to activate list
+ // process акторы для activate список
 			for (AActor* CurrentActor : ActorsToActivate)
 			{
-				// is the referenced actor activatable?
+ // is referenced актор activatable?
 				if(ICombatActivatable* Activatable = Cast<ICombatActivatable>(CurrentActor))
 				{
 					Activatable->ActivateInteraction(PlayerCharacter);
@@ -47,3 +47,6 @@ void ACombatActivationVolume::OnOverlap(UPrimitiveComponent* OverlappedComponent
 	}
 
 }
+
+
+

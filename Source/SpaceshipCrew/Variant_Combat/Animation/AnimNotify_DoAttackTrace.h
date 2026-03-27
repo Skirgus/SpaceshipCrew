@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "AnimNotify_DoAttackTrace.generated.h"
 
 /**
- *  AnimNotify to tell the actor to perform an attack trace check to look for targets to damage.
+ * AnimNotify для tell актор для perform атака trace проверить для look для targets для урон.
  */
 UCLASS()
 class UAnimNotify_DoAttackTrace : public UAnimNotify
@@ -16,15 +16,19 @@ class UAnimNotify_DoAttackTrace : public UAnimNotify
 	
 protected:
 
-	/** Source bone for the attack trace */
+	/** Source bone для атака trace */
 	UPROPERTY(EditAnywhere, Category="Attack")
 	FName AttackBoneName;
 
 public:
 
-	/** Perform the Anim Notify */
+	/** Выполняет Anim Notify */
 	virtual void Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
 
-	/** Get the notify name */
+	/** Возвращает имя нотифая */
 	virtual FString GetNotifyName_Implementation() const override;
 };
+
+
+
+

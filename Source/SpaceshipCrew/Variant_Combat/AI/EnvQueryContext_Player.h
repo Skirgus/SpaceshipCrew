@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,8 +7,8 @@
 #include "EnvQueryContext_Player.generated.h"
 
 /**
- *  UEnvQueryContext_Player
- *  Basic EnvQuery Context that returns the first local player
+ * UEnvQueryContext_Игрок
+ * Basic EnvQuery контекст который вернутьs первый локальный игрок
  */
 UCLASS()
 class UEnvQueryContext_Player : public UEnvQueryContext
@@ -17,6 +17,10 @@ class UEnvQueryContext_Player : public UEnvQueryContext
 	
 public:
 
-	/** Provides the context locations or actors for this EnvQuery */
+	/** Предоставляет контекстные позиции или акторов для этого EnvQuery */
 	virtual void ProvideContext(FEnvQueryInstance& QueryInstance, FEnvQueryContextData& ContextData) const override;
 };
+
+
+
+

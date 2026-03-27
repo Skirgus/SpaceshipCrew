@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SpaceshipCrewCharacter.h"
 #include "Engine/LocalPlayer.h"
@@ -14,20 +14,20 @@
 
 ASpaceshipCrewCharacter::ASpaceshipCrewCharacter()
 {
-	// Set size for collision capsule
+	// Настраиваем размер коллизионной капсулы
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
-	// Don't rotate when the controller rotates. Let that just affect the camera.
+	// Не вращаем персонажа при повороте контроллера — это влияет только на камеру.
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	// Configure character movement
+	// Настраиваем движение персонажа
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
 
-	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
-	// instead of recompiling to adjust them
+	// Примечание: для более быстрой итерации эти и многие другие параметры можно настраивать в Character Blueprint
+	// вместо перекомпиляции проекта для каждого изменения
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
 	GetCharacterMovement()->MaxWalkSpeed = 500.f;
@@ -35,35 +35,35 @@ ASpaceshipCrewCharacter::ASpaceshipCrewCharacter()
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
-	// Create a camera boom (pulls in towards the player if there is a collision)
+	// Создаём камеру-бум (приближает камеру к игроку при столкновении)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
 
-	// Create a follow camera
+	// Создаём камеру следования
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
-	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+	// Примечание: ссылки на скелетный меш и anim blueprint на компоненте Mesh (унаследованном от Character) 
+	// задаются в наследуемом blueprint-ассете ThirdPersonCharacter (чтобы избежать прямых ссылок на контент в C++)
 }
 
 void ASpaceshipCrewCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	// Set up action bindings
+	// Настраиваем привязки действий
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
 		
-		// Jumping
+		// Прыжок
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
-		// Moving
+		// Перемещение
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASpaceshipCrewCharacter::Move);
 		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &ASpaceshipCrewCharacter::Look);
 
-		// Looking
+		// Обзор
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ASpaceshipCrewCharacter::Look);
 	}
 	else
@@ -74,19 +74,19 @@ void ASpaceshipCrewCharacter::SetupPlayerInputComponent(UInputComponent* PlayerI
 
 void ASpaceshipCrewCharacter::Move(const FInputActionValue& Value)
 {
-	// input is a Vector2D
+	// ввод имеет тип Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	// route the input
+	// передаём ввод дальше
 	DoMove(MovementVector.X, MovementVector.Y);
 }
 
 void ASpaceshipCrewCharacter::Look(const FInputActionValue& Value)
 {
-	// input is a Vector2D
+	// ввод имеет тип Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	// route the input
+	// передаём ввод дальше
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
@@ -94,17 +94,17 @@ void ASpaceshipCrewCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
-		// find out which way is forward
+		// определяем направление вперёд
 		const FRotator Rotation = GetController()->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		// get forward vector
+		// получаем вектор вперёд
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-		// get right vector 
+		// получаем вектор вправо 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-		// add movement 
+		// добавляем перемещение 
 		AddMovementInput(ForwardDirection, Forward);
 		AddMovementInput(RightDirection, Right);
 	}
@@ -114,7 +114,7 @@ void ASpaceshipCrewCharacter::DoLook(float Yaw, float Pitch)
 {
 	if (GetController() != nullptr)
 	{
-		// add yaw and pitch input to controller
+		// добавляем yaw/pitch ввод в контроллер
 		AddControllerYawInput(Yaw);
 		AddControllerPitchInput(Pitch);
 	}
@@ -122,12 +122,13 @@ void ASpaceshipCrewCharacter::DoLook(float Yaw, float Pitch)
 
 void ASpaceshipCrewCharacter::DoJumpStart()
 {
-	// signal the character to jump
+	// даём персонажу команду на прыжок
 	Jump();
 }
 
 void ASpaceshipCrewCharacter::DoJumpEnd()
 {
-	// signal the character to stop jumping
+	// даём персонажу команду прекратить прыжок
 	StopJumping();
 }
+

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingGameMode.h"
@@ -11,7 +11,7 @@ void ASideScrollingGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// create the game UI
+	// создать game UI
 	APlayerController* OwningPlayer = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	
 	UserInterface = CreateWidget<USideScrollingUI>(OwningPlayer, UserInterfaceClass);
@@ -21,15 +21,18 @@ void ASideScrollingGameMode::BeginPlay()
 
 void ASideScrollingGameMode::ProcessPickup()
 {
-	// increment the pickups counter
+	// increment подборs counter
 	++PickupsCollected;
 
-	// if this is the first pickup we collect, show the UI
+	// если этот is первый подбор we collect, show UI
 	if (PickupsCollected == 1)
 	{
 		UserInterface->AddToViewport(0);
 	}
 
-	// update the pickups counter on the UI
+	// обновить подборs counter на UI
 	UserInterface->UpdatePickups(PickupsCollected);
 }
+
+
+

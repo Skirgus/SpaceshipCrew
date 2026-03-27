@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -12,10 +12,10 @@ class UArrowComponent;
 class ACombatEnemy;
 
 /**
- *  A basic Actor in charge of spawning Enemy Characters and monitoring their deaths.
- *  Enemies will be spawned one by one, and the spawner will wait until the enemy dies before spawning a new one.
- *  The spawner can be remotely activated through the ICombatActivatable interface
- *  When the last spawned enemy dies, the spawner can also activate other ICombatActivatables
+ * A basic актор в charge из спавнing Враг Персонажs и monitoring their deaths.
+ * Enemies will be спавнed one через one, и спавнer will wait until враг dies до спавнing a new one.
+ * спавнer can be remotely activated through ICombatActivatable интерфейс
+ * когда последний спавнed враг dies, спавнer can also activate other ICombatActivatables
  */
 UCLASS(abstract)
 class ACombatEnemySpawner : public AActor, public ICombatActivatable
@@ -30,80 +30,84 @@ class ACombatEnemySpawner : public AActor, public ICombatActivatable
 
 protected:
 
-	/** Type of enemy to spawn */
+	/** Тип врага для спавна */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Enemy Spawner")
 	TSubclassOf<ACombatEnemy> EnemyClass;
 
-	/** If true, the first enemy will be spawned as soon as the game starts */
+	/** если true, первый враг will be спавнed as soon as game starts */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Enemy Spawner")
 	bool bShouldSpawnEnemiesImmediately = true;
 
-	/** Time to wait before spawning the first enemy on game start */
+	/** Time для wait до спавнing первый враг на game начать */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Enemy Spawner", meta = (ClampMin = 0, ClampMax = 10))
 	float InitialSpawnDelay = 5.0f;
 
-	/** Number of enemies to spawn */
+	/** Количество врагов для спавна */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Enemy Spawner", meta = (ClampMin = 0, ClampMax = 100))
 	int32 SpawnCount = 1;
 
-	/** Time to wait before spawning the next enemy after the current one dies */
+	/** Time для wait до спавнing следующий враг после текущий one dies */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Enemy Spawner", meta = (ClampMin = 0, ClampMax = 10))
 	float RespawnDelay = 5.0f;
 
-	/** Time to wait after this spawner is depleted before activating the actor list */
+	/** Time для wait после этот спавнer is depleted до activating актор список */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Activation", meta = (ClampMin = 0, ClampMax = 10))
 	float ActivationDelay = 1.0f;
 
-	/** List of actors to activate after the last enemy dies */
+	/** список из акторы для activate после последний враг dies */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Activation")
 	TArray<AActor*> ActorsToActivateWhenDepleted;
 
-	/** Flag to ensure this is only activated once */
+	/** Flag для убедиться этот is только activated once */
 	bool bHasBeenActivated = false;
 
-	/** Timer to spawn enemies after a delay */
+	/** таймер для спавн враги после a delay */
 	FTimerHandle SpawnTimer;
 
 public:	
 	
-	/** Constructor */
+	/** Конструктор */
 	ACombatEnemySpawner();
 
 public:
 
-	/** Initialization */
+	/** Инициализация */
 	virtual void BeginPlay() override;
 
-	/** Cleanup */
+	/** Очистка */
 	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
 
 protected:
 
-	/** Spawn an enemy and subscribe to its death event */
+	/** Создаёт врага и подписывается на его событие смерти */
 	void SpawnEnemy();
 
-	/** Called when the spawned enemy has died */
+	/** Вызывается, когда заспавненный враг погиб */
 	UFUNCTION()
 	void OnEnemyDied();
 
-	/** Called after the last spawned enemy has died */
+	/** Вызывается после гибели последнего заспавненного врага */
 	void SpawnerDepleted();
 
 public:
 
-	// ~begin ICombatActivatable interface
+	// ~begin ICombatActivatable интерфейс
 
-	/** Toggles the Spawner */
+	/** Переключает состояние спавнера */
 	UFUNCTION(BlueprintCallable, Category="Activatable")
 	virtual void ToggleInteraction(AActor* ActivationInstigator) override;
 
-	/** Activates the Spawner */
+	/** Активирует спавнер */
 	UFUNCTION(BlueprintCallable, Category="Activatable")
 	virtual void ActivateInteraction(AActor* ActivationInstigator) override;
 
-	/** Deactivates the Spawner */
+	/** DeАктивирует спавнер */
 	UFUNCTION(BlueprintCallable, Category="Activatable")
 	virtual void DeactivateInteraction(AActor* ActivationInstigator) override;
 
-	// ~end IActivatable interface
+	// ~end IActivatable интерфейс
 };
+
+
+
+

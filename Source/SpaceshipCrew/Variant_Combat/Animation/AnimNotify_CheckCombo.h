@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "AnimNotify_CheckCombo.generated.h"
 
 /**
- *  AnimNotify to perform a combo string check.
+ * AnimNotify для perform a combo серии проверить.
  */
 UCLASS()
 class UAnimNotify_CheckCombo : public UAnimNotify
@@ -16,9 +16,13 @@ class UAnimNotify_CheckCombo : public UAnimNotify
 	
 public:
 
-	/** Perform the Anim Notify */
+	/** Выполняет Anim Notify */
 	virtual void Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
 
-	/** Get the notify name */
+	/** Возвращает имя нотифая */
 	virtual FString GetNotifyName_Implementation() const override;
 };
+
+
+
+

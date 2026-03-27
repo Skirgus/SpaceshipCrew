@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,7 +8,7 @@
 class UCrewRoleDefinition;
 class APawn;
 
-/** Who owns a crew slot (human, AI, or reserved for future net player). */
+/** Кто управляет слотом экипажа (человек, ИИ или резерв под будущего сетевого игрока). */
 UENUM(BlueprintType)
 enum class ECrewControllerKind : uint8
 {
@@ -17,7 +17,7 @@ enum class ECrewControllerKind : uint8
 	ReservedForPlayer UMETA(DisplayName = "ReservedForPlayer")
 };
 
-/** Serializable slot data replicated on GameState for UI and future lobby. */
+/** Сериализуемые данные слота, реплицируемые в GameState для UI и будущего лобби. */
 USTRUCT(BlueprintType)
 struct SPACESHIPCREW_API FCrewSlotReplicationData
 {
@@ -26,7 +26,7 @@ struct SPACESHIPCREW_API FCrewSlotReplicationData
 	UPROPERTY(BlueprintReadOnly, Category = "Crew")
 	int32 SlotIndex = INDEX_NONE;
 
-	/** Stable id from role definition (or NAME_None if unassigned). */
+	/** Стабильный идентификатор роли (или NAME_None, если роль не назначена). */
 	UPROPERTY(BlueprintReadOnly, Category = "Crew")
 	FName RoleId = NAME_None;
 
@@ -36,3 +36,4 @@ struct SPACESHIPCREW_API FCrewSlotReplicationData
 	UPROPERTY(BlueprintReadOnly, Category = "Crew")
 	TObjectPtr<APawn> AssignedPawn = nullptr;
 };
+

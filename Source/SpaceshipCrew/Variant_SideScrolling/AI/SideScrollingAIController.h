@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,19 +9,23 @@
 class UStateTreeAIComponent;
 
 /**
- *  A basic AI Controller capable of running StateTree
+ * A basic AI Контроллер capable из running StateTree
  */
 UCLASS(abstract)
 class ASideScrollingAIController : public AAIController
 {
 	GENERATED_BODY()
 	
-	/** StateTree Component */
+	/** Компонент StateTree */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI", meta = (AllowPrivateAccess = "true"))
 	UStateTreeAIComponent* StateTreeAI;
 
 public:
 
-	/** Constructor */
+	/** Конструктор */
 	ASideScrollingAIController();
 };
+
+
+
+

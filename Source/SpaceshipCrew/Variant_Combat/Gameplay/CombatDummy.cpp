@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatDummy.h"
@@ -10,21 +10,21 @@ ACombatDummy::ACombatDummy()
 {
  	PrimaryActorTick.bCanEverTick = true;
 
-	// create the root
+	// создать root
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
 
-	// create the base plate
+	// создать base plate
 	BasePlate = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Base Plate"));
 	BasePlate->SetupAttachment(RootComponent);
 
-	// create the dummy
+	// создать dummy
 	Dummy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Dummy"));
 	Dummy->SetupAttachment(RootComponent);
 
 	Dummy->SetSimulatePhysics(true);
 
-	// create the physics constraint
+	// создать физика constraint
 	PhysicsConstraint = CreateDefaultSubobject<UPhysicsConstraintComponent>(TEXT("Physics Constraint"));
 	PhysicsConstraint->SetupAttachment(RootComponent);
 
@@ -33,10 +33,10 @@ ACombatDummy::ACombatDummy()
 
 void ACombatDummy::ApplyDamage(float Damage, AActor* DamageCauser, const FVector& DamageLocation, const FVector& DamageImpulse)
 {
-	// apply impulse to the dummy
+	// apply impulse для dummy
 	Dummy->AddImpulseAtLocation(DamageImpulse, DamageLocation);
 
-	// call the BP handler
+	// вызвать BP handler
 	BP_OnDummyDamaged(DamageLocation, DamageImpulse.GetSafeNormal());
 }
 
@@ -54,3 +54,7 @@ void ACombatDummy::NotifyDanger(const FVector& DangerLocation, AActor* DangerSou
 {
 	// unused
 }
+
+
+
+

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,7 +8,7 @@
 
 class UCrewRoleDefinition;
 
-/** Attached to crew pawns; replicated so server-authoritative station checks work. */
+/** Компонент роли на пешке экипажа; реплицируется для серверной проверки доступа к станциям. */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SPACESHIPCREW_API UCrewRoleComponent : public UActorComponent
 {
@@ -34,3 +34,4 @@ protected:
 	UFUNCTION()
 	void OnRep_Role();
 };
+

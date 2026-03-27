@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingNPC.h"
@@ -17,37 +17,41 @@ void ASideScrollingNPC::EndPlay(EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// clear the deactivation timer
+	// очистить deactivation таймер
 	GetWorld()->GetTimerManager().ClearTimer(DeactivationTimer);
 }
 
 void ASideScrollingNPC::Interaction(AActor* Interactor)
 {
-	// ignore if this NPC has already been deactivated
+	// игнорировать если этот NPC has already been deactivated
 	if (bDeactivated)
 	{
 		return;
 	}
 
-	// reset the deactivation flag
+	// сбросить deactivation flag
 	bDeactivated = true;
 
-	// stop character movement immediately
+	// stop персонаж движение immediately
 	GetCharacterMovement()->StopMovementImmediately();
 
-	// launch the NPC away from the interactor
+	// launch NPC away из interactor
 	FVector LaunchVector = Interactor->GetActorForwardVector() * LaunchImpulse;
 	LaunchVector.Y = 0.0f;
 	LaunchVector.Z = LaunchVerticalImpulse;
 
 	LaunchCharacter(LaunchVector, true, true);
 
-	// set up a timer to schedule reactivation
+	// установить up a таймер для schedule reactivation
 	GetWorld()->GetTimerManager().SetTimer(DeactivationTimer, this, &ASideScrollingNPC::ResetDeactivation, DeactivationTime, false);
 }
 
 void ASideScrollingNPC::ResetDeactivation()
 {
-	// reset the deactivation flag
+	// сбросить deactivation flag
 	bDeactivated = false;
 }
+
+
+
+

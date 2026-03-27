@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingJumpPad.h"
@@ -11,14 +11,14 @@ ASideScrollingJumpPad::ASideScrollingJumpPad()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the root comp
+	// создать root comp
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
-	// create the bounding box
+	// создать bounding box
 	Box = CreateDefaultSubobject<UBoxComponent>(TEXT("Box"));
 	Box->SetupAttachment(RootComponent);
 
-	// configure the bounding box
+	// configure bounding box
 	Box->SetBoxExtent(FVector(115.0f, 90.0f, 20.0f), false);
 	Box->SetRelativeLocation(FVector(0.0f, 0.0f, 16.0f));
 
@@ -27,20 +27,24 @@ ASideScrollingJumpPad::ASideScrollingJumpPad()
 	Box->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Box->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 
-	// add the overlap handler
+	// add пересечение handler
 	OnActorBeginOverlap.AddDynamic(this, &ASideScrollingJumpPad::BeginOverlap);
 }
 
 void ASideScrollingJumpPad::BeginOverlap(AActor* OverlappedActor, AActor* OtherActor)
 {
-	// were we overlapped by a character?
+	// were we пересечениеped через a персонаж?
 	if (ACharacter* OverlappingCharacter = Cast<ACharacter>(OtherActor))
 	{
-		// force the character to jump
+ // force персонаж для прыжок
 		OverlappingCharacter->Jump();
 
-		// launch the character to override its vertical velocity
+ // launch персонаж для override its вертикальный velocity
 		FVector LaunchVelocity = FVector::UpVector * ZStrength;
 		OverlappingCharacter->LaunchCharacter(LaunchVelocity, false, true);
 	}
 }
+
+
+
+

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,8 +7,8 @@
 #include "CombatActivatable.generated.h"
 
 /**
- *  Interactable Interface
- *  Provides a context-agnostic way of activating, deactivating or toggling actors
+ * Interactable Interface
+ * предоставляет a контекст-agnostic way из activating, deactivating или toggling акторы
  */
 UINTERFACE(MinimalAPI, NotBlueprintable)
 class UCombatActivatable : public UInterface
@@ -22,15 +22,19 @@ class ICombatActivatable
 
 public:
 
-	/** Toggles the Interactable Actor */
+	/** Toggles Interactable актор */
 	UFUNCTION(BlueprintCallable, Category="Activatable")
 	virtual void ToggleInteraction(AActor* ActivationInstigator) = 0;
 
-	/** Activates the Interactable Actor */
+	/** Activates Interactable актор */
 	UFUNCTION(BlueprintCallable, Category="Activatable")
 	virtual void ActivateInteraction(AActor* ActivationInstigator) = 0;
 
-	/** Deactivates the Interactable Actor */
+	/** Deactivates Interactable актор */
 	UFUNCTION(BlueprintCallable, Category="Activatable")
 	virtual void DeactivateInteraction(AActor* ActivationInstigator) = 0;
 };
+
+
+
+

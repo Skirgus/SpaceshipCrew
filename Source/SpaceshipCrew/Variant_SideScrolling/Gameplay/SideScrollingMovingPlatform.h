@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,8 +8,8 @@
 #include "SideScrollingMovingPlatform.generated.h"
 
 /**
- *  Simple moving platform that can be triggered through interactions by other actors.
- *  The actual movement is performed by Blueprint code through latent execution nodes.
+ * Simple движущаяся платформа который can be вызванное through interactions через other акторы.
+ * actual движение is performed через Blueprint code through latent execution nodes.
  */
 UCLASS(abstract)
 class ASideScrollingMovingPlatform : public AActor, public ISideScrollingInteractable
@@ -18,43 +18,47 @@ class ASideScrollingMovingPlatform : public AActor, public ISideScrollingInterac
 	
 public:	
 	
-	/** Constructor */
+	/** Конструктор */
 	ASideScrollingMovingPlatform();
 
 protected:
 
-	/** If this is true, the platform is mid-movement and will ignore further interactions */
+	/** Если true, платформа в процессе движения и игнорирует дальнейшие взаимодействия */
 	bool bMoving = false;
 
-	/** Destination of the platform in world space */
+	/** Точка назначения платформы в мировых координатах */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Moving Platform")
 	FVector PlatformTarget;
 
-	/** Time for the platform to move to the destination */
+	/** Время перемещения платформы до точки назначения */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Moving Platform", meta = (ClampMin = 0, ClampMax = 10, Units="s"))
 	float MoveDuration = 5.0f;
 
-	/** If this is true, the platform will only move once. */
+	/** Если true, платформа переместится только один раз. */
 	UPROPERTY(EditAnywhere, Category="Moving Platform")
 	bool bOneShot = false;
 
 public:
 
-// ~begin IInteractable interface 
+// ~begin IInteractable интерфейс
 
-	/** Performs an interaction triggered by another actor */
+	/** Выполняет взаимодействие, вызванное другим актором */
 	virtual void Interaction(AActor* Interactor) override;
 
-// ~end IInteractable interface
+// ~end IInteractable интерфейс
 
-	/** Resets the interaction state. Must be called from BP code to reset the platform */
+	/** Сбрасывает состояние взаимодействия. Должно вызываться из BP-кода для сброса платформы */
 	UFUNCTION(BlueprintCallable, Category="Moving Platform")
 	virtual void ResetInteraction();
 
 protected:
 
-	/** Allows Blueprint code to do the actual platform movement */
+	/** Позволяет Blueprint-коду выполнять фактическое движение платформы */
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="Moving Platform", meta = (DisplayName="Move to Target"))
 	void BP_MoveToTarget();
 
 };
+
+
+
+

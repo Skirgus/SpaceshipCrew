@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SpaceshipCrewPlayerController.h"
@@ -13,15 +13,15 @@ void ASpaceshipCrewPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// only spawn touch controls on local player controllers
+	// создаём сенсорное управление только для локальных контроллеров игрока
 	if (ShouldUseTouchControls() && IsLocalPlayerController())
 	{
-		// spawn the mobile controls widget
+		// создаём виджет мобильного управления
 		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
 
 		if (MobileControlsWidget)
 		{
-			// add the controls to the player screen
+			// добавляем элементы управления на экран игрока
 			MobileControlsWidget->AddToPlayerScreen(0);
 
 		} else {
@@ -37,10 +37,10 @@ void ASpaceshipCrewPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// only add IMCs for local player controllers
+	// добавляем IMC только для локальных контроллеров игрока
 	if (IsLocalPlayerController())
 	{
-		// Add Input Mapping Contexts
+		// Add Контексты привязки ввода
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
 			for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
@@ -48,7 +48,7 @@ void ASpaceshipCrewPlayerController::SetupInputComponent()
 				Subsystem->AddMappingContext(CurrentContext, 0);
 			}
 
-			// only add these IMCs if we're not using mobile touch input
+			// добавляем эти IMC только если не используется мобильный сенсорный ввод
 			if (!ShouldUseTouchControls())
 			{
 				for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
@@ -62,6 +62,7 @@ void ASpaceshipCrewPlayerController::SetupInputComponent()
 
 bool ASpaceshipCrewPlayerController::ShouldUseTouchControls() const
 {
-	// are we on a mobile platform? Should we force touch?
+	// мы на мобильной платформе? Нужно ли принудительно включить сенсорный ввод?
 	return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
 }
+

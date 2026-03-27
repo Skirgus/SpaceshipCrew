@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatDamageableBox.h"
@@ -10,22 +10,22 @@ ACombatDamageableBox::ACombatDamageableBox()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the mesh
+	// создать mesh
 	RootComponent = Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 
-	// set the collision properties
+	// установить коллизия properties
 	Mesh->SetCollisionProfileName(FName("BlockAllDynamic"));
 
-	// enable physics
+	// включить физика
 	Mesh->SetSimulatePhysics(true);
 
-	// disable navigation relevance so boxes don't affect NavMesh generation
+	// отключить navigation relevance so boxes don't влияют на NavMesh generation
 	Mesh->bNavigationRelevant = false;
 }
 
 void ACombatDamageableBox::RemoveFromLevel()
 {
-	// destroy this actor
+	// уничтожить этот актор
 	Destroy();
 }
 
@@ -33,51 +33,55 @@ void ACombatDamageableBox::EndPlay(EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// clear the death timer
+	// очистить death таймер
 	GetWorld()->GetTimerManager().ClearTimer(DeathTimer);
 }
 
 void ACombatDamageableBox::ApplyDamage(float Damage, AActor* DamageCauser, const FVector& DamageLocation, const FVector& DamageImpulse)
 {
-	// only process damage if we still have HP
+	// только process урон если we still имеет HP
 	if (CurrentHP > 0.0f)
 	{
-		// apply the damage
+ // apply урон
 		CurrentHP -= Damage;
 
-		// are we dead?
+ // are we dead?
 		if (CurrentHP <= 0.0f)
 		{
 			HandleDeath();
 		}
 
-		// apply a physics impulse to the box, ignoring its mass
+ // apply a физика impulse для box, ignoring its mass
 		Mesh->AddImpulseAtLocation(DamageImpulse * Mesh->GetMass(), DamageLocation);
 
-		// call the BP handler to play effects, etc.
+ // вызвать BP handler для play effects, etc.
 		OnBoxDamaged(DamageLocation, DamageImpulse);
 	}
 }
 
 void ACombatDamageableBox::HandleDeath()
 {
-	// change the collision object type to Visibility so we ignore most interactions but still retain physics collisions
+	// change коллизия объект type для Visibility so we игнорировать most interactions but still retain физика коллизияs
 	Mesh->SetCollisionObjectType(ECC_Visibility);
 
-	// call the BP handler to play effects, etc.
+	// вызвать BP handler для play effects, etc.
 	OnBoxDestroyed();
 
-	// set up the death cleanup timer
+	// установить up death Очистка таймер
 	GetWorld()->GetTimerManager().SetTimer(DeathTimer, this, &ACombatDamageableBox::RemoveFromLevel, DeathDelayTime);
 }
 
 void ACombatDamageableBox::ApplyHealing(float Healing, AActor* Healer)
 {
-	// stub
+	// заглушка
 }
 
 void ACombatDamageableBox::NotifyDanger(const FVector& DangerLocation, AActor* DangerSource)
 {
-	// stub
+	// заглушка
 }
+
+
+
+
 

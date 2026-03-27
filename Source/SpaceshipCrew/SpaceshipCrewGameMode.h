@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "SpaceshipCrewGameMode.generated.h"
 
 /**
- *  Simple GameMode for a third person game
+ *  Простой GameMode для игры от третьего лица
  */
 UCLASS(abstract)
 class ASpaceshipCrewGameMode : public AGameModeBase
@@ -16,9 +16,10 @@ class ASpaceshipCrewGameMode : public AGameModeBase
 
 public:
 	
-	/** Constructor */
+	/** Конструктор */
 	ASpaceshipCrewGameMode();
 };
+
 
 
 

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -19,7 +19,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	float TraceDistance = 250.f;
 
-	/** Called from input (local player). */
+	/** Вызывается из ввода локального игрока. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void RequestInteract();
 
@@ -31,3 +31,4 @@ protected:
 	AActor* TraceInteractable() const;
 	bool ValidateInteractDistance(AActor* Target) const;
 };
+

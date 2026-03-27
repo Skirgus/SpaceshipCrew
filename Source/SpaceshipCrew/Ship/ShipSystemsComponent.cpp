@@ -36,7 +36,7 @@ void UShipSystemsComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 
 void UShipSystemsComponent::SimulateSystems(float DeltaTime)
 {
-	// Simple passive model: fire consumes oxygen; low oxygen damages hull; reactor mitigates fire slowly when high output
+	// Простая пассивная модель: огонь расходует кислород; низкий кислород повреждает корпус; реактор при высокой мощности постепенно подавляет пожар.
 	if (FireIntensity > 0.01f)
 	{
 		OxygenLevel = FMath::Clamp(OxygenLevel - 0.02f * FireIntensity * DeltaTime, 0.f, 1.f);
@@ -95,7 +95,7 @@ bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName Stati
 		return false;
 	}
 
-	// MVP discrete actions — extend with DataTable later
+	// Дискретные действия для MVP — позже можно расширить через DataTable.
 	if (ActionId == FName(TEXT("AdjustReactor")))
 	{
 		ReactorOutput = FMath::Clamp(ReactorOutput + 0.1f * Magnitude, 0.f, 1.f);
@@ -116,7 +116,7 @@ bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName Stati
 		FireIntensity = FMath::Clamp(FireIntensity - 0.2f * Magnitude, 0.f, 1.f);
 		return true;
 	}
-	if (ActionId == FName(TEXT("StartFireEvent"))) // debug / mission director
+	if (ActionId == FName(TEXT("StartFireEvent"))) // отладка / директор миссий
 	{
 		FireIntensity = FMath::Clamp(FireIntensity + 0.25f * Magnitude, 0.f, 1.f);
 		return true;
@@ -124,3 +124,4 @@ bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName Stati
 
 	return false;
 }
+

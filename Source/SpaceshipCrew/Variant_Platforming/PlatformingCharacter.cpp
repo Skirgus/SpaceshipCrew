@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "PlatformingCharacter.h"
@@ -18,28 +18,28 @@ APlatformingCharacter::APlatformingCharacter()
 {
  	PrimaryActorTick.bCanEverTick = true;
 
-	// initialize the flags
+	// инициализировать flags
 	bHasWallJumped = false;
 	bHasDoubleJumped = false;
 	bHasDashed = false;
 	bIsDashing = false;
 
-	// bind the dash montage ended delegate
+	// привязать Делегат завершения Dash montage
 	OnDashMontageEnded.BindUObject(this, &APlatformingCharacter::DashMontageEnded);
 
-	// enable press and hold jump
+	// включить press и hold прыжок
 	JumpMaxHoldTime = 0.4f;
 
-	// set the jump max count to 3 so we can double jump and check for coyote time jumps
+	// установить прыжок максимальный count для 3 so we can double прыжок и проверить для coyote time прыжокs
 	JumpMaxCount = 3;
 
-	// Set size for collision capsule
+	// Set size для коллизия capsule
 	GetCapsuleComponent()->InitCapsuleSize(35.0f, 90.0f);
 
-	// don't rotate the mesh when the controller rotates
+	// don't rotate mesh когда контроллер rotates
 	bUseControllerRotationYaw = false;
 	
-	// Configure character movement
+	// Configure персонаж movement
 	GetCharacterMovement()->GravityScale = 2.5f;
 	GetCharacterMovement()->MaxAcceleration = 1500.0f;
 	GetCharacterMovement()->BrakingFrictionFactor = 1.0f;
@@ -61,7 +61,7 @@ APlatformingCharacter::APlatformingCharacter()
 	GetCharacterMovement()->NavAgentProps.AgentRadius = 42.0;
 	GetCharacterMovement()->NavAgentProps.AgentHeight = 192.0;
 
-	// create the camera boom
+	// создать камера boom
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 
@@ -72,7 +72,7 @@ APlatformingCharacter::APlatformingCharacter()
 	CameraBoom->bEnableCameraRotationLag = true;	
 	CameraBoom->CameraRotationLagSpeed = 8.0f;
 
-	// create the orbiting camera
+	// создать orbiting камера
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
@@ -82,7 +82,7 @@ void APlatformingCharacter::Move(const FInputActionValue& Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	// route the input
+	// route ввод
 	DoMove(MovementVector.X, MovementVector.Y);
 }
 
@@ -90,31 +90,31 @@ void APlatformingCharacter::Look(const FInputActionValue& Value)
 {
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	// route the input
+	// route ввод
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
 
 void APlatformingCharacter::Dash()
 {
-	// route the input
+	// route ввод
 	DoDash();
 }
 
 void APlatformingCharacter::MultiJump()
 {
-	// ignore jumps while dashing
+	// игнорировать прыжокs пока dashing
 	if(bIsDashing)
 		return;
 
-	// are we already in the air?
+	// are we already в air?
 	if (GetCharacterMovement()->IsFalling())
 	{
 
-		// have we already wall jumped?
+ // имеет we already wall прыжокed?
 		if (!bHasWallJumped)
 		{
-			// run a sphere sweep to check if we're in front of a wall
+ // run a sphere трассировка для проверить если мы в front из a wall
 			FHitResult OutHit;
 
 			const FVector TraceStart = GetActorLocation();
@@ -126,52 +126,52 @@ void APlatformingCharacter::MultiJump()
 
 			if (GetWorld()->SweepSingleByChannel(OutHit, TraceStart, TraceEnd, FQuat(), ECollisionChannel::ECC_Visibility, TraceShape, QueryParams))
 			{
-				// rotate the character to face away from the wall, so we're correctly oriented for the next wall jump
+ // rotate персонаж для face away из wall, so мы correctly oriented для следующий wall прыжок
 				FRotator WallOrientation = OutHit.ImpactNormal.ToOrientationRotator();
 				WallOrientation.Pitch = 0.0f;
 				WallOrientation.Roll = 0.0f;
 
 				SetActorRotation(WallOrientation);
 
-				// apply a launch impulse to the character to perform the actual wall jump
+ // apply a launch impulse для персонаж для perform actual wall прыжок
 				const FVector WallJumpImpulse = (OutHit.ImpactNormal * WallJumpBounceImpulse) + (FVector::UpVector * WallJumpVerticalImpulse);
 
 				LaunchCharacter(WallJumpImpulse, true, true);
 
-				// enable the jump trail
+ // включить прыжок trail
 				SetJumpTrailState(true);
 
-				// raise the wall jump flag to prevent an immediate second wall jump
+ // поднять wall прыжок flag для prevent immediate second wall прыжок
 				bHasWallJumped = true;
 
 				GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &APlatformingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
 			}
-			// no wall jump, try a double jump next
+ // no wall прыжок, try a double прыжок next
 			else
 			{
-				// are we still within coyote time frames?
+ // are we still within coyote time frames?
 				if (GetWorld()->GetTimeSeconds() - LastFallTime < MaxCoyoteTime)
 				{
 					UE_LOG(LogTemp, Warning, TEXT("Coyote Jump"));
 
-					// use the built-in CMC functionality to do the jump
+ // использовать built-в CMC functionality для do прыжок
 					Jump();
 
-					// enable the jump trail
+ // включить прыжок trail
 					SetJumpTrailState(true);
 
-				// no coyote time jump
+ // no coyote time прыжок
 				} else {
 
-					// only double jump once while we're in the air
+ // только double прыжок once пока мы в air
 					if (!bHasDoubleJumped)
 					{
 						bHasDoubleJumped = true;
 
-						// use the built-in CMC functionality to do the double jump
+ // использовать built-в CMC functionality для do double прыжок
 						Jump();
 
-						// enable the jump trail
+ // включить прыжок trail
 						SetJumpTrailState(true);
 					}
 
@@ -184,17 +184,17 @@ void APlatformingCharacter::MultiJump()
 	}
 	else
 	{
-		// we're grounded so just do a regular jump
+ // мы grounded so just do a regular прыжок
 		Jump();
 
-		// activate the jump trail
+ // activate прыжок trail
 		SetJumpTrailState(true);
 	}
 }
 
 void APlatformingCharacter::ResetWallJump()
 {
-	// reset the wall jump input lock
+	// сбросить wall прыжок ввод lock
 	bHasWallJumped = false;
 }
 
@@ -202,20 +202,20 @@ void APlatformingCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
-		// momentarily disable movement inputs if we've just wall jumped
+ // momentarily отключить движение inputs если we've just wall прыжокed
 		if (!bHasWallJumped)
 		{
-			// find out which way is forward
+ // find out which way is forward
 			const FRotator Rotation = GetController()->GetControlRotation();
 			const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-			// get forward vector
+ // получить вперёд vector
 			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-			// get right vector 
+ // получить right vector
 			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-			// add movement 
+ // add movement
 			AddMovementInput(ForwardDirection, Forward);
 			AddMovementInput(RightDirection, Right);
 		}
@@ -226,7 +226,7 @@ void APlatformingCharacter::DoLook(float Yaw, float Pitch)
 {
 	if (GetController() != nullptr)
 	{
-		// add yaw and pitch input to controller
+ // add yaw и pitch ввод для контроллер
 		AddControllerYawInput(Yaw);
 		AddControllerPitchInput(Pitch);
 	}
@@ -234,29 +234,29 @@ void APlatformingCharacter::DoLook(float Yaw, float Pitch)
 
 void APlatformingCharacter::DoDash()
 {
-	// ignore the input if we've already dashed and have yet to reset
+	// игнорировать ввод если we've already dashed и имеет yet для reset
 	if (bHasDashed)
 		return;
 
-	// raise the dash flags
+	// поднять dash flags
 	bIsDashing = true;
 	bHasDashed = true;
 
-	// disable gravity while dashing
+	// отключить gravity пока dashing
 	GetCharacterMovement()->GravityScale = 0.0f;
 
-	// reset the character velocity so we don't carry momentum into the dash
+	// сбросить персонаж velocity so we don't carry momentum into dash
 	GetCharacterMovement()->Velocity = FVector::ZeroVector;
 
-	// enable the jump trails
+	// включить прыжок trails
 	SetJumpTrailState(true);
 
-	// play the dash montage
+	// play dash montage
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
 		const float MontageLength = AnimInstance->Montage_Play(DashMontage, 1.0f, EMontagePlayReturnType::MontageLength, 0.0f, true);
 
-		// has the montage played successfully?
+ // has montage played successfully?
 		if (MontageLength > 0.0f)
 		{
 			AnimInstance->Montage_SetEndDelegate(OnDashMontageEnded, DashMontage);
@@ -266,19 +266,19 @@ void APlatformingCharacter::DoDash()
 
 void APlatformingCharacter::DoJumpStart()
 {
-	// handle special jump cases
+	// handle special прыжок cases
 	MultiJump();
 }
 
 void APlatformingCharacter::DoJumpEnd()
 {
-	// stop jumping
+	// stop прыжокing
 	StopJumping();
 }
 
 void APlatformingCharacter::DashMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	// end the dash
+	// end dash
 	EndDash();
 }
 
@@ -287,16 +287,16 @@ void APlatformingCharacter::EndDash()
 	// restore gravity
 	GetCharacterMovement()->GravityScale = 2.5f;
 
-	// reset the dashing flag
+	// сбросить dashing flag
 	bIsDashing = false;
 
-	// are we grounded after the dash?
+	// are we grounded после dash?
 	if (GetCharacterMovement()->IsMovingOnGround())
 	{
-		// reset the dash usage flag, since we won't receive a landed event
+ // сбросить dash usage flag, since we won't receive a landed событие
 		bHasDashed = false;
 
-		// deactivate the jump trails
+ // deactivate прыжок trails
 		SetJumpTrailState(false);
 	}
 }
@@ -315,28 +315,28 @@ void APlatformingCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// clear the wall jump reset timer
+	// очистить wall прыжок сбросить таймер
 	GetWorld()->GetTimerManager().ClearTimer(WallJumpTimer);
 }
 
 void APlatformingCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	// Set up action bindings
+	// Set up action привязки
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 
-		// Jumping
+ // Jumping
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &APlatformingCharacter::DoJumpStart);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &APlatformingCharacter::DoJumpEnd);
 
-		// Moving
+ // Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlatformingCharacter::Move);
 		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &APlatformingCharacter::Look);
 
-		// Looking
+ // Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlatformingCharacter::Look);
 
-		// Dashing
+ // Dashing
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Triggered, this, &APlatformingCharacter::Dash);
 	}
 }
@@ -345,11 +345,11 @@ void APlatformingCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 
-	// reset the double jump and dash flags
+	// сбросить double прыжок и dash flags
 	bHasDoubleJumped = false;
 	bHasDashed = false;
 
-	// deactivate the jump trail
+	// deactivate прыжок trail
 	SetJumpTrailState(false);
 }
 
@@ -360,8 +360,12 @@ void APlatformingCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode
 	// are we falling?
 	if (GetCharacterMovement()->MovementMode == EMovementMode::MOVE_Falling)
 	{
-		// save the game time when we started falling, so we can check it later for coyote time jumps
+ // сохранить игровое время когда we started falling, so we can проверить it later для coyote time прыжокs
 		LastFallTime = GetWorld()->GetTimeSeconds();
 	}
 }
+
+
+
+
 

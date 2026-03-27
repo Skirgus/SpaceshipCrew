@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingCharacter.h"
@@ -18,19 +18,19 @@ ASideScrollingCharacter::ASideScrollingCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// create the camera component
+	// создать камера component
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
 
 	Camera->SetRelativeLocationAndRotation(FVector(0.0f, 300.0f, 0.0f), FRotator(0.0f, -90.0f, 0.0f));
 
-	// configure the collision capsule
+	// configure коллизия capsule
 	GetCapsuleComponent()->SetCapsuleSize(35.0f, 90.0f);
 
-	// configure the Pawn properties
+	// configure Pawn properties
 	bUseControllerRotationYaw = false;
 
-	// configure the character movement component
+	// configure персонаж движение component
 	GetCharacterMovement()->GravityScale = 1.75f;
 	GetCharacterMovement()->MaxAcceleration = 1500.0f;
 	GetCharacterMovement()->BrakingFrictionFactor = 1.0f;
@@ -55,7 +55,7 @@ ASideScrollingCharacter::ASideScrollingCharacter()
 	GetCharacterMovement()->SetPlaneConstraintNormal(FVector(0.0f, 1.0f, 0.0f));
 	GetCharacterMovement()->bConstrainToPlane = true;
 
-	// enable double jump and coyote time
+	// включить double прыжок и coyote time
 	JumpMaxCount = 3;
 }
 
@@ -63,7 +63,7 @@ void ASideScrollingCharacter::EndPlay(EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// clear the wall jump timer
+	// очистить wall прыжок таймер
 	GetWorld()->GetTimerManager().ClearTimer(WallJumpTimer);
 }
 
@@ -71,20 +71,20 @@ void ASideScrollingCharacter::SetupPlayerInputComponent(class UInputComponent* P
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	// Set up action bindings
+	// Set up action привязки
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		// Jumping
+ // Jumping
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ASideScrollingCharacter::DoJumpStart);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ASideScrollingCharacter::DoJumpEnd);
 
-		// Interacting
+ // Interacting
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &ASideScrollingCharacter::DoInteract);
 
-		// Moving
+ // Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASideScrollingCharacter::Move);
 
-		// Dropping from platform
+ // Dropping из платформа
 		EnhancedInputComponent->BindAction(DropAction, ETriggerEvent::Triggered, this, &ASideScrollingCharacter::Drop);
 		EnhancedInputComponent->BindAction(DropAction, ETriggerEvent::Completed, this, &ASideScrollingCharacter::DropReleased);
 
@@ -95,21 +95,21 @@ void ASideScrollingCharacter::NotifyHit(class UPrimitiveComponent* MyComp, AActo
 {
 	Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
 
-	// only apply push impulse if we're falling
+	// только apply push impulse если мы falling
 	if (!GetCharacterMovement()->IsFalling())
 	{
 		return;
 	}
 
-	// ensure the colliding component is valid
+	// убедиться colliding component is валидный
 	if (OtherComp)
 	{
-		// ensure the component is movable and simulating physics
+ // убедиться component is movable и simulating физика
 		if (OtherComp->Mobility == EComponentMobility::Movable && OtherComp->IsSimulatingPhysics())
 		{
 			const FVector PushDir = FVector(ActionValueY > 0.0f ? 1.0f : -1.0f, 0.0f, 0.0f);
 
-			// push the component away
+ // push component away
 			OtherComp->AddImpulse(PushDir * JumpPushImpulse, NAME_None, true);
 		}
 	}
@@ -117,7 +117,7 @@ void ASideScrollingCharacter::NotifyHit(class UPrimitiveComponent* MyComp, AActo
 
 void ASideScrollingCharacter::Landed(const FHitResult& Hit)
 {
-	// reset the double jump
+	// сбросить double прыжок
 	bHasDoubleJumped = false;
 }
 
@@ -128,7 +128,7 @@ void ASideScrollingCharacter::OnMovementModeChanged(EMovementMode PrevMovementMo
 	// are we falling?
 	if (GetCharacterMovement()->MovementMode == EMovementMode::MOVE_Falling)
 	{
-		// save the game time when we started falling, so we can check it later for coyote time jumps
+ // сохранить игровое время когда we started falling, so we can проверить it later для coyote time прыжокs
 		LastFallTime = GetWorld()->GetTimeSeconds();
 	}
 }
@@ -137,47 +137,47 @@ void ASideScrollingCharacter::Move(const FInputActionValue& Value)
 {
 	FVector2D MoveVector = Value.Get<FVector2D>();
 
-	// route the input
+	// route ввод
 	DoMove(MoveVector.Y);
 }
 
 void ASideScrollingCharacter::Drop(const FInputActionValue& Value)
 {
-	// route the input
+	// route ввод
 	DoDrop(Value.Get<float>());
 }
 
 void ASideScrollingCharacter::DropReleased(const FInputActionValue& Value)
 {
-	// reset the input
+	// сбросить ввод
 	DoDrop(0.0f);
 }
 
 void ASideScrollingCharacter::DoMove(float Forward)
 {
-	// is movement temporarily disabled after wall jumping?
+	// is движение temporarily disabled после wall прыжокing?
 	if (!bHasWallJumped)
 	{
-		// save the movement values
+ // сохранить движение values
 		ActionValueY = Forward;
 
-		// figure out the movement direction
+ // figure out движение direction
 		const FVector MoveDir = FVector(1.0f, Forward > 0.0f ? 0.1f : -0.1f, 0.0f);
 
-		// apply the movement input
+ // apply движение ввод
 		AddMovementInput(MoveDir, Forward);
 	}
 }
 
 void ASideScrollingCharacter::DoDrop(float Value)
 {
-	// save the movement value
+	// сохранить движение value
 	DropValue = Value;
 }
 
 void ASideScrollingCharacter::DoJumpStart()
 {
-	// handle advanced jump behaviors
+	// handle advanced прыжок behaviors
 	MultiJump();
 }
 
@@ -188,7 +188,7 @@ void ASideScrollingCharacter::DoJumpEnd()
 
 void ASideScrollingCharacter::DoInteract()
 {
-	// do a sphere trace to look for interactive objects
+	// do a sphere trace для look для interactive objects
 	FHitResult OutHit;
 
 	const FVector Start = GetActorLocation();
@@ -206,10 +206,10 @@ void ASideScrollingCharacter::DoInteract()
 
 	if (GetWorld()->SweepSingleByObjectType(OutHit, Start, End, FQuat::Identity, ObjectParams, ColSphere, QueryParams))
 	{
-		// have we hit an interactable?
+ // имеет we попадание interactable?
 		if (ISideScrollingInteractable* Interactable = Cast<ISideScrollingInteractable>(OutHit.GetActor()))
 		{
-			// interact
+ // interact
 			Interactable->Interaction(this);
 		}
 	}
@@ -217,27 +217,27 @@ void ASideScrollingCharacter::DoInteract()
 
 void ASideScrollingCharacter::MultiJump()
 {
-	// does the user want to drop to a lower platform?
+	// does user want для drop для a lower платформа?
 	if (DropValue > 0.0f)
 	{
 		CheckForSoftCollision();
 		return;
 	}
 
-	// reset the drop value
+	// сбросить drop value
 	DropValue = 0.0f;
 
-	// if we're grounded, disregard advanced jump logic
+	// если мы grounded, disregard advanced прыжок logic
 	if (!GetCharacterMovement()->IsFalling())
 	{
 		Jump();
 		return;
 	}
 
-	// if we have a horizontal input, try for wall jump first
+	// если we имеет a горизонтальный ввод, try для wall прыжок first
 	if (!bHasWallJumped && !FMath::IsNearlyZero(ActionValueY))
 	{
-		// trace ahead of the character for walls
+ // trace ahead из персонаж для walls
 		FHitResult OutHit;
 
 		const FVector Start = GetActorLocation();
@@ -250,21 +250,21 @@ void ASideScrollingCharacter::MultiJump()
 
 		if (OutHit.bBlockingHit)
 		{
-			// rotate to the bounce direction
+ // rotate для bounce direction
 			const FRotator BounceRot = UKismetMathLibrary::MakeRotFromX(OutHit.ImpactNormal);
 			SetActorRotation(FRotator(0.0f, BounceRot.Yaw, 0.0f));
 
-			// calculate the impulse vector
+ // calculate impulse vector
 			FVector WallJumpImpulse = OutHit.ImpactNormal * WallJumpHorizontalImpulse;
 			WallJumpImpulse.Z = GetCharacterMovement()->JumpZVelocity * WallJumpVerticalMultiplier;
 
-			// launch the character away from the wall
+ // launch персонаж away из wall
 			LaunchCharacter(WallJumpImpulse, true, true);
 
-			// enable wall jump lockout for a bit
+ // включить wall прыжок lockout для a bit
 			bHasWallJumped = true;
 
-			// schedule wall jump lockout reset
+ // schedule wall прыжок lockout reset
 			GetWorld()->GetTimerManager().SetTimer(WallJumpTimer, this, &ASideScrollingCharacter::ResetWallJump, DelayBetweenWallJumps, false);
 
 			return;
@@ -273,27 +273,27 @@ void ASideScrollingCharacter::MultiJump()
 
 
 
-	// test for double jump only if we haven't already tested for wall jump
+	// test для double прыжок только если we haven't already tested для wall прыжок
 	if (!bHasWallJumped)
 	{
-		// are we still within coyote time frames?
+ // are we still within coyote time frames?
 		if (GetWorld()->GetTimeSeconds() - LastFallTime < MaxCoyoteTime)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Coyote Jump"));
 
-			// use the built-in CMC functionality to do the jump
+ // использовать built-в CMC functionality для do прыжок
 			Jump();
 
-		// no coyote time jump
+ // no coyote time прыжок
 		} else {
 		
-			// The movement component handles double jump but we still need to manage the flag for animation
+ // движение component обрабатывает double прыжок but we still need для manage flag для animation
 			if (!bHasDoubleJumped)
 			{
-				// raise the double jump flag
+ // поднять double прыжок flag
 				bHasDoubleJumped = true;
 
-				// let the CMC handle jump
+ // let CMC handle прыжок
 				Jump();
 			}
 		}
@@ -302,10 +302,10 @@ void ASideScrollingCharacter::MultiJump()
 
 void ASideScrollingCharacter::CheckForSoftCollision()
 {
-	// reset the drop value
+	// сбросить drop value
 	DropValue = 0.0f;
 
-	// trace down 
+	// trace down
 	FHitResult OutHit;
 
 	const FVector Start = GetActorLocation();
@@ -319,23 +319,23 @@ void ASideScrollingCharacter::CheckForSoftCollision()
 
 	GetWorld()->LineTraceSingleByObjectType(OutHit, Start, End, ObjectParams, QueryParams);
 
-	// did we hit a soft floor?
+	// did we попадание a soft floor?
 	if (OutHit.GetActor())
 	{
-		// drop through the floor
+ // drop through floor
 		SetSoftCollision(true);
 	}
 }
 
 void ASideScrollingCharacter::ResetWallJump()
 {
-	// reset the wall jump flag
+	// сбросить wall прыжок flag
 	bHasWallJumped = false;
 }
 
 void ASideScrollingCharacter::SetSoftCollision(bool bEnabled)
 {
-	// enable or disable collision response to the soft collision channel
+	// включить или отключить коллизия response для soft коллизия channel
 	GetCapsuleComponent()->SetCollisionResponseToChannel(SoftCollisionObjectType, bEnabled ? ECR_Ignore : ECR_Block);
 }
 
@@ -348,3 +348,7 @@ bool ASideScrollingCharacter::HasWallJumped() const
 {
 	return bHasWallJumped;
 }
+
+
+
+

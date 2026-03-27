@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "Variant_Combat/CombatPlayerController.h"
@@ -17,15 +17,15 @@ void ACombatPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// only spawn touch controls on local player controllers
+	// только спавн сенсорное управление на локальный игрок контроллерs
 	if (ShouldUseTouchControls() && IsLocalPlayerController())
 	{
-		// spawn the mobile controls widget
+ // спавн мобильных controls виджет
 		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
 
 		if (MobileControlsWidget)
 		{
-			// add the controls to the player screen
+ // add controls для игрок screen
 			MobileControlsWidget->AddToPlayerScreen(0);
 
 		} else {
@@ -41,10 +41,10 @@ void ACombatPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// only add IMCs for local player controllers
+	// только add IMCs для локальный игрок контроллерs
 	if (IsLocalPlayerController())
 	{
-		// add the input mapping context
+ // add ввод привязки контекст
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
 			for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
@@ -52,7 +52,7 @@ void ACombatPlayerController::SetupInputComponent()
 				Subsystem->AddMappingContext(CurrentContext, 0);
 			}
 
-			// only add these IMCs if we're not using mobile touch input
+ // только add эти IMCs если мы not using мобильных touch ввод
 			if (!ShouldUseTouchControls())
 			{
 				for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
@@ -68,28 +68,32 @@ void ACombatPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
-	// subscribe to the pawn's OnDestroyed delegate
+	// подписаться для pawn's OnDestroyed delegate
 	InPawn->OnDestroyed.AddDynamic(this, &ACombatPlayerController::OnPawnDestroyed);
 }
 
 void ACombatPlayerController::SetRespawnTransform(const FTransform& NewRespawn)
 {
-	// save the new respawn transform
+	// сохранить new респавн transform
 	RespawnTransform = NewRespawn;
 }
 
 void ACombatPlayerController::OnPawnDestroyed(AActor* DestroyedActor)
 {
-	// spawn a new character at the respawn transform
+	// спавн a new персонаж в респавн transform
 	if (ACombatCharacter* RespawnedCharacter = GetWorld()->SpawnActor<ACombatCharacter>(CharacterClass, RespawnTransform))
 	{
-		// possess the character
+ // possess персонаж
 		Possess(RespawnedCharacter);
 	}
 }
 
 bool ACombatPlayerController::ShouldUseTouchControls() const
 {
-	// are we on a mobile platform? Should we force touch?
+	// are we на a мобильных платформа? Should we force touch?
 	return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
 }
+
+
+
+

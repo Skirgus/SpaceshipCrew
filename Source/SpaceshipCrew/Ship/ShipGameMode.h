@@ -14,8 +14,8 @@ class UCrewRoleDefinition;
 class UShipCrewManifest;
 
 /**
- * Single-player MVP: spawns one human at PlayerRoleSlotIndex and bots for other mandatory roles.
- * Ship systems are unchanged for future coop (see IShipCrewSlotPossession).
+ * MVP для одиночной игры: спавнит одного игрока в слоте PlayerRoleSlotIndex и ботов на остальных обязательных ролях.
+ * Системы корабля остаются неизменными для будущего коопа (см. IShipCrewSlotPossession).
  */
 UCLASS()
 class SPACESHIPCREW_API AShipGameMode : public AGameModeBase, public IShipCrewSlotPossession
@@ -25,15 +25,15 @@ class SPACESHIPCREW_API AShipGameMode : public AGameModeBase, public IShipCrewSl
 public:
 	AShipGameMode();
 
-	/** Optional manifest asset; if null, MandatoryRoles must be set in editor or defaults are created at runtime. */
+	/** Необязательный ассет манифеста; если не задан, MandatoryRoles задаются в редакторе или создаются по умолчанию во время выполнения. */
 	UPROPERTY(EditAnywhere, Category = "Crew")
 	TObjectPtr<UShipCrewManifest> CrewManifest;
 
-	/** If CrewManifest is null, these roles are used (may be empty → runtime defaults). */
+	/** Если CrewManifest не задан, используются эти роли (может быть пусто -> runtime-значения по умолчанию). */
 	UPROPERTY(EditAnywhere, Category = "Crew")
 	TArray<TObjectPtr<UCrewRoleDefinition>> MandatoryRoles;
 
-	/** Which slot the local human occupies (0-based). */
+	/** Какой слот занимает локальный игрок (индексация с нуля). */
 	UPROPERTY(EditAnywhere, Category = "Crew")
 	int32 PlayerRoleSlotIndex = 0;
 
@@ -60,3 +60,4 @@ protected:
 
 	bool bCrewSpawned = false;
 };
+

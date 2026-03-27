@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ShipGameMode.h"
 #include "ShipPlayerController.h"
@@ -196,5 +196,6 @@ APawn* AShipGameMode::SpawnDefaultPawnFor(AController* NewPlayer, AActor* StartS
 
 void AShipGameMode::PossessCrewSlot(APlayerController* Player, int32 SlotIndex)
 {
-	// Future: move human into SlotIndex; unpossess bot there.
+	// В будущем: переносить игрока в SlotIndex и снимать управление с бота в этом слоте.
 }
+

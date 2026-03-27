@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "CombatGameMode.generated.h"
 
 /**
- *  Simple GameMode for a third person combat game
+ * Simple GameMode для a third person combat game
  */
 UCLASS(abstract)
 class ACombatGameMode : public AGameModeBase
@@ -18,3 +18,7 @@ public:
 
 	ACombatGameMode();
 };
+
+
+
+

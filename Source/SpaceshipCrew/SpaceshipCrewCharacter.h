@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -15,82 +15,83 @@ struct FInputActionValue;
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 /**
- *  A simple player-controllable third person character
- *  Implements a controllable orbiting camera
+ *  Простой управляемый игроком персонаж от третьего лица
+ *  Реализует управляемую орбитальную камеру
  */
 UCLASS(abstract)
 class ASpaceshipCrewCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
-	/** Camera boom positioning the camera behind the character */
+	/** Камера-бум, размещающая камеру позади персонажа */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
 
-	/** Follow camera */
+	/** Камера следования */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 	
 protected:
 
-	/** Jump Input Action */
+	/** Действие ввода прыжка */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* JumpAction;
 
-	/** Move Input Action */
+	/** Действие ввода перемещения */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MoveAction;
 
-	/** Look Input Action */
+	/** Действие ввода обзора */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* LookAction;
 
-	/** Mouse Look Input Action */
+	/** Действие ввода обзора мышью */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
 public:
 
-	/** Constructor */
+	/** Конструктор */
 	ASpaceshipCrewCharacter();	
 
 protected:
 
-	/** Initialize input action bindings */
+	/** Инициализирует привязки действий ввода */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 protected:
 
-	/** Called for movement input */
+	/** Вызывается для ввода перемещения */
 	void Move(const FInputActionValue& Value);
 
-	/** Called for looking input */
+	/** Вызывается для ввода обзора */
 	void Look(const FInputActionValue& Value);
 
 public:
 
-	/** Handles move inputs from either controls or UI interfaces */
+	/** Обрабатывает ввод перемещения как от управления, так и от UI */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoMove(float Right, float Forward);
 
-	/** Handles look inputs from either controls or UI interfaces */
+	/** Обрабатывает ввод обзора как от управления, так и от UI */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoLook(float Yaw, float Pitch);
 
-	/** Handles jump pressed inputs from either controls or UI interfaces */
+	/** Обрабатывает нажатие прыжка как от управления, так и от UI */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpStart();
 
-	/** Handles jump pressed inputs from either controls or UI interfaces */
+	/** Обрабатывает нажатие прыжка как от управления, так и от UI */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
 
 public:
 
-	/** Returns CameraBoom subobject **/
+	/** Возвращает подобъект CameraBoom **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 
-	/** Returns FollowCamera subobject **/
+	/** Возвращает подобъект FollowCamera **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 };
+
 

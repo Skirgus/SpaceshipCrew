@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,26 +9,26 @@
 class UBoxComponent;
 
 /**
- *  A simple jump pad that launches characters into the air
+ * A simple прыжок pad который launches персонажs into air
  */
 UCLASS(abstract)
 class ASideScrollingJumpPad : public AActor
 {
 	GENERATED_BODY()
 	
-	/** Jump pad bounding box */
+	/** Границы jump-pad (box) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* Box;
 
 protected:
 
-	/** Vertical velocity to set the character to when they use the jump pad */
+	/** Vertical velocity для установить персонаж для когда they использовать прыжок pad */
 	UPROPERTY(EditAnywhere, Category="Jump Pad", meta = (ClampMin=0, ClampMax=10000, Units="cm/s"))
 	float ZStrength = 1000.0f;
 
 public:	
 
-	/** Constructor */
+	/** Конструктор */
 	ASideScrollingJumpPad();
 
 protected:
@@ -37,3 +37,7 @@ protected:
 	void BeginOverlap(AActor* OverlappedActor, AActor* OtherActor);
 
 };
+
+
+
+

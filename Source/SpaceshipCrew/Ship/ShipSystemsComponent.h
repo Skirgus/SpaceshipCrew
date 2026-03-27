@@ -10,7 +10,8 @@ class UCrewRoleComponent;
 class AController;
 
 /**
- * Server-authoritative ship simulation. Commands must pass role authorization — no player/bot branching.
+ * Сервер-авторитетная симуляция корабля. Команды проходят авторизацию по роли,
+ * без разделения логики между игроком и ботом.
  */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SPACESHIPCREW_API UShipSystemsComponent : public UActorComponent
@@ -20,23 +21,23 @@ class SPACESHIPCREW_API UShipSystemsComponent : public UActorComponent
 public:
 	UShipSystemsComponent();
 
-	/** 0–1 normalized power output. */
+	/** Нормализованная мощность реактора (0-1). */
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Power")
 	float ReactorOutput = 0.75f;
 
-	/** 0–1 oxygen level (room aggregate MVP). */
+	/** Уровень кислорода (0-1), агрегировано по комнатам в рамках MVP. */
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Atmosphere")
 	float OxygenLevel = 1.f;
 
-	/** 0–1 hull integrity. */
+	/** Целостность корпуса (0-1). */
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Damage")
 	float HullIntegrity = 1.f;
 
-	/** 0–1 active fire intensity. */
+	/** Интенсивность активного пожара (0-1). */
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Fire")
 	float FireIntensity = 0.f;
 
-	/** Validates issuer's role vs StationPermission, then applies ActionId (extensible). */
+	/** Проверяет роль инициатора относительно StationPermission, затем применяет ActionId (расширяемо). */
 	UFUNCTION(BlueprintCallable, Category = "Ship")
 	bool ApplyAuthorizedAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude = 1.f);
 
@@ -57,3 +58,4 @@ protected:
 
 	static bool ResolveCrewRole(AController* Issuer, UCrewRoleComponent*& OutRole);
 };
+

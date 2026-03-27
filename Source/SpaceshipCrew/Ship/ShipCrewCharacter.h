@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -13,7 +13,7 @@ class UCrewInteractionComponent;
 class UCrewBotBrainComponent;
 
 /**
- * Concrete third-person crew pawn with role + interaction (players and bots).
+ * Конкретная пешка экипажа от третьего лица с ролью и взаимодействием (для игрока и ботов).
  */
 UCLASS()
 class SPACESHIPCREW_API AShipCrewCharacter : public ASpaceshipCrewCharacter
@@ -32,7 +32,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Crew")
 	TObjectPtr<UCrewBotBrainComponent> CrewBotBrain;
 
-	/** Optional: bind in BP or assign IA_Interact. */
+	/** Необязательно: привяжите в BP или назначьте IA_Interact. */
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
 
@@ -41,3 +41,4 @@ protected:
 
 	void OnInteractPressed(const FInputActionValue& Value);
 };
+

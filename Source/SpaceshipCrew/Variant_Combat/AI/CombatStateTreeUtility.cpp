@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatStateTreeUtility.h"
@@ -16,7 +16,7 @@ bool FStateTreeCharacterGroundedCondition::TestCondition(FStateTreeExecutionCont
 {
 	const FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-	// is the character currently grounded?
+	// is персонаж currently grounded?
 	bool bCondition = InstanceData.Character->GetMovementComponent()->IsMovingOnGround();
 
 	return InstanceData.bMustBeOnAir ? !bCondition : bCondition;
@@ -35,15 +35,15 @@ bool FStateTreeIsInDangerCondition::TestCondition(FStateTreeExecutionContext& Co
 {
 	const FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-	// ensure we have a valid enemy character
+	// убедиться we имеет a валидный враг персонаж
 	if (InstanceData.Character)
 	{
-		// is the last detected danger event within the reaction threshold?
+ // is последний detected опасность событие within реакция threshold?
 		const float ReactionDelta = InstanceData.Character->GetWorld()->GetTimeSeconds() - InstanceData.Character->GetLastDangerTime();
 
 		if (ReactionDelta < InstanceData.MaxReactionTime && ReactionDelta > InstanceData.MinReactionTime)
 		{
-			// do a dot product check to determine if the danger location is within the character's detection cone
+ // do a dot product проверить для determine если опасность позиция is within персонаж's detection cone
 			const FVector DangerDir = (InstanceData.Character->GetLastDangerLocation() - InstanceData.Character->GetActorLocation()).GetSafeNormal2D();
 
 			const float DangerDot = FVector::DotProduct(DangerDir, InstanceData.Character->GetActorForwardVector());
@@ -67,13 +67,13 @@ FText FStateTreeIsInDangerCondition::GetDescription(const FGuid& ID, FStateTreeD
 
 EStateTreeRunStatus FStateTreeComboAttackTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// bind to the on attack completed delegate
+ // привязать для на атака завершённые delegate
 		InstanceData.Character->OnAttackCompleted.BindLambda(
 			[WeakContext = Context.MakeWeakExecutionContext()]()
 			{
@@ -82,7 +82,7 @@ EStateTreeRunStatus FStateTreeComboAttackTask::EnterState(FStateTreeExecutionCon
 		);
 
 
-		// tell the character to do a combo attack
+ // tell персонаж для do a combo атака
 		InstanceData.Character->DoAIComboAttack();
 	}
 
@@ -91,13 +91,13 @@ EStateTreeRunStatus FStateTreeComboAttackTask::EnterState(FStateTreeExecutionCon
 
 void FStateTreeComboAttackTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// unbind the on attack completed delegate
+ // unпривязать на атака завершённые delegate
 		InstanceData.Character->OnAttackCompleted.Unbind();
 	}
 }
@@ -113,13 +113,13 @@ FText FStateTreeComboAttackTask::GetDescription(const FGuid& ID, FStateTreeDataV
 
 EStateTreeRunStatus FStateTreeChargedAttackTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// bind to the on attack completed delegate
+ // привязать для на атака завершённые delegate
 		InstanceData.Character->OnAttackCompleted.BindLambda(
 			[WeakContext = Context.MakeWeakExecutionContext()]()
 			{
@@ -127,7 +127,7 @@ EStateTreeRunStatus FStateTreeChargedAttackTask::EnterState(FStateTreeExecutionC
 			}
 		);
 
-		// tell the character to do a charged attack
+ // tell персонаж для do a charged атака
 		InstanceData.Character->DoAIChargedAttack();
 	}
 
@@ -136,13 +136,13 @@ EStateTreeRunStatus FStateTreeChargedAttackTask::EnterState(FStateTreeExecutionC
 
 void FStateTreeChargedAttackTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// unbind the on attack completed delegate
+ // unпривязать на атака завершённые delegate
 		InstanceData.Character->OnAttackCompleted.Unbind();
 	}
 }
@@ -158,13 +158,13 @@ FText FStateTreeChargedAttackTask::GetDescription(const FGuid& ID, FStateTreeDat
 
 EStateTreeRunStatus FStateTreeWaitForLandingTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// bind to the on enemy landed delegate
+ // привязать для на враг landed delegate
 		InstanceData.Character->OnEnemyLanded.BindLambda(
 			[WeakContext = Context.MakeWeakExecutionContext()]()
 			{
@@ -178,13 +178,13 @@ EStateTreeRunStatus FStateTreeWaitForLandingTask::EnterState(FStateTreeExecution
 
 void FStateTreeWaitForLandingTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// unbind the on enemy landed delegate
+ // unпривязать на враг landed delegate
 		InstanceData.Character->OnEnemyLanded.Unbind();
 	}
 }
@@ -200,13 +200,13 @@ FText FStateTreeWaitForLandingTask::GetDescription(const FGuid& ID, FStateTreeDa
 
 EStateTreeRunStatus FStateTreeFaceActorTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// set the AI Controller's focus
+ // установить AI Контроллер's focus
 		InstanceData.Controller->SetFocus(InstanceData.ActorToFaceTowards);
 	}
 
@@ -215,13 +215,13 @@ EStateTreeRunStatus FStateTreeFaceActorTask::EnterState(FStateTreeExecutionConte
 
 void FStateTreeFaceActorTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned to another state?
+	// имеет we transitioned для another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// clear the AI Controller's focus
+ // очистить AI Контроллер's focus
 		InstanceData.Controller->ClearFocus(EAIFocusPriority::Gameplay);
 	}
 }
@@ -237,13 +237,13 @@ FText FStateTreeFaceActorTask::GetDescription(const FGuid& ID, FStateTreeDataVie
 
 EStateTreeRunStatus FStateTreeFaceLocationTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// set the AI Controller's focus
+ // установить AI Контроллер's focus
 		InstanceData.Controller->SetFocalPoint(InstanceData.FaceLocation);
 	}
 
@@ -252,13 +252,13 @@ EStateTreeRunStatus FStateTreeFaceLocationTask::EnterState(FStateTreeExecutionCo
 
 void FStateTreeFaceLocationTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned to another state?
+	// имеет we transitioned для another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// clear the AI Controller's focus
+ // очистить AI Контроллер's focus
 		InstanceData.Controller->ClearFocus(EAIFocusPriority::Gameplay);
 	}
 }
@@ -274,13 +274,13 @@ FText FStateTreeFaceLocationTask::GetDescription(const FGuid& ID, FStateTreeData
 
 EStateTreeRunStatus FStateTreeSetCharacterSpeedTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// have we transitioned from another state?
+	// имеет we transitioned из another состояние?
 	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
 	{
-		// get the instance data
+ // получить instance data
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-		// set the character's max ground speed
+ // установить персонаж's максимальный ground speed
 		InstanceData.Character->GetCharacterMovement()->MaxWalkSpeed = InstanceData.Speed;
 	}
 
@@ -298,20 +298,20 @@ FText FStateTreeSetCharacterSpeedTask::GetDescription(const FGuid& ID, FStateTre
 
 EStateTreeRunStatus FStateTreeGetPlayerInfoTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
 {
-	// get the instance data
+	// получить instance data
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-	// get the character possessed by the first local player
+	// получить персонаж possessed через первый локальный игрок
 	InstanceData.TargetPlayerCharacter = Cast<ACharacter>(UGameplayStatics::GetPlayerPawn(InstanceData.Character, 0));
 
-	// do we have a valid target?
+	// do we имеет a валидный цель?
 	if (InstanceData.TargetPlayerCharacter)
 	{
-		// update the last known location
+ // обновить последний known location
 		InstanceData.TargetPlayerLocation = InstanceData.TargetPlayerCharacter->GetActorLocation();
 	}
 
-	// update the distance
+	// обновить distance
 	InstanceData.DistanceToTarget = FVector::Distance(InstanceData.TargetPlayerLocation, InstanceData.Character->GetActorLocation());
 
 	return EStateTreeRunStatus::Running;
@@ -323,3 +323,6 @@ FText FStateTreeGetPlayerInfoTask::GetDescription(const FGuid& ID, FStateTreeDat
 	return FText::FromString("<b>Get Player Info</b>");
 }
 #endif // WITH_EDITOR
+
+
+

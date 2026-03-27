@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SideScrollingStateTreeUtility.h"
@@ -9,13 +9,13 @@
 
 EStateTreeRunStatus FStateTreeGetPlayerTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
 {
-	// get the instance data
+	// получить instance data
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 
-	// set the player pawn as the target
+	// установить игрок pawn as цель
 	InstanceData.TargetPlayer = UGameplayStatics::GetPlayerPawn(InstanceData.Controller.Get(), 0);
 
-	// are the NPC and target valid?
+	// are NPC и цель валидный?
 	if (IsValid(InstanceData.TargetPlayer) && IsValid(InstanceData.NPC))
 	{
 		InstanceData.bValidTarget = FVector::Distance(InstanceData.NPC->GetActorLocation(), InstanceData.TargetPlayer->GetActorLocation()) < InstanceData.RangeMax;
@@ -30,3 +30,6 @@ FText FStateTreeGetPlayerTask::GetDescription(const FGuid& ID, FStateTreeDataVie
 	return FText::FromString("<b>Get Player</b>");
 }
 #endif // WITH_EDITOR
+
+
+

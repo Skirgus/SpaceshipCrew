@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include "CombatLifeBar.generated.h"
 
 /**
- *  A basic life bar user widget.
+ * A basic life bar user виджет.
  */
 UCLASS(abstract)
 class UCombatLifeBar : public UUserWidget
@@ -16,11 +16,15 @@ class UCombatLifeBar : public UUserWidget
 
 public:
 
-	/** Sets the life bar to the provided 0-1 percentage value*/
+	/** Sets life bar для provided 0-1 percentage value*/
 	UFUNCTION(BlueprintImplementableEvent, Category="Life Bar")
 	void SetLifePercentage(float Percent);
 
-	// Sets the life bar fill color
+	// Sets life bar заполнить color
 	UFUNCTION(BlueprintImplementableEvent, Category="Life Bar")
 	void SetBarColor(FLinearColor Color);
 };
+
+
+
+

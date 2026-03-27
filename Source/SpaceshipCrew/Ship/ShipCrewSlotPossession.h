@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,7 +8,7 @@
 
 class APlayerController;
 
-/** Future coop: hand off a crew slot from bot to a connected player without changing ship systems. */
+/** Для будущего коопа: передача слота экипажа от бота подключившемуся игроку без изменений систем корабля. */
 UINTERFACE(MinimalAPI, Blueprintable)
 class UShipCrewSlotPossession : public UInterface
 {
@@ -22,3 +22,4 @@ class SPACESHIPCREW_API IShipCrewSlotPossession
 public:
 	virtual void PossessCrewSlot(APlayerController* Player, int32 SlotIndex);
 };
+

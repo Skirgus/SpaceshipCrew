@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -11,36 +11,40 @@ class UStaticMeshComponent;
 class UBoxComponent;
 
 /**
- *  A side scrolling game platform that the character can jump or drop through.
+ * A side scrolling game платформа который персонаж can прыжок или drop through.
  */
 UCLASS(abstract)
 class ASideScrollingSoftPlatform : public AActor
 {
 	GENERATED_BODY()
 	
-	/** Root component */
+	/** Корневой компонент */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category ="Components", meta = (AllowPrivateAccess = "true"))
 	USceneComponent* Root;
 
-	/** Platform mesh. The part we collide against and see */
+	/** Меш платформы. Часть, с которой сталкиваемся и которую видим */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category ="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* Mesh;
 
-	/** Collision volume that toggles soft collision on the character when they're below the platform. */
+	/** Коллизионный объём, переключающий мягкую коллизию у персонажа, когда он ниже платформы. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category ="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* CollisionCheckBox;
 
 public:	
 	
-	/** Constructor */
+	/** Конструктор */
 	ASideScrollingSoftPlatform();
 
 protected:
 
-	/** Handles soft collision check box overlaps */
+	/** Обрабатывает пересечения в зоне проверки мягкой коллизии */
 	UFUNCTION()
 	void OnSoftCollisionOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
-	/** Restores soft collision state when overlap ends */
+	/** Восстанавливает состояние мягкой коллизии по окончании пересечения */
 	virtual void NotifyActorEndOverlap(AActor* OtherActor) override;
 };
+
+
+
+

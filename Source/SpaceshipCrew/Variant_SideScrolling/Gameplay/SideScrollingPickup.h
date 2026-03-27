@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,30 +9,34 @@
 class USphereComponent;
 
 /**
- *  A simple side scrolling game pickup
- *  Increments a counter on the GameMode
+ * A simple side scrolling game подбор
+ * Increments a counter на GameMode
  */
 UCLASS(abstract)
 class ASideScrollingPickup : public AActor
 {
 	GENERATED_BODY()
 	
-	/** Pickup bounding sphere */
+	/** Сфера подбора */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category ="Components", meta = (AllowPrivateAccess = "true"))
 	USphereComponent* Sphere;
 
 public:
 
-	/** Constructor */
+	/** Конструктор */
 	ASideScrollingPickup();
 
 protected:
 
-	/** Handles pickup collision */
+	/** Обрабатывает коллизию подбора */
 	UFUNCTION()
 	void BeginOverlap(AActor* OverlappedActor, AActor* OtherActor);
 
-	/** Passes control to BP to play effects on pickup */
+	/** Передаёт управление в BP для воспроизведения эффектов подбора */
 	UFUNCTION(BlueprintImplementableEvent, Category="Pickup", meta = (DisplayName = "On Picked Up"))
 	void BP_OnPickedUp();
 };
+
+
+
+

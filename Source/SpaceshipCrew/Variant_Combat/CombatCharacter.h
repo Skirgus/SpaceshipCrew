@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -19,316 +19,320 @@ class UWidgetComponent;
 DECLARE_LOG_CATEGORY_EXTERN(LogCombatCharacter, Log, All);
 
 /**
- *  An enhanced Third Person Character with melee combat capabilities:
- *  - Combo attack string
- *  - Press and hold charged attack
- *  - Damage dealing and reaction
- *  - Death
- *  - Respawning
+ * An enhanced Third Person Персонаж с melee combat capabilities:
+ * - Combo атака string
+ * - Press и hold charged атака
+ * - Damage dealing и reaction
+ * - Death
+ * - Reспавнing
  */
 UCLASS(abstract)
 class ACombatCharacter : public ACharacter, public ICombatAttacker, public ICombatDamageable
 {
 	GENERATED_BODY()
 
-	/** Camera boom positioning the camera behind the character */
+	/** Камера boom positioning камера behind персонаж */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
 
-	/** Follow camera */
+	/** Камера следования */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 
-	/** Life bar widget component */
+	/** Life bar виджет component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UWidgetComponent* LifeBar;
 	
 protected:
 
-	/** Jump Input Action */
+	/** Действие ввода прыжка */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* JumpAction;
 
-	/** Move Input Action */
+	/** Действие ввода перемещения */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* MoveAction;
 
-	/** Look Input Action */
+	/** Действие ввода обзора */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* LookAction;
 
-	/** Mouse Look Input Action */
+	/** Действие ввода обзора мышью */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
-	/** Combo Attack Input Action */
+	/** Combo Атака ввод Action */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* ComboAttackAction;
 
-	/** Charged Attack Input Action */
+	/** Charged Атака ввод Action */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* ChargedAttackAction;
 
-	/** Toggle Camera Side Input Action */
+	/** Toggle Камера Side ввод Action */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* ToggleCameraAction;
 
-	/** Max amount of HP the character will have on respawn */
+	/** Max количество из HP персонаж will имеет на респавн */
 	UPROPERTY(EditAnywhere, Category="Damage", meta = (ClampMin = 0, ClampMax = 100))
 	float MaxHP = 5.0f;
 
-	/** Current amount of HP the character has */
+	/** Current количество из HP персонаж has */
 	UPROPERTY(VisibleAnywhere, Category="Damage")
 	float CurrentHP = 0.0f;
 
-	/** Life bar widget fill color */
+	/** Life bar виджет заполнить color */
 	UPROPERTY(EditAnywhere, Category="Damage")
 	FLinearColor LifeBarColor;
 
-	/** Name of the pelvis bone, for damage ragdoll physics */
+	/** Name из pelvis bone, для урон ragdoll физика */
 	UPROPERTY(EditAnywhere, Category="Damage")
 	FName PelvisBoneName;
 
-	/** Pointer to the life bar widget */
+	/** Pointer для life bar виджет */
 	UPROPERTY(EditAnywhere, Category="Damage")
 	TObjectPtr<UCombatLifeBar> LifeBarWidget;
 
-	/** Max amount of time that may elapse for a non-combo attack input to not be considered stale */
+	/** Max количество из time который may elapse для a non-combo атака ввод для not be considered stale */
 	UPROPERTY(EditAnywhere, Category="Melee Attack", meta = (ClampMin = 0, ClampMax = 5, Units = "s"))
 	float AttackInputCacheTimeTolerance = 1.0f;
 
-	/** Time at which an attack button was last pressed */
+	/** Time в which атака button was последний pressed */
 	float CachedAttackInputTime = 0.0f;
 
-	/** If true, the character is currently playing an attack animation */
+	/** если true, персонаж is currently playing атака animation */
 	bool bIsAttacking = false;
 
-	/** Distance ahead of the character that melee attack sphere collision traces will extend */
+	/** Distance ahead из персонаж который melee атака sphere коллизия traces will extend */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Trace", meta = (ClampMin = 0, ClampMax = 500, Units="cm"))
 	float MeleeTraceDistance = 75.0f;
 
-	/** Radius of the sphere trace for melee attacks */
+	/** Radius из sphere trace для melee атакаs */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Trace", meta = (ClampMin = 0, ClampMax = 200, Units = "cm"))
 	float MeleeTraceRadius = 75.0f;
 
-	/** Distance ahead of the character that enemies will be notified of incoming attacks */
+	/** Distance ahead из персонаж который враги will be notified из входящий атакаs */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Trace", meta = (ClampMin = 0, ClampMax = 500, Units="cm"))
 	float DangerTraceDistance = 300.0f;
 
-	/** Radius of the sphere trace to notify enemies of incoming attacks */
+	/** Radius из sphere trace для уведомить враги из входящий атакаs */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Trace", meta = (ClampMin = 0, ClampMax = 200, Units = "cm"))
 	float DangerTraceRadius = 100.0f;
 
-	/** Amount of damage a melee attack will deal */
+	/** Amount из урон a melee атака will deal */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Damage", meta = (ClampMin = 0, ClampMax = 100))
 	float MeleeDamage = 1.0f;
 
-	/** Amount of knockback impulse a melee attack will apply */
+	/** Amount из knockback impulse a melee атака will apply */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Damage", meta = (ClampMin = 0, ClampMax = 1000, Units = "cm/s"))
 	float MeleeKnockbackImpulse = 250.0f;
 
-	/** Amount of upwards impulse a melee attack will apply */
+	/** Amount из upwards impulse a melee атака will apply */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Damage", meta = (ClampMin = 0, ClampMax = 1000, Units = "cm/s"))
 	float MeleeLaunchImpulse = 300.0f;
 
-	/** AnimMontage that will play for combo attacks */
+	/** AnimMontage который will play для combo атакаs */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Combo")
 	UAnimMontage* ComboAttackMontage;
 
-	/** Names of the AnimMontage sections that correspond to each stage of the combo attack */
+	/** Names из AnimMontage секции который correspond для each stage из combo атака */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Combo")
 	TArray<FName> ComboSectionNames;
 
-	/** Max amount of time that may elapse for a combo attack input to not be considered stale */
+	/** Max количество из time который may elapse для a combo атака ввод для not be considered stale */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Combo", meta = (ClampMin = 0, ClampMax = 5, Units = "s"))
 	float ComboInputCacheTimeTolerance = 0.45f;
 
-	/** Index of the current stage of the melee attack combo */
+	/** Index из текущий stage из melee атака combo */
 	int32 ComboCount = 0;
 
-	/** AnimMontage that will play for charged attacks */
+	/** AnimMontage который will play для charged атакаs */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Charged")
 	UAnimMontage* ChargedAttackMontage;
 
-	/** Name of the AnimMontage section that corresponds to the charge loop */
+	/** Name из AnimMontage секция который corresponds для charge цикл */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Charged")
 	FName ChargeLoopSection;
 
-	/** Name of the AnimMontage section that corresponds to the attack */
+	/** Name из AnimMontage секция который corresponds для атака */
 	UPROPERTY(EditAnywhere, Category="Melee Attack|Charged")
 	FName ChargeAttackSection;
 
-	/** Flag that determines if the player is currently holding the charged attack input */
+	/** Flag который determines если игрок is currently holding charged атака ввод */
 	bool bIsChargingAttack = false;
 	
-	/** If true, the charged attack hold check has been tested at least once */
+	/** если true, charged атака hold проверить has been tested в least once */
 	bool bHasLoopedChargedAttack = false;
 
-	/** Camera boom length while the character is dead */
+	/** Камера boom length пока персонаж is мёртв */
 	UPROPERTY(EditAnywhere, Category="Camera", meta = (ClampMin = 0, ClampMax = 1000, Units = "cm"))
 	float DeathCameraDistance = 400.0f;
 
-	/** Camera boom length when the character respawns */
+	/** Камера boom length когда персонаж респавнs */
 	UPROPERTY(EditAnywhere, Category="Camera", meta = (ClampMin = 0, ClampMax = 1000, Units = "cm"))
 	float DefaultCameraDistance = 100.0f;
 
-	/** Time to wait before respawning the character */
+	/** Time для wait до респавнing персонаж */
 	UPROPERTY(EditAnywhere, Category="Respawn", meta = (ClampMin = 0, ClampMax = 10, Units = "s"))
 	float RespawnTime = 3.0f;
 
-	/** Attack montage ended delegate */
+	/** Атака montage ended delegate */
 	FOnMontageEnded OnAttackMontageEnded;
 
-	/** Character respawn timer */
+	/** Персонаж респавн таймер */
 	FTimerHandle RespawnTimer;
 
-	/** Copy of the mesh's transform so we can reset it after ragdoll animations */
+	/** Copy из mesh's transform so we can сбросить it после ragdoll animations */
 	FTransform MeshStartingTransform;
 
 public:
 	
-	/** Constructor */
+	/** Конструктор */
 	ACombatCharacter();
 
 protected:
 
-	/** Called for movement input */
+	/** Вызывается для ввода перемещения */
 	void Move(const FInputActionValue& Value);
 
-	/** Called for looking input */
+	/** Вызывается для ввода обзора */
 	void Look(const FInputActionValue& Value);
 
-	/** Called for combo attack input */
+	/** Вызывается для combo атака ввод */
 	void ComboAttackPressed();
 
-	/** Called for combo attack input pressed */
+	/** Вызывается для combo атака ввод pressed */
 	void ChargedAttackPressed();
 
-	/** Called for combo attack input released */
+	/** Вызывается для combo атака ввод отпусканииd */
 	void ChargedAttackReleased();
 
-	/** Called for toggle camera side input */
+	/** Вызывается для toggle камера side ввод */
 	void ToggleCamera();
 
-	/** BP hook to animate the camera side switch */
+	/** BP hook для animate камера side switch */
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
 	void BP_ToggleCamera();
 
 public:
 
-	/** Handles move inputs from either controls or UI interfaces */
+	/** Обрабатывает ввод перемещения как от управления, так и от UI */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoMove(float Right, float Forward);
 
-	/** Handles look inputs from either controls or UI interfaces */
+	/** Обрабатывает ввод обзора как от управления, так и от UI */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoLook(float Yaw, float Pitch);
 
-	/** Handles combo attack pressed from either controls or UI interfaces */
+	/** Обрабатывает combo атака pressed из либо controls или UI интерфейсов */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoComboAttackStart();
 
-	/** Handles combo attack released from either controls or UI interfaces */
+	/** Обрабатывает combo атака отпусканииd из либо controls или UI интерфейсов */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoComboAttackEnd();
 
-	/** Handles charged attack pressed from either controls or UI interfaces */
+	/** Обрабатывает charged атака pressed из либо controls или UI интерфейсов */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoChargedAttackStart();
 
-	/** Handles charged attack released from either controls or UI interfaces */
+	/** Обрабатывает charged атака отпусканииd из либо controls или UI интерфейсов */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoChargedAttackEnd();
 
 protected:
 
-	/** Resets the character's current HP to maximum */
+	/** Resets персонаж's текущий HP для maximum */
 	void ResetHP();
 
-	/** Performs a combo attack */
+	/** Выполняет a combo атака */
 	void ComboAttack();
 
-	/** Performs a charged attack */
+	/** Выполняет a charged атака */
 	void ChargedAttack();
 
-	/** Called from a delegate when the attack montage ends */
+	/** Вызывается из a delegate когда атака montage ends */
 	void AttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	
 public:
 
-	// ~begin CombatAttacker interface
+	// ~begin CombatАтакаer интерфейс
 
-	/** Performs the collision check for an attack */
+	/** Выполняет коллизия проверить для атака */
 	virtual void DoAttackTrace(FName DamageSourceBone) override;
 
-	/** Performs the combo string check */
+	/** Выполняет combo серии проверить */
 	virtual void CheckCombo() override;
 
-	/** Performs the charged attack hold check */
+	/** Выполняет charged атака hold проверить */
 	virtual void CheckChargedAttack() override;
 
-	// ~end CombatAttacker interface
+	// ~end CombatАтакаer интерфейс
 
-	// ~begin CombatDamageable interface
+	// ~begin CombatDamageable интерфейс
 
-	/** Notifies nearby enemies that an attack is coming so they can react */
+	/** Notifies nearby враги который атака is coming so they can react */
 	void NotifyEnemiesOfIncomingAttack();
 
-	/** Handles damage and knockback events */
+	/** Обрабатывает урон и отбрасывание */
 	virtual void ApplyDamage(float Damage, AActor* DamageCauser, const FVector& DamageLocation, const FVector& DamageImpulse) override;
 
-	/** Handles death events */
+	/** Обрабатывает события смерти */
 	virtual void HandleDeath() override;
 
-	/** Handles healing events */
+	/** Обрабатывает события лечения */
 	virtual void ApplyHealing(float Healing, AActor* Healer) override;
 
-	/** Allows reaction to incoming attacks */
+	/** Позволяет реагировать на входящие атаки */
 	virtual void NotifyDanger(const FVector& DangerLocation, AActor* DangerSource) override;
 
-	// ~end CombatDamageable interface
+	// ~end CombatDamageable интерфейс
 
-	/** Called from the respawn timer to destroy and re-create the character */
+	/** Вызывается из респавн таймер для уничтожить и re-создать персонаж */
 	void RespawnCharacter();
 
 public:
 
-	/** Overrides the default TakeDamage functionality */
+	/** Overrides по умолчанию TakeDamage functionality */
 	virtual float TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
-	/** Overrides landing to reset damage ragdoll physics */
+	/** Overrides landing для сбросить урон ragdoll физика */
 	virtual void Landed(const FHitResult& Hit) override;
 
 protected:
 
-	/** Blueprint handler to play damage dealt effects */
+	/** Blueprint handler для play урон dealt effects */
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
 	void DealtDamage(float Damage, const FVector& ImpactPoint);
 
-	/** Blueprint handler to play damage received effects */
+	/** Blueprint handler для play урон полученный effects */
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
 	void ReceivedDamage(float Damage, const FVector& ImpactPoint, const FVector& DamageDirection);
 
 protected:
 
-	/** Initialization */
+	/** Инициализация */
 	virtual void BeginPlay() override;
 
-	/** Cleanup */
+	/** Очистка */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	/** Handles input bindings */
+	/** Обрабатывает ввод привязки */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	/** Handles possessed initialization */
+	/** Обрабатывает possessed Инициализация */
 	virtual void NotifyControllerChanged() override;
 
 public:
 
-	/** Returns CameraBoom subobject **/
+	/** Возвращает подобъект CameraBoom **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 
-	/** Returns FollowCamera subobject **/
+	/** Возвращает подобъект FollowCamera **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 };
+
+
+
+

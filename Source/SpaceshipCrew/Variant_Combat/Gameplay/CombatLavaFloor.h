@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,7 +10,7 @@ class UStaticMeshComponent;
 class UPrimitiveComponent;
 
 /**
- *  A basic actor that applies damage on contact through the ICombatDamageable interface. 
+ * A basic актор который applies урон на contact through ICombatDamageable интерфейс.
  */
 UCLASS(abstract)
 class ACombatLavaFloor : public AActor
@@ -23,18 +23,22 @@ class ACombatLavaFloor : public AActor
 
 protected:
 
-	/** Amount of damage to deal on contact */
+	/** Amount из урон для deal на contact */
 	UPROPERTY(EditAnywhere, Category="Damage")
 	float Damage = 10000.0f;
 
 public:	
 
-	/** Constructor */
+	/** Конструктор */
 	ACombatLavaFloor();
 
 protected:
 
-	/** Blocking hit handler */
+	/** Blocking попадание handler */
 	UFUNCTION()
 	void OnFloorHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 };
+
+
+
+

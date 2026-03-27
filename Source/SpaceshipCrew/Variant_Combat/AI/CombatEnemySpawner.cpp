@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CombatEnemySpawner.h"
@@ -13,10 +13,10 @@ ACombatEnemySpawner::ACombatEnemySpawner()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the root
+	// создать root
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
-	// create the reference spawn capsule
+	// создать reference спавн capsule
 	SpawnCapsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Spawn Capsule"));
 	SpawnCapsule->SetupAttachment(RootComponent);
 
@@ -32,10 +32,10 @@ void ACombatEnemySpawner::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	// should we spawn an enemy right away?
+	// should we спавн враг right away?
 	if (bShouldSpawnEnemiesImmediately)
 	{
-		// schedule the first enemy spawn
+ // schedule первый враг спавн
 		GetWorld()->GetTimerManager().SetTimer(SpawnTimer, this, &ACombatEnemySpawner::SpawnEnemy, InitialSpawnDelay);
 	}
 
@@ -45,25 +45,25 @@ void ACombatEnemySpawner::EndPlay(EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// clear the spawn timer
+	// очистить спавн таймер
 	GetWorld()->GetTimerManager().ClearTimer(SpawnTimer);
 }
 
 void ACombatEnemySpawner::SpawnEnemy()
 {
-	// ensure the enemy class is valid
+	// убедиться враг класс is валидный
 	if (IsValid(EnemyClass))
 	{
-		// spawn the enemy at the reference capsule's transform
+ // спавн враг в reference capsule's transform
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 		ACombatEnemy* SpawnedEnemy = GetWorld()->SpawnActor<ACombatEnemy>(EnemyClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
 
-		// was the enemy successfully created?
+ // was враг successfully создатьd?
 		if (SpawnedEnemy)
 		{
-			// subscribe to the death delegate
+ // подписаться для death delegate
 			SpawnedEnemy->OnEnemyDied.AddDynamic(this, &ACombatEnemySpawner::OnEnemyDied);
 		}
 	}
@@ -71,30 +71,30 @@ void ACombatEnemySpawner::SpawnEnemy()
 
 void ACombatEnemySpawner::OnEnemyDied()
 {
-	// decrease the spawn counter
+	// decrease спавн counter
 	--SpawnCount;
 
-	// is this the last enemy we should spawn?
+	// is этот последний враг we should спавн?
 	if (SpawnCount <= 0)
 	{
-		// schedule the activation on depleted message
+ // schedule activation на depleted message
 		GetWorld()->GetTimerManager().SetTimer(SpawnTimer, this, &ACombatEnemySpawner::SpawnerDepleted, ActivationDelay);
 		return;
 	}
 
-	// schedule the next enemy spawn
+	// schedule следующий враг спавн
 	GetWorld()->GetTimerManager().SetTimer(SpawnTimer, this, &ACombatEnemySpawner::SpawnEnemy, RespawnDelay);
 }
 
 void ACombatEnemySpawner::SpawnerDepleted()
 {
-	// process the actors to activate list
+	// process акторы для activate список
 	for (AActor* CurrentActor : ActorsToActivateWhenDepleted)
 	{
-		// check if the actor is activatable
+ // проверить если актор is activatable
 		if (ICombatActivatable* CombatActivatable = Cast<ICombatActivatable>(CurrentActor))
 		{
-			// activate the actor
+ // activate актор
 			CombatActivatable->ActivateInteraction(this);
 		}
 	}
@@ -102,25 +102,29 @@ void ACombatEnemySpawner::SpawnerDepleted()
 
 void ACombatEnemySpawner::ToggleInteraction(AActor* ActivationInstigator)
 {
-	// stub
+	// заглушка
 }
 
 void ACombatEnemySpawner::ActivateInteraction(AActor* ActivationInstigator)
 {
-	// ensure we're only activated once, and only if we've deferred enemy spawning
+	// убедиться мы только activated once, и только если we've deferred враг спавнing
 	if (bHasBeenActivated || bShouldSpawnEnemiesImmediately)
 	{
 		return;
 	}
 
-	// raise the activation flag
+	// поднять activation flag
 	bHasBeenActivated = true;
 
-	// spawn the first enemy
+	// спавн первый враг
 	SpawnEnemy();
 }
 
 void ACombatEnemySpawner::DeactivateInteraction(AActor* ActivationInstigator)
 {
-	// stub
+	// заглушка
 }
+
+
+
+

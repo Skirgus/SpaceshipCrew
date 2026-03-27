@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,9 +9,9 @@
 class USideScrollingUI;
 
 /**
- *  Simple Side Scrolling Game Mode
- *  Spawns and manages the game UI
- *  Counts pickups collected by the player
+ * Simple Side Scrolling Game Mode
+ * Spawns и manages game UI
+ * Counts подборs collected через игрок
  */
 UCLASS(abstract)
 class ASideScrollingGameMode : public AGameModeBase
@@ -20,25 +20,29 @@ class ASideScrollingGameMode : public AGameModeBase
 	
 protected:
 
-	/** Class of UI widget to spawn when the game starts */
+	/** Класс UI-виджета, создаваемого при старте игры */
 	UPROPERTY(EditAnywhere, Category="UI")
 	TSubclassOf<USideScrollingUI> UserInterfaceClass;
 
-	/** User interface widget for the game */
+	/** Пользовательский виджет интерфейса игры */
 	UPROPERTY(BlueprintReadOnly, Category="UI")
 	TObjectPtr<USideScrollingUI> UserInterface;
 
-	/** Number of pickups collected by the player */
+	/** Количество подборов, собранных игроком */
 	UPROPERTY(BlueprintReadOnly, Category="Pickups")
 	int32 PickupsCollected = 0;
 
 protected:
 
-	/** Initialization */
+	/** Инициализация */
 	virtual void BeginPlay() override;
 
 public:
 
-	/** Receives an interaction event from another actor */
+	/** Получает событие взаимодействия от другого актора */
 	virtual void ProcessPickup();
 };
+
+
+
+
