@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ShipGameMode.h"
+#include "SpaceshipCrew.h"
 #include "ShipPlayerController.h"
 #include "CrewAIController.h"
 #include "CrewBotBrainComponent.h"
@@ -13,6 +14,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
+#include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
 AShipGameMode::AShipGameMode()
@@ -121,9 +123,13 @@ void AShipGameMode::EnsureCrewSpawned()
 	for (int32 i = 0; i < MandatoryRoles.Num(); ++i)
 	{
 		const FTransform Xform = GetSpawnTransformForSlot(i, Ship, Fallback);
-		AShipCrewCharacter* Spawned = GetWorld()->SpawnActor<AShipCrewCharacter>(CrewPawnClass, Xform);
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		AShipCrewCharacter* Spawned = GetWorld()->SpawnActor<AShipCrewCharacter>(CrewPawnClass, Xform, SpawnParams);
 		if (!Spawned)
 		{
+			UE_LOG(LogSpaceshipCrew, Warning, TEXT("ShipGameMode: не удалось заспавнить экипаж в слоте %d (класс %s). Проверьте CrewSpawnTransforms и коллизию."),
+				i, *GetNameSafe(CrewPawnClass.Get()));
 			continue;
 		}
 		CrewPawns[i] = Spawned;
