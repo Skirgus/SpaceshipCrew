@@ -48,19 +48,19 @@
 
 ## Что сделано в коде (референс)
 
-- Папка `Source/SpaceshipCrew/Ship/`: роли, манифест, Game Mode / Game State, пешка `AShipCrewCharacter`, системы корабля, interactable, ИИ бота, интерфейс слота, подсистема-заглушка лобби.
+- Папка `Source/SpaceshipCrew/Ship/`: роли, манифест, Game Mode / Game State, пешка `AShipCrewCharacter`, системы корабля, interactable, ИИ бота, интерфейс слота, подсистема-заглушка лобби, **`UCrewSpawnMarkerComponent`** + спавн через `BuildCrewSpawnTransforms`.
 - `AShipPlayerController`: HUD таймер, **`OnPossess` + `SetViewTarget`** (камера на предзаспавненную пешку), **`ApplyShipViewAndInputDefaults`** (игровой ввод, без курсора, снят ignore look/move — обзор мышью после HUD).
 - `Config/DefaultEngine.ini`: **`GlobalDefaultGameMode=/Game/Content/GameModes/BP_ShipGameMode.BP_ShipGameMode_C`**, **`GameDefaultMap` / `EditorStartupMap`** = **`/Game/Content/Maps/Lvl_Ship.Lvl_Ship`** — `Lvl_Ship.umap` создаётся в редакторе (см. `docs/EDITOR_NEXT_STEPS.md` §4.0).
 
-## Точка продолжения (зафиксировано: 2026-03-28)
+## Точка продолжения (зафиксировано: 2026-03-28, вечер)
 
-**Сейчас в игре (PIE):** персонаж ходит, **камера следует за пешкой**, **мышь крутит обзор**, ввод через Enhanced Input (`IMC_Default` на `BP_ShipPlayerController`, IA на `BP_ShipCrewCharacter`). Ранее: HUD `WBP_ShipStatus`, интеграция в `BP_ShipPlayerController`.
+**PIE:** персонаж ходит, **камера за пешкой** (`SetViewTarget`), **мышь — Look**, Enhanced Input (`IMC_Default` на `BP_ShipPlayerController`, IA на `BP_ShipCrewCharacter`). HUD `WBP_ShipStatus` на контроллере. **Нюансы (уже починены):** IMC на контроллере; `SetViewTarget` после предспавна; game-only input без курсора.
 
-**Известные нюансы (уже решённые в сессии):** без IMC на контроллере не было движения; без `SetViewTarget` после предспавна экипажа камера «застывала»; без game-only input / курсора мышь не давала Look.
+**Спавн экипажа:** `CrewSpawnTransforms` убран. **`Crew Spawn Marker`** (`UCrewSpawnMarkerComponent`) на `BP_Ship`: вьюпорт + **`Role Id`** или пусто (wildcard). Логика: `BuildCrewSpawnTransforms` в `ShipGameMode`. См. `docs/EDITOR_NEXT_STEPS.md` §4.3.
 
-**Git:** ветка `main`, последний зафиксированный коммит с этими правками: **`0b1140a`** (`fix: ShipPlayerController view target, game-only input, editor defaults`), запушен в `origin`.
+**Дальше:** по чеклисту редактора — NavMesh, маркеры (если ещё не все роли), затем **§5** станции `ShipInteractableBase`, PIE с ботами.
 
-**Дальше по плану редактора:** см. `docs/EDITOR_NEXT_STEPS.md` — **п. 4** на карте **`Lvl_Ship`** (§4.0 создание уровня, затем `ShipActor`, NavMesh, `Crew Spawn Transforms`), далее станции interactable и проверка PIE с ботами.
+**Git:** `main` **на 3 коммита впереди `origin`** (не запушено). Верх стека — коммит **`docs: checkpoint — spawn markers, PLAN_AND_DISCUSSION`** (этот файл + `Lvl_Ship.umap`); ниже **`646f97d`** (маркеры спавна), **`889aba9`** (спавн Game Mode). Перед сменой машины: `git push`; точный хэш: `git log -1 --oneline`.
 
 ## Ссылка на репозиторий
 
