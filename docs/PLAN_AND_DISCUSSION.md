@@ -49,9 +49,20 @@
 ## Что сделано в коде (референс)
 
 - Папка `Source/SpaceshipCrew/Ship/`: роли, манифест, Game Mode / Game State, пешка `AShipCrewCharacter`, системы корабля, interactable, ИИ бота, интерфейс слота, подсистема-заглушка лобби.
-- `Config/DefaultEngine.ini`: `GlobalDefaultGameMode=/Script/SpaceshipCrew.ShipGameMode` (проверить при мерже).
+- `AShipPlayerController`: HUD таймер, **`OnPossess` + `SetViewTarget`** (камера на предзаспавненную пешку), **`ApplyShipViewAndInputDefaults`** (игровой ввод, без курсора, снят ignore look/move — обзор мышью после HUD).
+- `Config/DefaultEngine.ini`: **`GlobalDefaultGameMode=/Game/Content/GameModes/BP_ShipGameMode.BP_ShipGameMode_C`** (чтобы по умолчанию подхватывались BP с IMC и `BP_ShipPlayerController`).
+
+## Точка продолжения (зафиксировано: 2026-03-28)
+
+**Сейчас в игре (PIE):** персонаж ходит, **камера следует за пешкой**, **мышь крутит обзор**, ввод через Enhanced Input (`IMC_Default` на `BP_ShipPlayerController`, IA на `BP_ShipCrewCharacter`). Ранее: HUD `WBP_ShipStatus`, интеграция в `BP_ShipPlayerController`.
+
+**Известные нюансы (уже решённые в сессии):** без IMC на контроллере не было движения; без `SetViewTarget` после предспавна экипажа камера «застывала»; без game-only input / курсора мышь не давала Look.
+
+**Git:** ветка `main`, последний зафиксированный коммит с этими правками: **`0b1140a`** (`fix: ShipPlayerController view target, game-only input, editor defaults`), запушен в `origin`.
+
+**Дальше по плану редактора:** см. `docs/EDITOR_NEXT_STEPS.md` — с **п. 4** (уровень: `ShipActor`, NavMesh, точки спавна экипажа), затем станции interactable, настройка слота игрока, опционально Data Assets ролей, финальная проверка PIE с ботами.
 
 ## Ссылка на репозиторий
 
 - Remote: `https://github.com/Skirgus/SpaceshipCrew.git`  
-- Локально: два коммита — initial `.gitignore`, затем проект + реализация ship crew MVP. Push выполняется с машины разработчика при наличии доступа к GitHub.
+- История: initial `.gitignore`, MVP ship crew, локализация комментариев, фиксы GameMode/HUD/ввод/камера; push с машины разработчика при наличии доступа к GitHub.
