@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -23,6 +23,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Bot")
 	bool bBrainEnabled = false;
 
+	/** Перезапускает таймер Think после того, как GameMode выставил bBrainEnabled (BeginPlay раньше Finalize — нельзя стартовать таймер только в BeginPlay). */
+	void RefreshBrainTimer();
+
 	UPROPERTY(EditAnywhere, Category = "Bot")
 	float ThinkInterval = 0.75f;
 
@@ -30,7 +33,7 @@ public:
 	float AcceptableInteractDistance = 180.f;
 
 protected:
-	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	void Think();
 
 	FTimerHandle ThinkTimer;

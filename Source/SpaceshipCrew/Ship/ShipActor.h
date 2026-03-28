@@ -25,10 +25,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ship")
 	TObjectPtr<UShipSystemsComponent> ShipSystems;
 
-	/** Необязательные смещения спавна экипажа (локально к кораблю). Если пусто, используется центр корабля + шаг по ряду. */
-	UPROPERTY(EditAnywhere, Category = "Ship|Crew")
-	TArray<FTransform> CrewSpawnTransforms;
-
 	UFUNCTION(BlueprintPure, Category = "Ship")
 	UShipSystemsComponent* GetShipSystems() const { return ShipSystems; }
 };

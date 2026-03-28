@@ -14,13 +14,25 @@ UCrewBotBrainComponent::UCrewBotBrainComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UCrewBotBrainComponent::BeginPlay()
+void UCrewBotBrainComponent::RefreshBrainTimer()
 {
-	Super::BeginPlay();
-	if (bBrainEnabled && GetOwner() && GetOwner()->HasAuthority())
+	if (UWorld* World = GetWorld())
 	{
-		GetWorld()->GetTimerManager().SetTimer(ThinkTimer, this, &UCrewBotBrainComponent::Think, ThinkInterval, true);
+		World->GetTimerManager().ClearTimer(ThinkTimer);
+		if (bBrainEnabled && GetOwner() && GetOwner()->HasAuthority())
+		{
+			World->GetTimerManager().SetTimer(ThinkTimer, this, &UCrewBotBrainComponent::Think, ThinkInterval, true);
+		}
 	}
+}
+
+void UCrewBotBrainComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ThinkTimer);
+	}
+	Super::EndPlay(EndPlayReason);
 }
 
 AShipInteractableBase* UCrewBotBrainComponent::FindBestInteractable() const

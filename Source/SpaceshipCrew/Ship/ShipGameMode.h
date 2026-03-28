@@ -7,6 +7,7 @@
 #include "ShipCrewSlotPossession.h"
 #include "ShipGameMode.generated.h"
 
+class AController;
 class APlayerController;
 class AShipActor;
 class AShipCrewCharacter;
@@ -42,6 +43,7 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void RestartPlayer(AController* NewPlayer) override;
 	virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
 
 	// IShipCrewSlotPossession
@@ -56,7 +58,11 @@ protected:
 	void FinalizeCrewPawnSpawn(AShipCrewCharacter* Spawned, int32 SlotIndex);
 
 	AShipActor* FindShipActor() const;
-	FTransform GetSpawnTransformForSlot(int32 SlotIndex, AShipActor* Ship, const FVector& FallbackLocation) const;
+	/** Сначала маркеры (точный RoleId, затем пустой RoleId), оставшиеся слоты — смещение по умолчанию от корабля. */
+	void BuildCrewSpawnTransforms(AShipActor* Ship, const FVector& FallbackLocation, TArray<FTransform>& OutPerSlot) const;
+
+	/** Экипаж уже в EnsureCrewSpawned; если слот игрока пуст — аварийный спавн у StartSpot / PlayerStart. */
+	AShipCrewCharacter* SpawnOrRetrieveHumanPawn(AController* NewPlayer, AActor* StartSpot);
 
 	UPROPERTY()
 	TArray<TObjectPtr<AShipCrewCharacter>> CrewPawns;
