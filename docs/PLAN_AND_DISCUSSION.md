@@ -50,7 +50,7 @@
 
 - Папка `Source/SpaceshipCrew/Ship/`: роли, манифест, Game Mode / Game State, пешка `AShipCrewCharacter`, системы корабля, interactable, ИИ бота, интерфейс слота, подсистема-заглушка лобби.
 - `AShipPlayerController`: HUD таймер, **`OnPossess` + `SetViewTarget`** (камера на предзаспавненную пешку), **`ApplyShipViewAndInputDefaults`** (игровой ввод, без курсора, снят ignore look/move — обзор мышью после HUD).
-- `Config/DefaultEngine.ini`: **`GlobalDefaultGameMode=/Game/Content/GameModes/BP_ShipGameMode.BP_ShipGameMode_C`** (чтобы по умолчанию подхватывались BP с IMC и `BP_ShipPlayerController`).
+- `Config/DefaultEngine.ini`: **`GlobalDefaultGameMode=/Game/Content/GameModes/BP_ShipGameMode.BP_ShipGameMode_C`**, **`GameDefaultMap` / `EditorStartupMap`** = **`/Game/Content/Maps/Lvl_Ship.Lvl_Ship`** — `Lvl_Ship.umap` создаётся в редакторе (см. `docs/EDITOR_NEXT_STEPS.md` §4.0).
 
 ## Точка продолжения (зафиксировано: 2026-03-28)
 
@@ -60,7 +60,7 @@
 
 **Git:** ветка `main`, последний зафиксированный коммит с этими правками: **`0b1140a`** (`fix: ShipPlayerController view target, game-only input, editor defaults`), запушен в `origin`.
 
-**Дальше по плану редактора:** см. `docs/EDITOR_NEXT_STEPS.md` — с **п. 4** (уровень: `ShipActor`, NavMesh, точки спавна экипажа), затем станции interactable, настройка слота игрока, опционально Data Assets ролей, финальная проверка PIE с ботами.
+**Дальше по плану редактора:** см. `docs/EDITOR_NEXT_STEPS.md` — **п. 4** на карте **`Lvl_Ship`** (§4.0 создание уровня, затем `ShipActor`, NavMesh, `Crew Spawn Transforms`), далее станции interactable и проверка PIE с ботами.
 
 ## Ссылка на репозиторий
 
