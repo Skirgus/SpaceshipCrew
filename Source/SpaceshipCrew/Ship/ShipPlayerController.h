@@ -17,8 +17,12 @@ class SPACESHIPCREW_API AShipPlayerController : public ASpaceshipCrewPlayerContr
 public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void OnPossess(APawn* InPawn) override;
 
 protected:
+	/** Игровой ввод + скрытый курсор: чтобы мышь шла в Look, а не «застревала» в UI после HUD. */
+	void ApplyShipViewAndInputDefaults();
+
 	UFUNCTION()
 	void RefreshShipHud();
 
