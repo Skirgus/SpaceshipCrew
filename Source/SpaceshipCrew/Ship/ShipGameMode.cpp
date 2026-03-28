@@ -93,16 +93,68 @@ FTransform AShipGameMode::GetSpawnTransformForSlot(int32 SlotIndex, AShipActor* 
 	return FTransform(FRotator::ZeroRotator, FallbackLocation);
 }
 
+void AShipGameMode::FinalizeCrewPawnSpawn(AShipCrewCharacter* Spawned, int32 SlotIndex)
+{
+	if (!Spawned)
+	{
+		return;
+	}
+	if (UCrewRoleComponent* RoleComp = Spawned->CrewRole)
+	{
+		if (MandatoryRoles.IsValidIndex(SlotIndex) && MandatoryRoles[SlotIndex])
+		{
+			RoleComp->SetRoleDefinition(MandatoryRoles[SlotIndex]);
+		}
+	}
+
+	const bool bIsHumanSlot = (SlotIndex == PlayerRoleSlotIndex);
+	if (bIsHumanSlot)
+	{
+		if (Spawned->CrewBotBrain)
+		{
+			Spawned->CrewBotBrain->bBrainEnabled = false;
+		}
+	}
+	else
+	{
+		if (Spawned->CrewBotBrain)
+		{
+			Spawned->CrewBotBrain->bBrainEnabled = true;
+		}
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (ACrewAIController* AI = GetWorld()->SpawnActor<ACrewAIController>(ACrewAIController::StaticClass(), Params))
+		{
+			AI->Possess(Spawned);
+		}
+	}
+}
+
 void AShipGameMode::EnsureCrewSpawned()
 {
 	if (bCrewSpawned)
 	{
 		return;
 	}
+
 	if (!CrewPawnClass)
 	{
+		if (DefaultPawnClass && DefaultPawnClass->IsChildOf(AShipCrewCharacter::StaticClass()))
+		{
+			CrewPawnClass = TSubclassOf<AShipCrewCharacter>(DefaultPawnClass);
+		}
+		else
+		{
+			CrewPawnClass = AShipCrewCharacter::StaticClass();
+		}
+	}
+
+	if (!CrewPawnClass)
+	{
+		UE_LOG(LogSpaceshipCrew, Error, TEXT("ShipGameMode: CrewPawnClass не задан и DefaultPawnClass не ShipCrewCharacter."));
 		return;
 	}
+
 	EnsureDefaultRoles();
 	if (MandatoryRoles.Num() == 0)
 	{
@@ -112,53 +164,44 @@ void AShipGameMode::EnsureCrewSpawned()
 	PlayerRoleSlotIndex = FMath::Clamp(PlayerRoleSlotIndex, 0, MandatoryRoles.Num() - 1);
 
 	AShipActor* Ship = FindShipActor();
-	FVector Fallback = FVector::ZeroVector;
+	FVector Fallback(0.f, 0.f, 300.f);
 	if (AActor* Start = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass()))
 	{
 		Fallback = Start->GetActorLocation();
 	}
 
 	CrewPawns.SetNum(MandatoryRoles.Num());
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	for (int32 i = 0; i < MandatoryRoles.Num(); ++i)
 	{
 		const FTransform Xform = GetSpawnTransformForSlot(i, Ship, Fallback);
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		AShipCrewCharacter* Spawned = GetWorld()->SpawnActor<AShipCrewCharacter>(CrewPawnClass, Xform, SpawnParams);
 		if (!Spawned)
 		{
-			UE_LOG(LogSpaceshipCrew, Warning, TEXT("ShipGameMode: не удалось заспавнить экипаж в слоте %d (класс %s). Проверьте CrewSpawnTransforms и коллизию."),
+			UE_LOG(LogSpaceshipCrew, Warning, TEXT("ShipGameMode: SpawnActor вернул null для слота %d (класс %s)."),
 				i, *GetNameSafe(CrewPawnClass.Get()));
 			continue;
 		}
 		CrewPawns[i] = Spawned;
-		if (UCrewRoleComponent* RoleComp = Spawned->CrewRole)
-		{
-			RoleComp->SetRoleDefinition(MandatoryRoles[i]);
-		}
+		FinalizeCrewPawnSpawn(Spawned, i);
+	}
 
-		const bool bIsHumanSlot = (i == PlayerRoleSlotIndex);
-		if (bIsHumanSlot)
+	if (!CrewPawns.IsValidIndex(PlayerRoleSlotIndex) || CrewPawns[PlayerRoleSlotIndex] == nullptr)
+	{
+		const FVector HumanLoc = Fallback + FVector(0.f, 0.f, 92.f);
+		const FTransform HumanXform(FRotator::ZeroRotator, HumanLoc);
+		if (AShipCrewCharacter* Spawned = GetWorld()->SpawnActor<AShipCrewCharacter>(CrewPawnClass, HumanXform, SpawnParams))
 		{
-			if (Spawned->CrewBotBrain)
-			{
-				Spawned->CrewBotBrain->bBrainEnabled = false;
-			}
+			CrewPawns[PlayerRoleSlotIndex] = Spawned;
+			FinalizeCrewPawnSpawn(Spawned, PlayerRoleSlotIndex);
+			UE_LOG(LogSpaceshipCrew, Warning, TEXT("ShipGameMode: слот игрока %d заспавнен у PlayerStart (резерв): проверьте CrewSpawnTransforms и Z над палубой."),
+				PlayerRoleSlotIndex);
 		}
 		else
 		{
-			if (Spawned->CrewBotBrain)
-			{
-				Spawned->CrewBotBrain->bBrainEnabled = true;
-			}
-			FActorSpawnParameters Params;
-			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			ACrewAIController* AI = GetWorld()->SpawnActor<ACrewAIController>(ACrewAIController::StaticClass(), Params);
-			if (AI)
-			{
-				AI->Possess(Spawned);
-			}
+			UE_LOG(LogSpaceshipCrew, Error, TEXT("ShipGameMode: не удалось заспавнить игрока даже в резервной точке."));
 		}
 	}
 

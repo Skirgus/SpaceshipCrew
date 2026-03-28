@@ -119,6 +119,7 @@
 ## 6. Game Mode и роль игрока
 
 - В **World Settings** или в дефолтном классе Game Mode проверить **`Ship Game Mode`** (`AShipGameMode`).
+- В **`BP_ShipGameMode` → Class Defaults** поле **`Crew Pawn Class`** должно указывать на **`BP_ShipCrewCharacter`** (не *None*). Если оно пустое, спавн экипажа не сработает.
 - **`Player Role Slot Index`** — какой слот (0…N−1) занимает человек; остальные слоты — боты.
 - При необходимости создать **`Ship Crew Manifest`** (Data Asset) со списком `Mandatory Roles` и назначить его в Game Mode вместо ролей по умолчанию из кода.
 

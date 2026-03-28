@@ -52,6 +52,9 @@ protected:
 	void EnsureCrewSpawned();
 	void RebuildGameStateCrewSlots();
 
+	/** Роль, бот-мозг, AIController для слота после успешного SpawnActor. */
+	void FinalizeCrewPawnSpawn(AShipCrewCharacter* Spawned, int32 SlotIndex);
+
 	AShipActor* FindShipActor() const;
 	FTransform GetSpawnTransformForSlot(int32 SlotIndex, AShipActor* Ship, const FVector& FallbackLocation) const;
 
