@@ -59,7 +59,7 @@
 
 **Ввод:** `IMC_Default` с **`IA_Interact`** (клавиша E), на **`BP_ShipCrewCharacter`** в Class Defaults — **Auto Receive Input = Player 0** (или эквивалент), поле **Interact Action** = тот же IA. Привязка Interact в C++ — отложенно после `BeginPlay` / из `SetupPlayerInputComponent`, триггер **Triggered**.
 
-**Git checkpoint:** аннотированный тег **`checkpoint/ship-stations-hud`** указывает на коммит этого состояния. Вернуться к нему: `git checkout checkpoint/ship-stations-hud` (отсоединённый HEAD) или `git switch -c ветка-от-чекпойнта checkpoint/ship-stations-hud`. Актуальный хэш: `git rev-parse checkpoint/ship-stations-hud`.
+**Git checkpoint:** аннотированный тег **`checkpoint/ship-stations-hud`** → коммит **`a245008`** (и далее по `main`). Вернуться к снимку: `git checkout checkpoint/ship-stations-hud` или ветку от тега: `git switch -c имя-ветки checkpoint/ship-stations-hud`.
 
 **Дальше по чеклисту:** `docs/EDITOR_NEXT_STEPS.md` — пункты **§6–8** (уточнение Game Mode / ролей / PIE с ботами у станций), затем развитие ИИ и миссий по плану этапов.
 
