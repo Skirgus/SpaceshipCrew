@@ -2,10 +2,14 @@
 
 #include "ShipStatusWidget.h"
 
+#include "CrewInteractionComponent.h"
+#include "CrewRoleComponent.h"
 #include "EngineUtils.h"
-#include "Internationalization/Text.h"
 #include "GameFramework/PlayerController.h"
+#include "SpaceshipCrewPlayerController.h"
+#include "Internationalization/Text.h"
 #include "ShipActor.h"
+#include "ShipCrewCharacter.h"
 #include "ShipGameState.h"
 #include "ShipSystemsComponent.h"
 
@@ -24,18 +28,43 @@ namespace
 			FText::AsNumber(FMath::RoundToInt(Clamp01(Value) * 100.f))
 		);
 	}
+
+	static FText GetInteractKeyLabel(AShipCrewCharacter* CrewChar, APlayerController* PlayerController)
+	{
+		if (!CrewChar || !PlayerController)
+		{
+			return FText::FromString(TEXT("?"));
+		}
+		if (!CrewChar->InteractAction)
+		{
+			return FText::FromString(TEXT("—"));
+		}
+		if (const ASpaceshipCrewPlayerController* ShipPC = Cast<ASpaceshipCrewPlayerController>(PlayerController))
+		{
+			const FKey K = ShipPC->GetFirstKeyMappedToAction(CrewChar->InteractAction);
+			if (K.IsValid())
+			{
+				return K.GetDisplayName();
+			}
+		}
+		return FText::FromString(TEXT("E"));
+	}
 }
 
 void UShipStatusWidget::RefreshFromController(APlayerController* PlayerController)
 {
+	InteractionPromptText = FText::GetEmpty();
+
 	if (!PlayerController)
 	{
+		InvalidateLayoutAndVolatility();
 		return;
 	}
 
 	UWorld* World = PlayerController->GetWorld();
 	if (!World)
 	{
+		InvalidateLayoutAndVolatility();
 		return;
 	}
 
@@ -69,6 +98,43 @@ void UShipStatusWidget::RefreshFromController(APlayerController* PlayerControlle
 			}
 		}
 	}
+
+	if (AShipCrewCharacter* CrewChar = Cast<AShipCrewCharacter>(PlayerController->GetPawn()))
+	{
+		if (UCrewInteractionComponent* Interact = CrewChar->CrewInteraction)
+		{
+			switch (Interact->GetInteractAvailability())
+			{
+			case ECrewInteractAvailability::None:
+				break;
+			case ECrewInteractAvailability::NeedBindInteractAction:
+				InteractionPromptText = FText::FromString(TEXT("Set Interact Action (IA) on BP_ShipCrewCharacter"));
+				break;
+			case ECrewInteractAvailability::TooFar:
+				InteractionPromptText = FText::FromString(TEXT("Too far to interact"));
+				break;
+			case ECrewInteractAvailability::NoPermission:
+				InteractionPromptText = FText::FromString(TEXT("No permission for this station"));
+				break;
+			case ECrewInteractAvailability::NoCrewRole:
+				InteractionPromptText = FText::FromString(TEXT("Crew role not assigned (check game mode / slot)"));
+				break;
+			case ECrewInteractAvailability::Ready:
+			{
+				const FText KeyLabel = GetInteractKeyLabel(CrewChar, PlayerController);
+				InteractionPromptText = FText::Format(
+					FText::FromString(TEXT("Press {0} — interact")),
+					KeyLabel);
+				break;
+			}
+			default:
+				break;
+			}
+		}
+	}
+
+	// Иначе привязка UMG к GetInteractionPromptText / свойству не перерисовывается после C++-обновления.
+	InvalidateLayoutAndVolatility();
 }
 
 float UShipStatusWidget::GetReactorPercent() const

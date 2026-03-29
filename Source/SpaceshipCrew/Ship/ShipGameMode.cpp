@@ -273,7 +273,10 @@ void AShipGameMode::EnsureDefaultRoles()
 		return R;
 	};
 
-	MandatoryRoles.Add(MakeRole(FName(TEXT("Captain")), TArray<FName>{FName(TEXT("Helm"))}));
+	// Капитан: все посты (MVP / удобство тестов; манифест в Game Mode может переопределить).
+	MandatoryRoles.Add(MakeRole(FName(TEXT("Captain")), TArray<FName>{
+		FName(TEXT("Helm")), FName(TEXT("Reactor")), FName(TEXT("Medical")), FName(TEXT("Extinguisher"))
+	}));
 	MandatoryRoles.Add(MakeRole(FName(TEXT("Engineer")), TArray<FName>{FName(TEXT("Reactor")), FName(TEXT("Extinguisher"))}));
 	MandatoryRoles.Add(MakeRole(FName(TEXT("Medic")), TArray<FName>{FName(TEXT("Medical"))}));
 	MandatoryRoles.Add(MakeRole(FName(TEXT("Pilot")), TArray<FName>{FName(TEXT("Helm"))}));

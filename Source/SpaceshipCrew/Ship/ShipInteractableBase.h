@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 
 class UShipSystemsComponent;
 class AController;
+class APawn;
 
 /**
  * Интерактивный объект мира, который передаёт авторизованные действия в UShipSystemsComponent.
@@ -28,6 +29,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
 	FName RequiredPermission;
 
+	/** Должен совпадать с веткой в UShipSystemsComponent::InternalApplyAction (напр. AdjustReactor). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
 	FName ActionId;
 
@@ -36,7 +38,7 @@ public:
 
 	/** Только на сервере: применить взаимодействие (вызов из Server RPC компонента взаимодействия). */
 	UFUNCTION(BlueprintCallable, Category = "Ship")
-	void ExecuteInteract(AController* Issuer);
+	void ExecuteInteract(AController* Issuer, APawn* InstigatorPawn = nullptr);
 
 	UFUNCTION(BlueprintPure, Category = "Ship")
 	UShipSystemsComponent* ResolveShipSystems() const;

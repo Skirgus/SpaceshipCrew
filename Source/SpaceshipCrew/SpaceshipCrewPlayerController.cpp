@@ -1,9 +1,10 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "SpaceshipCrewPlayerController.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
+#include "InputAction.h"
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "SpaceshipCrew.h"
@@ -64,5 +65,37 @@ bool ASpaceshipCrewPlayerController::ShouldUseTouchControls() const
 {
 	// мы на мобильной платформе? Нужно ли принудительно включить сенсорный ввод?
 	return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
+}
+
+FKey ASpaceshipCrewPlayerController::GetFirstKeyMappedToAction(const UInputAction* Action) const
+{
+	if (!Action)
+	{
+		return EKeys::Invalid;
+	}
+	auto Scan = [Action](const TArray<UInputMappingContext*>& Contexts) -> FKey
+	{
+		for (UInputMappingContext* Ctx : Contexts)
+		{
+			if (!Ctx)
+			{
+				continue;
+			}
+			for (const FEnhancedActionKeyMapping& M : Ctx->GetMappings())
+			{
+				if (M.Action == Action)
+				{
+					return M.Key;
+				}
+			}
+		}
+		return EKeys::Invalid;
+	};
+	const FKey K = Scan(DefaultMappingContexts);
+	if (K.IsValid())
+	{
+		return K;
+	}
+	return Scan(MobileExcludedMappingContexts);
 }
 

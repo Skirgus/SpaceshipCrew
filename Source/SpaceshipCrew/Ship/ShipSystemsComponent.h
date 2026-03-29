@@ -8,6 +8,7 @@
 
 class UCrewRoleComponent;
 class AController;
+class APawn;
 
 /**
  * Сервер-авторитетная симуляция корабля. Команды проходят авторизацию по роли,
@@ -37,9 +38,12 @@ public:
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Fire")
 	float FireIntensity = 0.f;
 
-	/** Проверяет роль инициатора относительно StationPermission, затем применяет ActionId (расширяемо). */
+	/**
+	 * Проверяет роль инициатора относительно StationPermission, затем применяет ActionId (расширяемо).
+	 * InstigatorPawn — запасной источник UCrewRoleComponent, если на сервере у пешки ещё нет Controller (редко при RPC).
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Ship")
-	bool ApplyAuthorizedAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude = 1.f);
+	bool ApplyAuthorizedAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude = 1.f, APawn* InstigatorPawn = nullptr);
 
 	UFUNCTION(BlueprintPure, Category = "Ship")
 	bool CanIssuerUseStation(AController* Issuer, FName StationPermission) const;
@@ -54,8 +58,9 @@ protected:
 
 	void SimulateSystems(float DeltaTime);
 
-	bool InternalApplyAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude);
+	bool InternalApplyAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude, APawn* InstigatorPawn);
 
 	static bool ResolveCrewRole(AController* Issuer, UCrewRoleComponent*& OutRole);
+	static bool ResolveCrewRole(AController* Issuer, APawn* FallbackPawn, UCrewRoleComponent*& OutRole);
 };
 

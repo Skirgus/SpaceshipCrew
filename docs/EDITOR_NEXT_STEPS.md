@@ -9,8 +9,9 @@
 | 1 | Сборка C++ | Сделано |
 | 2 | Пешка `BP_ShipCrewCharacter` (mesh, anim), `Crew Pawn Class` в Game Mode | Сделано |
 | 3 | Ввод: IMC на `BP_ShipPlayerController` (в т.ч. мышь для Look), IA на пешке, Interact | Сделано (уточнять Interact на уровне) |
-| 4 | Уровень **`Lvl_Ship`**: `ShipActor`, NavMesh, `Crew Spawn Transforms` | **Текущий шаг** (§4.0–4.5) |
-| 5–8 | Станции, Game Mode / слот, роли DA, проверка PIE с ботами | Дальше |
+| 4 | Уровень **`Lvl_Ship`**: `BP_Ship`, NavMesh, **Crew Spawn Marker** | Сделано |
+| 5 | Станции **`ShipInteractableBase`**, права ролей, **Action Id** (§5) | Сделано |
+| 6–8 | Game Mode / слот, роли DA, проверка PIE с ботами (§6–8) | **Текущий шаг** |
 | 9 | Git | Актуально при новой машине / remote |
 
 Подробный контекст сессии и коммит: **`docs/PLAN_AND_DISCUSSION.md`** → раздел **«Точка продолжения»**.
@@ -104,13 +105,13 @@
 - **P**: nav виден там, где должны ходить боты.
 - **HUD** (если уже настроен): показатели корабля читаются — значит цепочка до `ShipActor` / `ShipSystems` жива.
 
-Дальше по чеклисту — **§5: станции** (`ShipInteractableBase`) внутри зоны NavMesh и согласованные **Action Id** / права.
+Дальше по чеклисту — **§5: станции** (`ShipInteractableBase`) **внутри `BP_Ship`**, в зоне NavMesh, с согласованными **Action Id** / правами.
 
 ## 5. Станции (interactable)
 
-- Разместить **`Ship Interactable Base`** (`AShipInteractableBase`) или дочерние BP у точек взаимодействия.
+- Размещать **в `BP_Ship`** (дочерние акторы под корнем корабля или к `HullMesh`): **`Ship Interactable Base`** (`AShipInteractableBase`) или дочерние BP у постов. Так корабль остаётся единым переносимым объектом; на уровне — только инстанс `BP_Ship`.
 - Для каждой станции выставить:
-  - **`Owning Ship Actor`** — ссылка на ваш `AShipActor` (или оставить пустым: берётся первый `AShipActor` в мире).
+  - **`Owning Ship Actor`** — для станции **внутри `BP_Ship`** лучше **явно задать** ссылку на этот `AShipActor` (из BP или родителя). Если оставить пустым, `ResolveShipSystems` возьмёт **первый** `AShipActor` в мире — нормально только при **одном** корабле.
   - **`Required Permission`** — тег права роли, например `Helm`, `Reactor`, `Medical`, `Extinguisher` (совпадает с `Allowed Station Permissions` на роли).
   - **`Action Id`** — строка, обрабатываемая в `UShipSystemsComponent`, например:
     - `AdjustReactor`

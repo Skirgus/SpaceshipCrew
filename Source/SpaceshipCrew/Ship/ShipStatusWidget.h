@@ -68,4 +68,14 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD")
 	FName CrewRoleId = NAME_None;
+
+	/** Подсказка «нажми клавишу» при наведении лучом на станцию; обновляется в RefreshFromController. */
+	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD")
+	FText InteractionPromptText;
+
+	UFUNCTION(BlueprintPure, Category = "Ship|HUD|Format")
+	FText GetInteractionPromptText() const { return InteractionPromptText; }
+
+	UFUNCTION(BlueprintPure, Category = "Ship|HUD|Format")
+	bool HasInteractionPrompt() const { return !InteractionPromptText.IsEmpty(); }
 };

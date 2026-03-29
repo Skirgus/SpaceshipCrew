@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 
 class UInputAction;
 struct FInputActionValue;
+class AController;
 class UCrewRoleComponent;
 class UCrewInteractionComponent;
 class UCrewBotBrainComponent;
@@ -37,8 +38,18 @@ public:
 	TObjectPtr<UInputAction> InteractAction;
 
 protected:
+	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void UnPossessed() override;
+
+	/** Использует переданный IC (из Setup) или InputComponent после Possess. */
+	void TryBindInteractInput(UInputComponent* IC);
+
+	void BindInteractFallbackNextTick();
 
 	void OnInteractPressed(const FInputActionValue& Value);
+
+	bool bInteractInputBound = false;
 };
 

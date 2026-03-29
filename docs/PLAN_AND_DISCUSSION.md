@@ -19,6 +19,7 @@
 - **Слот экипажа**: роль, тип контроллера (Human / Bot), ссылка на пешку. Реплицируемые данные в `AShipGameState::CrewSlots`.
 - **Правило**: системы корабля **не различают** игрока и бота — команды идут через **авторизацию роли** (`UCrewRoleComponent` + `AllowedStationPermissions` на `UCrewRoleDefinition`).
 - **Взаимодействия**: `AShipInteractableBase` → `UShipSystemsComponent::ApplyAuthorizedAction(Controller, StationPermission, ActionId)`.
+- **Станции / точки взаимодействия** — **внутри `BP_Ship`** (дочерние акторы или компоненты), а не разбросаны по уровню: корабль = единый переносимый объект, `ShipSystems` и посты живут в одном месте. На уровне — сам инстанс `BP_Ship` (и окружение).
 - **Боты**: `UCrewBotBrainComponent` + `ACrewAIController`, те же interactable, что и у игрока.
 - **Заглушка коопа**: `IShipCrewSlotPossession::PossessCrewSlot`, `UCrewLobbySubsystem`.
 
@@ -52,15 +53,19 @@
 - `AShipPlayerController`: HUD таймер, **`OnPossess` + `SetViewTarget`** (камера на предзаспавненную пешку), **`ApplyShipViewAndInputDefaults`** (игровой ввод, без курсора, снят ignore look/move — обзор мышью после HUD).
 - `Config/DefaultEngine.ini`: **`GlobalDefaultGameMode=/Game/Content/GameModes/BP_ShipGameMode.BP_ShipGameMode_C`**, **`GameDefaultMap` / `EditorStartupMap`** = **`/Game/Content/Maps/Lvl_Ship.Lvl_Ship`** — `Lvl_Ship.umap` создаётся в редакторе (см. `docs/EDITOR_NEXT_STEPS.md` §4.0).
 
-## Точка продолжения (зафиксировано: 2026-03-28, вечер)
+## Точка продолжения (зафиксировано: 2026-03-29)
 
-**PIE:** персонаж ходит, **камера за пешкой** (`SetViewTarget`), **мышь — Look**, Enhanced Input (`IMC_Default` на `BP_ShipPlayerController`, IA на `BP_ShipCrewCharacter`). HUD `WBP_ShipStatus` на контроллере. **Нюансы (уже починены):** IMC на контроллере; `SetViewTarget` после предспавна; game-only input без курсора.
+**Этап закрыт:** объекты-станции расставлены (в т.ч. в `BP_Ship`), к ним можно подойти и нажать interact; **параметры `UShipSystemsComponent`** меняются на сервере и **отображаются в HUD** (`WBP_ShipStatus`). Цепочка: `UCrewInteractionComponent` → `ServerTryInteract` → `AShipInteractableBase::ExecuteInteract` → `ApplyAuthorizedAction`. Подсказка на экране согласована с тем же набором проверок, что и перед RPC.
 
-**Спавн экипажа:** `CrewSpawnTransforms` убран. **`Crew Spawn Marker`** (`UCrewSpawnMarkerComponent`) на `BP_Ship`: вьюпорт + **`Role Id`** или пусто (wildcard). Логика: `BuildCrewSpawnTransforms` в `ShipGameMode`. См. `docs/EDITOR_NEXT_STEPS.md` §4.3.
+**Ввод:** `IMC_Default` с **`IA_Interact`** (клавиша E), на **`BP_ShipCrewCharacter`** в Class Defaults — **Auto Receive Input = Player 0** (или эквивалент), поле **Interact Action** = тот же IA. Привязка Interact в C++ — отложенно после `BeginPlay` / из `SetupPlayerInputComponent`, триггер **Triggered**.
 
-**Дальше:** по чеклисту редактора — NavMesh, маркеры (если ещё не все роли), затем **§5** станции `ShipInteractableBase`, PIE с ботами.
+**Git checkpoint:** аннотированный тег **`checkpoint/ship-stations-hud`** указывает на коммит этого состояния. Вернуться к нему: `git checkout checkpoint/ship-stations-hud` (отсоединённый HEAD) или `git switch -c ветка-от-чекпойнта checkpoint/ship-stations-hud`. Актуальный хэш: `git rev-parse checkpoint/ship-stations-hud`.
 
-**Git:** `main` **на 3 коммита впереди `origin`** (не запушено). Верх стека — коммит **`docs: checkpoint — spawn markers, PLAN_AND_DISCUSSION`** (этот файл + `Lvl_Ship.umap`); ниже **`646f97d`** (маркеры спавна), **`889aba9`** (спавн Game Mode). Перед сменой машины: `git push`; точный хэш: `git log -1 --oneline`.
+**Дальше по чеклисту:** `docs/EDITOR_NEXT_STEPS.md` — пункты **§6–8** (уточнение Game Mode / ролей / PIE с ботами у станций), затем развитие ИИ и миссий по плану этапов.
+
+### Предыдущая точка (2026-03-28)
+
+PIE с ходьбой, камерой, IMC и HUD без станций; спавн через **Crew Spawn Marker**; см. историю коммитов до тега выше.
 
 ## Ссылка на репозиторий
 

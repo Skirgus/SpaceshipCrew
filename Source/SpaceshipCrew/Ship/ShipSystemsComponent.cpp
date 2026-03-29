@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ShipSystemsComponent.h"
+#include "SpaceshipCrew.h"
 #include "CrewRoleComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
@@ -68,6 +69,23 @@ bool UShipSystemsComponent::ResolveCrewRole(AController* Issuer, UCrewRoleCompon
 	return OutRole != nullptr;
 }
 
+bool UShipSystemsComponent::ResolveCrewRole(AController* Issuer, APawn* FallbackPawn, UCrewRoleComponent*& OutRole)
+{
+	OutRole = nullptr;
+	if (Issuer)
+	{
+		if (APawn* Pawn = Issuer->GetPawn())
+		{
+			OutRole = Pawn->FindComponentByClass<UCrewRoleComponent>();
+		}
+	}
+	if (!OutRole && FallbackPawn)
+	{
+		OutRole = FallbackPawn->FindComponentByClass<UCrewRoleComponent>();
+	}
+	return OutRole != nullptr;
+}
+
 bool UShipSystemsComponent::CanIssuerUseStation(AController* Issuer, FName StationPermission) const
 {
 	UCrewRoleComponent* Role = nullptr;
@@ -78,19 +96,19 @@ bool UShipSystemsComponent::CanIssuerUseStation(AController* Issuer, FName Stati
 	return Role->CanUseStation(StationPermission);
 }
 
-bool UShipSystemsComponent::ApplyAuthorizedAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude)
+bool UShipSystemsComponent::ApplyAuthorizedAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude, APawn* InstigatorPawn)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())
 	{
 		return false;
 	}
-	return InternalApplyAction(Issuer, StationPermission, ActionId, Magnitude);
+	return InternalApplyAction(Issuer, StationPermission, ActionId, Magnitude, InstigatorPawn);
 }
 
-bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude)
+bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName StationPermission, FName ActionId, float Magnitude, APawn* InstigatorPawn)
 {
 	UCrewRoleComponent* Role = nullptr;
-	if (!ResolveCrewRole(Issuer, Role) || !Role || !Role->CanUseStation(StationPermission))
+	if (!ResolveCrewRole(Issuer, InstigatorPawn, Role) || !Role || !Role->CanUseStation(StationPermission))
 	{
 		return false;
 	}
@@ -122,6 +140,8 @@ bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName Stati
 		return true;
 	}
 
+	UE_LOG(LogSpaceshipCrew, Warning, TEXT("InternalApplyAction: неизвестный ActionId '%s' — добавьте ветку в ShipSystemsComponent или исправьте BP станции."),
+		*ActionId.ToString());
 	return false;
 }
 

@@ -1,12 +1,14 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
 #include "SpaceshipCrewPlayerController.generated.h"
 
 class UInputMappingContext;
+class UInputAction;
 class UUserWidget;
 
 /**
@@ -17,7 +19,12 @@ UCLASS(abstract)
 class ASpaceshipCrewPlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+
+public:
+	/** Первый ключ из IMC проекта для действия (HUD-подсказка). */
+	UFUNCTION(BlueprintPure, Category = "Input")
+	FKey GetFirstKeyMappedToAction(const UInputAction* Action) const;
+
 protected:
 
 	/** Контексты привязки ввода */

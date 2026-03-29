@@ -3,6 +3,7 @@
 #include "ShipInteractableBase.h"
 #include "ShipActor.h"
 #include "ShipSystemsComponent.h"
+#include "SpaceshipCrew.h"
 #include "Components/SceneComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -21,7 +22,12 @@ UShipSystemsComponent* AShipInteractableBase::ResolveShipSystems() const
 {
 	if (OwningShipActor)
 	{
-		return OwningShipActor->FindComponentByClass<UShipSystemsComponent>();
+		if (UShipSystemsComponent* Sys = OwningShipActor->FindComponentByClass<UShipSystemsComponent>())
+		{
+			return Sys;
+		}
+		UE_LOG(LogSpaceshipCrew, Warning, TEXT("ResolveShipSystems: OwningShipActor «%s» не содержит UShipSystemsComponent — ищем корабль в мире."),
+			*GetNameSafe(OwningShipActor));
 	}
 	if (UWorld* World = GetWorld())
 	{
@@ -36,16 +42,27 @@ UShipSystemsComponent* AShipInteractableBase::ResolveShipSystems() const
 	return nullptr;
 }
 
-void AShipInteractableBase::ExecuteInteract(AController* Issuer)
+void AShipInteractableBase::ExecuteInteract(AController* Issuer, APawn* InstigatorPawn)
 {
 	if (!HasAuthority())
 	{
 		return;
 	}
+	if (ActionId.IsNone())
+	{
+		UE_LOG(LogSpaceshipCrew, Error, TEXT("ExecuteInteract: ActionId пустой на %s — задайте в BP (для реактора: AdjustReactor)."),
+			*GetNameSafe(this));
+		return;
+	}
 	UShipSystemsComponent* Sys = ResolveShipSystems();
 	if (!Sys)
 	{
+		UE_LOG(LogSpaceshipCrew, Warning, TEXT("ExecuteInteract: нет ShipSystems (%s)."), *GetNameSafe(this));
 		return;
 	}
-	Sys->ApplyAuthorizedAction(Issuer, RequiredPermission, ActionId, Magnitude);
+	if (!Sys->ApplyAuthorizedAction(Issuer, RequiredPermission, ActionId, Magnitude, InstigatorPawn))
+	{
+		UE_LOG(LogSpaceshipCrew, Warning, TEXT("ExecuteInteract: отклонено (права или ActionId). Station=%s Permission=%s ActionId=%s"),
+			*GetNameSafe(this), *RequiredPermission.ToString(), *ActionId.ToString());
+	}
 }
