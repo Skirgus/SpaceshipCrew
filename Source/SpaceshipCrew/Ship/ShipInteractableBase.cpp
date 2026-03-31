@@ -5,6 +5,7 @@
 #include "ShipSystemsComponent.h"
 #include "SpaceshipCrew.h"
 #include "Components/SceneComponent.h"
+#include "Components/SphereComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 
@@ -16,6 +17,14 @@ AShipInteractableBase::AShipInteractableBase()
 
 	RootScene = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(RootScene);
+
+	InteractionCollider = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionCollider"));
+	InteractionCollider->SetupAttachment(RootScene);
+	InteractionCollider->SetSphereRadius(60.f);
+	InteractionCollider->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	InteractionCollider->SetCollisionResponseToAllChannels(ECR_Ignore);
+	InteractionCollider->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	InteractionCollider->SetGenerateOverlapEvents(false);
 }
 
 UShipSystemsComponent* AShipInteractableBase::ResolveShipSystems() const

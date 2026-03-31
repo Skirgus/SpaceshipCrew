@@ -29,7 +29,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
 	FName RequiredPermission;
 
-	/** Должен совпадать с веткой в UShipSystemsComponent::InternalApplyAction (напр. AdjustReactor). */
+	/**
+	 * Должен совпадать с веткой в UShipSystemsComponent::InternalApplyAction.
+	 * Примеры: IncreaseReactorPower, DecreaseReactorPower, EnableOxygenSupply, DisableOxygenSupply.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship")
 	FName ActionId;
 
@@ -46,5 +49,9 @@ public:
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Ship")
 	TObjectPtr<class USceneComponent> RootScene;
+
+	/** Коллизия для гарантированного наведения трассой взаимодействия (ECC_Visibility). */
+	UPROPERTY(VisibleAnywhere, Category = "Ship")
+	TObjectPtr<class USphereComponent> InteractionCollider;
 };
 

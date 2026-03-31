@@ -11,8 +11,9 @@
 | 3 | Ввод: IMC на `BP_ShipPlayerController` (в т.ч. мышь для Look), IA на пешке, Interact | Сделано (уточнять Interact на уровне) |
 | 4 | Уровень **`Lvl_Ship`**: `BP_Ship`, NavMesh, **Crew Spawn Marker** | Сделано |
 | 5 | Станции **`ShipInteractableBase`**, права ролей, **Action Id** (§5) | Сделано |
-| 6–8 | Game Mode / слот, роли DA, проверка PIE с ботами (§6–8) | **Текущий шаг** |
+| 6–8 | Game Mode / слот, роли DA, проверка PIE с ботами (§6–8) | Сделано |
 | 9 | Git | Актуально при новой машине / remote |
+| 10 | Пожары/O2/HUD (реактор 120%, fire frame, oxygen supply) | **Текущий шаг** |
 
 Подробный контекст сессии и коммит: **`docs/PLAN_AND_DISCUSSION.md`** → раздел **«Точка продолжения»**.
 
@@ -142,3 +143,53 @@
 ## 9. Git
 
 - Если `git push` не выполнялся: `git remote add origin https://github.com/Skirgus/SpaceshipCrew.git` (если ещё нет), затем `git push -u origin main` с учётом аутентификации GitHub.
+
+## 10. Пожары, O2 и HUD (актуальный блок)
+
+### 10.1 Настройка `BP_Ship` (обязательно)
+
+- В `BP_Ship` выбери компонент `ShipSystems`.
+- В разделе `Ship|Fire` задай:
+  - `FireStationClass` = `BP_Station_Fire`;
+  - `ReactorWorldOffset` — центр реактора;
+  - `FireStationSpawnRadius` — радиус спавна станций;
+  - `MaxFireHotspots` — максимум очагов.
+- В разделе `Ship|Atmosphere` проверь:
+  - `TargetOxygenPercent = 21`;
+  - `MinOxygenPercentForNewFires = 12`;
+  - `LowOxygenExtinguishSecondsAtThreshold / AtZero` — скорость затухания очагов.
+
+### 10.2 Action Id для станций
+
+- Реактор:
+  - кнопка `+` -> `IncreaseReactorPower`
+  - кнопка `-` -> `DecreaseReactorPower`
+- Кислород:
+  - `EnableOxygenSupply`
+  - `DisableOxygenSupply`
+- Пожар:
+  - `BP_Station_Fire` работает через `FightFire` (ставится кодом при спавне очага).
+
+### 10.3 HUD `WBP_ShipStatus` (что обязательно вывести)
+
+- Reactor: `GetReactorText`, `GetReactorPercent`, `GetReactorStateText`
+- Oxygen: `GetOxygenText`, `GetOxygenPercent`, `GetOxygenReserveText`, `GetOxygenSupplyText`
+- Fire: `GetFireText`, `GetFirePercent`
+- Alerts: `GetLatestAlertText`, `GetAlertHistoryText`
+- Interaction hint: `GetInteractionPromptText` (лучше отдельным виджетом в центре экрана, не внутри `VB_Main`)
+
+### 10.4 Красная рамка экрана при пожаре
+
+- В корневом `CanvasPanel` добавить fullscreen `Border` (`BRD_FireFrame`).
+- `Brush Draw As = Border`, `Margin ~0.03`.
+- Bind `Brush Color` -> `GetFireFrameColor()`.
+- Опционально: bind `RenderOpacity` -> `GetFireFrameOpacity()` или добавить pulse-анимацию.
+
+### 10.5 Тест-кейсы (PIE)
+
+1. Реактор до 75%: пожара нет.
+2. Реактор 75..100%: вероятность пожара появляется.
+3. Реактор >100%: гарантированный пожар через время (к 120% быстрее).
+4. Несколько очагов: растёт `Fire%`, появляются несколько fire-станций.
+5. Тушение: `Fire%` падает по очагам, станции удаляются по одной.
+6. Выключение O2: при `O2 <= 12%` новые очаги не возникают, существующие постепенно тухнут.

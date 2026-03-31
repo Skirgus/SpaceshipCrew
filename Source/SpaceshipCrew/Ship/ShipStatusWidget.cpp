@@ -20,12 +20,12 @@ namespace
 		return FMath::Clamp(Value, 0.f, 1.f);
 	}
 
-	static FText MakePercentText(const FText& Label, float Value)
+	static FText MakePercentText(const FText& Label, float Value, float MaxValue = 1.f)
 	{
 		return FText::Format(
 			FText::FromString(TEXT("{0}: {1}%")),
 			Label,
-			FText::AsNumber(FMath::RoundToInt(Clamp01(Value) * 100.f))
+			FText::AsNumber(FMath::RoundToInt((MaxValue > 0.f ? Value / MaxValue : 0.f) * 100.f))
 		);
 	}
 
@@ -74,8 +74,13 @@ void UShipStatusWidget::RefreshFromController(APlayerController* PlayerControlle
 		{
 			ReactorOutput = Systems->ReactorOutput;
 			OxygenLevel = Systems->OxygenLevel;
+			OxygenReserve = Systems->OxygenReserve;
+			bOxygenSupplyEnabled = Systems->bOxygenSupplyEnabled;
 			HullIntegrity = Systems->HullIntegrity;
 			FireIntensity = Systems->FireIntensity;
+			FireHotspotCount = Systems->FireHotspotCount;
+			MaxFireHotspots = FMath::Max(1, Systems->MaxFireHotspots);
+			AlertHistory = Systems->GetRecentAlerts();
 			break;
 		}
 	}
@@ -139,12 +144,12 @@ void UShipStatusWidget::RefreshFromController(APlayerController* PlayerControlle
 
 float UShipStatusWidget::GetReactorPercent() const
 {
-	return Clamp01(ReactorOutput);
+	return Clamp01(ReactorOutput / 1.2f);
 }
 
 float UShipStatusWidget::GetOxygenPercent() const
 {
-	return Clamp01(OxygenLevel);
+	return Clamp01(OxygenLevel / 21.0f);
 }
 
 float UShipStatusWidget::GetHullPercent() const
@@ -159,12 +164,53 @@ float UShipStatusWidget::GetFirePercent() const
 
 FText UShipStatusWidget::GetReactorText() const
 {
-	return MakePercentText(FText::FromString(TEXT("Reactor")), ReactorOutput);
+	return MakePercentText(FText::FromString(TEXT("Reactor")), ReactorOutput, 1.0f);
+}
+
+FText UShipStatusWidget::GetReactorStateText() const
+{
+	FString State = TEXT("SAFE");
+	if (ReactorOutput > 1.10f)
+	{
+		State = TEXT("CRITICAL");
+	}
+	else if (ReactorOutput > 1.0f)
+	{
+		State = TEXT("OVERLOAD");
+	}
+	else if (ReactorOutput >= 0.75f)
+	{
+		State = TEXT("HIGH");
+	}
+
+	return FText::Format(
+		FText::FromString(TEXT("Reactor state: {0}")),
+		FText::FromString(State)
+	);
 }
 
 FText UShipStatusWidget::GetOxygenText() const
 {
-	return MakePercentText(FText::FromString(TEXT("Oxygen")), OxygenLevel);
+	return FText::Format(
+		FText::FromString(TEXT("Oxygen: {0}%")),
+		FText::AsNumber(FMath::RoundToInt(FMath::Max(0.f, OxygenLevel)))
+	);
+}
+
+FText UShipStatusWidget::GetOxygenReserveText() const
+{
+	return FText::Format(
+		FText::FromString(TEXT("O2 Reserve: {0}")),
+		FText::AsNumber(FMath::RoundToInt(FMath::Max(0.f, OxygenReserve)))
+	);
+}
+
+FText UShipStatusWidget::GetOxygenSupplyText() const
+{
+	return FText::Format(
+		FText::FromString(TEXT("O2 Supply: {0}")),
+		bOxygenSupplyEnabled ? FText::FromString(TEXT("ON")) : FText::FromString(TEXT("OFF"))
+	);
 }
 
 FText UShipStatusWidget::GetHullText() const
@@ -174,7 +220,12 @@ FText UShipStatusWidget::GetHullText() const
 
 FText UShipStatusWidget::GetFireText() const
 {
-	return MakePercentText(FText::FromString(TEXT("Fire")), FireIntensity);
+	return FText::Format(
+		FText::FromString(TEXT("Fire: {0}% ({1}/{2} hotspots)")),
+		FText::AsNumber(FMath::RoundToInt(Clamp01(FireIntensity) * 100.f)),
+		FText::AsNumber(FireHotspotCount),
+		FText::AsNumber(MaxFireHotspots)
+	);
 }
 
 FText UShipStatusWidget::GetRoleText() const
@@ -193,4 +244,74 @@ FText UShipStatusWidget::GetSlotText() const
 		return FText::FromString(TEXT("Slot: -"));
 	}
 	return FText::Format(FText::FromString(TEXT("Slot: {0}")), FText::AsNumber(CrewSlotIndex));
+}
+
+FText UShipStatusWidget::GetLatestAlertText() const
+{
+	if (AlertHistory.Num() == 0)
+	{
+		return FText::FromString(TEXT("Alert: none"));
+	}
+	const FShipAlertEntry& Last = AlertHistory.Last();
+	const TCHAR* Prefix = TEXT("INFO");
+	if (Last.Severity == EShipAlertSeverity::Warning)
+	{
+		Prefix = TEXT("WARN");
+	}
+	else if (Last.Severity == EShipAlertSeverity::Critical)
+	{
+		Prefix = TEXT("CRIT");
+	}
+
+	return FText::Format(
+		FText::FromString(TEXT("Alert [{0}]: {1}")),
+		FText::FromString(Prefix),
+		Last.Message
+	);
+}
+
+FText UShipStatusWidget::GetAlertHistoryText() const
+{
+	if (AlertHistory.Num() == 0)
+	{
+		return FText::GetEmpty();
+	}
+
+	FString Combined;
+	const int32 StartIndex = FMath::Max(0, AlertHistory.Num() - 3);
+	for (int32 i = StartIndex; i < AlertHistory.Num(); ++i)
+	{
+		const FShipAlertEntry& Entry = AlertHistory[i];
+		const TCHAR* Prefix = TEXT("I");
+		if (Entry.Severity == EShipAlertSeverity::Warning)
+		{
+			Prefix = TEXT("W");
+		}
+		else if (Entry.Severity == EShipAlertSeverity::Critical)
+		{
+			Prefix = TEXT("C");
+		}
+
+		Combined += FString::Printf(TEXT("[%s] %s"), Prefix, *Entry.Message.ToString());
+		if (i < AlertHistory.Num() - 1)
+		{
+			Combined += TEXT("\n");
+		}
+	}
+	return FText::FromString(Combined);
+}
+
+float UShipStatusWidget::GetFireFrameOpacity() const
+{
+	// Легкая рамка уже при малом огне и сильная при критичном.
+	return FMath::Clamp(FMath::GetMappedRangeValueClamped(FVector2D(0.05f, 1.0f), FVector2D(0.0f, 0.85f), FireIntensity), 0.f, 0.85f);
+}
+
+FLinearColor UShipStatusWidget::GetFireFrameColor() const
+{
+	const float Alpha = GetFireFrameOpacity();
+	// От темно-красного к ярко-красному по росту пожара.
+	const FLinearColor Low(0.35f, 0.02f, 0.02f, Alpha);
+	const FLinearColor High(1.0f, 0.05f, 0.05f, Alpha);
+	return FMath::Lerp(Low, High, FMath::Clamp(FireIntensity, 0.f, 1.f));
 }
