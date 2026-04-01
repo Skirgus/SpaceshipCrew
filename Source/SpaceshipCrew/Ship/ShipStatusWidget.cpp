@@ -81,6 +81,10 @@ void UShipStatusWidget::RefreshFromController(APlayerController* PlayerControlle
 			FireHotspotCount = Systems->FireHotspotCount;
 			MaxFireHotspots = FMath::Max(1, Systems->MaxFireHotspots);
 			AlertHistory = Systems->GetRecentAlerts();
+			ModuleStates = Systems->GetCompartments();
+			BulkheadStates = Systems->Bulkheads;
+			ActiveShipConfigId = Systems->GetActiveShipConfigId();
+			ConfigValidationErrors = Systems->GetLastConfigValidationErrors();
 			break;
 		}
 	}
@@ -294,6 +298,85 @@ FText UShipStatusWidget::GetAlertHistoryText() const
 
 		Combined += FString::Printf(TEXT("[%s] %s"), Prefix, *Entry.Message.ToString());
 		if (i < AlertHistory.Num() - 1)
+		{
+			Combined += TEXT("\n");
+		}
+	}
+	return FText::FromString(Combined);
+}
+
+FText UShipStatusWidget::GetModuleStatusText() const
+{
+	if (ModuleStates.Num() == 0)
+	{
+		return FText::FromString(TEXT("Modules: none"));
+	}
+
+	FString Combined = TEXT("Modules:\n");
+	for (int32 i = 0; i < ModuleStates.Num(); ++i)
+	{
+		const FShipCompartmentState& Module = ModuleStates[i];
+		Combined += FString::Printf(
+			TEXT("- %s | O2:%d%% | Fire:%d | Breach:%d%%"),
+			*Module.ModuleId.ToString(),
+			FMath::RoundToInt(FMath::Clamp(Module.OxygenLevel, 0.f, 100.f)),
+			Module.FireHotspotCount,
+			FMath::RoundToInt(FMath::Clamp(Module.BreachSeverity, 0.f, 1.f) * 100.f)
+		);
+		if (i < ModuleStates.Num() - 1)
+		{
+			Combined += TEXT("\n");
+		}
+	}
+
+	return FText::FromString(Combined);
+}
+
+FText UShipStatusWidget::GetBulkheadStatusText() const
+{
+	if (BulkheadStates.Num() == 0)
+	{
+		return FText::FromString(TEXT("Bulkheads: none"));
+	}
+
+	FString Combined = TEXT("Bulkheads:\n");
+	for (int32 i = 0; i < BulkheadStates.Num(); ++i)
+	{
+		const FShipBulkheadState& Bulkhead = BulkheadStates[i];
+		Combined += FString::Printf(
+			TEXT("- %s <-> %s : %s"),
+			*Bulkhead.ModuleA.ToString(),
+			*Bulkhead.ModuleB.ToString(),
+			Bulkhead.bOpen ? TEXT("OPEN") : TEXT("CLOSED")
+		);
+		if (i < BulkheadStates.Num() - 1)
+		{
+			Combined += TEXT("\n");
+		}
+	}
+
+	return FText::FromString(Combined);
+}
+
+FText UShipStatusWidget::GetActiveConfigText() const
+{
+	return ActiveShipConfigId.IsNone()
+		? FText::FromString(TEXT("Ship Config: Default"))
+		: FText::Format(FText::FromString(TEXT("Ship Config: {0}")), FText::FromName(ActiveShipConfigId));
+}
+
+FText UShipStatusWidget::GetConfigValidationText() const
+{
+	if (ConfigValidationErrors.Num() == 0)
+	{
+		return FText::FromString(TEXT("Config Validate: OK"));
+	}
+
+	FString Combined = TEXT("Config Validate:\n");
+	for (int32 i = 0; i < ConfigValidationErrors.Num(); ++i)
+	{
+		Combined += FString::Printf(TEXT("- %s"), *ConfigValidationErrors[i].ToString());
+		if (i < ConfigValidationErrors.Num() - 1)
 		{
 			Combined += TEXT("\n");
 		}

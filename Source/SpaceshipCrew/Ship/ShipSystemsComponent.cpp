@@ -3,11 +3,14 @@
 #include "ShipSystemsComponent.h"
 #include "SpaceshipCrew.h"
 #include "CrewRoleComponent.h"
+#include "ShipConfigAsset.h"
+#include "ShipModuleDefinition.h"
 #include "ShipInteractableBase.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Net/UnrealNetwork.h"
+#include "Containers/Queue.h"
 
 UShipSystemsComponent::UShipSystemsComponent()
 {
@@ -21,15 +24,21 @@ void UShipSystemsComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME(UShipSystemsComponent, ReactorOutput);
 	DOREPLIFETIME(UShipSystemsComponent, OxygenLevel);
 	DOREPLIFETIME(UShipSystemsComponent, OxygenReserve);
+	DOREPLIFETIME(UShipSystemsComponent, FuelReserve);
 	DOREPLIFETIME(UShipSystemsComponent, bOxygenSupplyEnabled);
 	DOREPLIFETIME(UShipSystemsComponent, HullIntegrity);
 	DOREPLIFETIME(UShipSystemsComponent, FireIntensity);
 	DOREPLIFETIME(UShipSystemsComponent, FireHotspotCount);
+	DOREPLIFETIME(UShipSystemsComponent, Compartments);
+	DOREPLIFETIME(UShipSystemsComponent, Bulkheads);
+	DOREPLIFETIME(UShipSystemsComponent, ActiveShipConfigId);
+	DOREPLIFETIME(UShipSystemsComponent, LastConfigValidationErrors);
 	DOREPLIFETIME(UShipSystemsComponent, RecentAlerts);
 }
 
 void UShipSystemsComponent::OnRep_Snapshot()
 {
+	OnBulkheadsChanged.Broadcast();
 }
 
 void UShipSystemsComponent::OnRep_RecentAlerts()
@@ -49,59 +58,23 @@ void UShipSystemsComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	}
 }
 
+void UShipSystemsComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	if (GetOwner() && GetOwner()->HasAuthority())
+	{
+		InitializeDefaultModuleLayout();
+		TArray<FText> Errors;
+		ValidateCurrentSetup(Errors);
+		LastConfigValidationErrors = Errors;
+		RebuildGlobalSnapshotFromModules();
+	}
+}
+
 void UShipSystemsComponent::SimulateSystems(float DeltaTime)
 {
+	SimulateModuleCompartments(DeltaTime);
 	EvaluateReactorFireRisk(DeltaTime);
-
-	// Атмосфера: пожар выжигает O2; при включенной подаче система пытается держать 21% (если есть запас).
-	if (FireIntensity > 0.01f)
-	{
-		const float FireOxygenBurnRate = 3.0f; // % O2 в секунду при FireIntensity=1
-		OxygenLevel = FMath::Clamp(OxygenLevel - FireOxygenBurnRate * FireIntensity * DeltaTime, 0.f, TargetOxygenPercent);
-	}
-
-	if (bOxygenSupplyEnabled && OxygenReserve > 0.f && OxygenLevel < TargetOxygenPercent)
-	{
-		const float RefillRate = 4.0f; // % O2 в секунду
-		const float Need = TargetOxygenPercent - OxygenLevel;
-		const float Add = FMath::Min(Need, RefillRate * DeltaTime);
-		OxygenLevel = FMath::Clamp(OxygenLevel + Add, 0.f, TargetOxygenPercent);
-
-		// 1% восстановления атмосферы расходует 1 единицу запаса.
-		OxygenReserve = FMath::Max(0.f, OxygenReserve - Add);
-		if (OxygenReserve <= 0.01f)
-		{
-			bOxygenSupplyEnabled = false;
-			PushAlert(FText::FromString(TEXT("Oxygen reserve depleted: supply disabled")), EShipAlertSeverity::Warning);
-		}
-	}
-
-	if (OxygenLevel < 8.f)
-	{
-		HullIntegrity = FMath::Clamp(HullIntegrity - 0.01f * DeltaTime, 0.f, 1.f);
-	}
-
-	// При низком кислороде существующие очаги должны постепенно тухнуть.
-	if (OxygenLevel <= MinOxygenPercentForNewFires && FireHotspotCount > 0)
-	{
-		// Чем ниже O2, тем быстрее затухание. Скорость настраивается через UPROPERTY в компоненте.
-		const float SecondsPerHotspot = FMath::GetMappedRangeValueClamped(
-			FVector2D(MinOxygenPercentForNewFires, 0.f),
-			FVector2D(LowOxygenExtinguishSecondsAtThreshold, LowOxygenExtinguishSecondsAtZero),
-			OxygenLevel
-		);
-		LowOxygenExtinguishProgress += DeltaTime / FMath::Max(0.2f, SecondsPerHotspot);
-		while (LowOxygenExtinguishProgress >= 1.f && FireHotspotCount > 0)
-		{
-			LowOxygenExtinguishProgress -= 1.f;
-			RemoveOneFireHotspot(nullptr);
-			PushAlert(FText::FromString(TEXT("Fire hotspot extinguished by low oxygen")), EShipAlertSeverity::Info);
-		}
-	}
-	else
-	{
-		LowOxygenExtinguishProgress = 0.f;
-	}
 
 	if (FireHotspotCount <= 0 && ActiveFireStations.Num() > 0)
 	{
@@ -115,6 +88,11 @@ void UShipSystemsComponent::SimulateSystems(float DeltaTime)
 		ActiveFireStations.Empty();
 		PushAlert(FText::FromString(TEXT("Fire contained near reactor")), EShipAlertSeverity::Info);
 	}
+
+	if (OxygenLevel < 8.f)
+	{
+		HullIntegrity = FMath::Clamp(HullIntegrity - 0.01f * DeltaTime, 0.f, 1.f);
+	}
 }
 
 void UShipSystemsComponent::EvaluateReactorFireRisk(float DeltaTime)
@@ -122,8 +100,11 @@ void UShipSystemsComponent::EvaluateReactorFireRisk(float DeltaTime)
 	const float Output = ReactorOutput;
 	const bool bOverloaded = (Output > 1.0f);
 
-	// При низком O2 новые очаги пожара не возникают.
-	if (OxygenLevel <= MinOxygenPercentForNewFires)
+	const int32 ReactorIndex = FindFirstModuleIndexByType(EShipModuleType::Reactor);
+	const float ReactorOxygen = (ReactorIndex != INDEX_NONE) ? Compartments[ReactorIndex].OxygenLevel : OxygenLevel;
+
+	// При низком O2 в реакторном отсеке новые очаги пожара не возникают.
+	if (ReactorOxygen <= MinOxygenPercentForNewFires)
 	{
 		OverloadGuaranteeProgress = 0.f;
 		bLastOverloadState = false;
@@ -132,7 +113,7 @@ void UShipSystemsComponent::EvaluateReactorFireRisk(float DeltaTime)
 			PushAlert(
 				FText::Format(
 					FText::FromString(TEXT("Oxygen {0}% <= {1}%: new fire hotspots are suppressed")),
-					FText::AsNumber(FMath::RoundToInt(OxygenLevel)),
+					FText::AsNumber(FMath::RoundToInt(ReactorOxygen)),
 					FText::AsNumber(FMath::RoundToInt(MinOxygenPercentForNewFires))
 				),
 				EShipAlertSeverity::Info
@@ -183,10 +164,16 @@ void UShipSystemsComponent::EvaluateReactorFireRisk(float DeltaTime)
 
 void UShipSystemsComponent::TriggerReactorFire(const FText& Reason, EShipAlertSeverity Severity)
 {
-	if (FireHotspotCount < MaxFireHotspots)
+	const int32 ReactorIndex = FindFirstModuleIndexByType(EShipModuleType::Reactor);
+	if (ReactorIndex != INDEX_NONE && Compartments[ReactorIndex].FireHotspotCount < MaxFireHotspots)
 	{
-		++FireHotspotCount;
-		SyncFireIntensityFromHotspots();
+		++Compartments[ReactorIndex].FireHotspotCount;
+		Compartments[ReactorIndex].FireIntensity = FMath::Clamp(
+			static_cast<float>(Compartments[ReactorIndex].FireHotspotCount) / FMath::Max(1, MaxFireHotspots),
+			0.f,
+			1.f
+		);
+		RebuildGlobalSnapshotFromModules();
 		SpawnOneFireStation();
 	}
 	PushAlert(Reason, Severity);
@@ -359,7 +346,27 @@ void UShipSystemsComponent::RemoveOneFireHotspot(APawn* InstigatorPawn)
 	{
 		return;
 	}
-	--FireHotspotCount;
+	int32 ModuleIndexToReduce = FindFirstModuleIndexByType(EShipModuleType::Reactor);
+	if (ModuleIndexToReduce == INDEX_NONE)
+	{
+		for (int32 i = 0; i < Compartments.Num(); ++i)
+		{
+			if (Compartments[i].FireHotspotCount > 0)
+			{
+				ModuleIndexToReduce = i;
+				break;
+			}
+		}
+	}
+	if (ModuleIndexToReduce != INDEX_NONE && Compartments[ModuleIndexToReduce].FireHotspotCount > 0)
+	{
+		--Compartments[ModuleIndexToReduce].FireHotspotCount;
+		Compartments[ModuleIndexToReduce].FireIntensity = FMath::Clamp(
+			static_cast<float>(Compartments[ModuleIndexToReduce].FireHotspotCount) / FMath::Max(1, MaxFireHotspots),
+			0.f,
+			1.f
+		);
+	}
 	SyncFireIntensityFromHotspots();
 
 	AShipInteractableBase* BestStation = nullptr;
@@ -395,7 +402,591 @@ void UShipSystemsComponent::RemoveOneFireHotspot(APawn* InstigatorPawn)
 
 void UShipSystemsComponent::SyncFireIntensityFromHotspots()
 {
-	FireIntensity = FMath::Clamp(static_cast<float>(FireHotspotCount) / FMath::Max(1, MaxFireHotspots), 0.f, 1.f);
+	RebuildGlobalSnapshotFromModules();
+}
+
+void UShipSystemsComponent::InitializeDefaultModuleLayout()
+{
+	if (Compartments.Num() == 0)
+	{
+		FShipCompartmentState Reactor;
+		Reactor.ModuleId = FName(TEXT("Reactor"));
+		Reactor.ModuleType = EShipModuleType::Reactor;
+		Reactor.bMandatory = true;
+		Reactor.bProvidesFuelStorage = true;
+		Compartments.Add(Reactor);
+
+		FShipCompartmentState Engine;
+		Engine.ModuleId = FName(TEXT("Engine"));
+		Engine.ModuleType = EShipModuleType::Engine;
+		Engine.bMandatory = true;
+		Compartments.Add(Engine);
+
+		FShipCompartmentState Bridge;
+		Bridge.ModuleId = FName(TEXT("Bridge"));
+		Bridge.ModuleType = EShipModuleType::Bridge;
+		Bridge.bMandatory = true;
+		Bridge.bProvidesOxygenStorage = true;
+		Compartments.Add(Bridge);
+
+		FShipCompartmentState Airlock;
+		Airlock.ModuleId = FName(TEXT("Airlock"));
+		Airlock.ModuleType = EShipModuleType::Airlock;
+		Airlock.bMandatory = true;
+		Compartments.Add(Airlock);
+	}
+
+	if (Bulkheads.Num() == 0)
+	{
+		FShipBulkheadState AB;
+		AB.ModuleA = FName(TEXT("Reactor"));
+		AB.ModuleB = FName(TEXT("Engine"));
+		Bulkheads.Add(AB);
+
+		FShipBulkheadState BC;
+		BC.ModuleA = FName(TEXT("Engine"));
+		BC.ModuleB = FName(TEXT("Bridge"));
+		Bulkheads.Add(BC);
+
+		FShipBulkheadState CA;
+		CA.ModuleA = FName(TEXT("Bridge"));
+		CA.ModuleB = FName(TEXT("Airlock"));
+		Bulkheads.Add(CA);
+	}
+}
+
+void UShipSystemsComponent::SimulateModuleCompartments(float DeltaTime)
+{
+	if (Compartments.Num() == 0)
+	{
+		InitializeDefaultModuleLayout();
+	}
+
+	const float FireOxygenBurnRate = 3.0f;
+	const float BreachOxygenLeakRate = 7.0f;
+	const float RefillRate = 4.0f;
+	bool bAnyReserveDepletedThisTick = false;
+
+	for (int32 i = 0; i < Compartments.Num(); ++i)
+	{
+		FShipCompartmentState& Module = Compartments[i];
+		Module.FireIntensity = FMath::Clamp(static_cast<float>(Module.FireHotspotCount) / FMath::Max(1, MaxFireHotspots), 0.f, 1.f);
+
+		if (Module.FireIntensity > 0.01f)
+		{
+			Module.OxygenLevel = FMath::Clamp(Module.OxygenLevel - FireOxygenBurnRate * Module.FireIntensity * DeltaTime, 0.f, TargetOxygenPercent);
+		}
+
+		if (Module.BreachSeverity > 0.01f)
+		{
+			Module.OxygenLevel = FMath::Clamp(Module.OxygenLevel - BreachOxygenLeakRate * Module.BreachSeverity * DeltaTime, 0.f, TargetOxygenPercent);
+		}
+
+		if (bOxygenSupplyEnabled && OxygenReserve > 0.f && IsModuleConnectedToOxygenSource(i) && Module.OxygenLevel < TargetOxygenPercent)
+		{
+			const float Need = TargetOxygenPercent - Module.OxygenLevel;
+			const float Add = FMath::Min3(Need, RefillRate * DeltaTime, OxygenReserve);
+			Module.OxygenLevel = FMath::Clamp(Module.OxygenLevel + Add, 0.f, TargetOxygenPercent);
+			OxygenReserve = FMath::Max(0.f, OxygenReserve - Add);
+			if (OxygenReserve <= 0.01f)
+			{
+				bAnyReserveDepletedThisTick = true;
+			}
+		}
+
+		if (Module.OxygenLevel <= MinOxygenPercentForNewFires && Module.FireHotspotCount > 0)
+		{
+			const float SecondsPerHotspot = FMath::GetMappedRangeValueClamped(
+				FVector2D(MinOxygenPercentForNewFires, 0.f),
+				FVector2D(LowOxygenExtinguishSecondsAtThreshold, LowOxygenExtinguishSecondsAtZero),
+				Module.OxygenLevel
+			);
+			Module.LowOxygenExtinguishProgress += DeltaTime / FMath::Max(0.2f, SecondsPerHotspot);
+			while (Module.LowOxygenExtinguishProgress >= 1.f && Module.FireHotspotCount > 0)
+			{
+				Module.LowOxygenExtinguishProgress -= 1.f;
+				--Module.FireHotspotCount;
+				PushAlert(FText::Format(FText::FromString(TEXT("Fire hotspot extinguished by low oxygen in {0}")), FText::FromName(Module.ModuleId)), EShipAlertSeverity::Info);
+			}
+		}
+		else
+		{
+			Module.LowOxygenExtinguishProgress = 0.f;
+		}
+	}
+
+	if (bAnyReserveDepletedThisTick)
+	{
+		bOxygenSupplyEnabled = false;
+		PushAlert(FText::FromString(TEXT("Oxygen reserve depleted: supply disabled")), EShipAlertSeverity::Warning);
+	}
+
+	RebuildGlobalSnapshotFromModules();
+}
+
+void UShipSystemsComponent::RebuildGlobalSnapshotFromModules()
+{
+	if (Compartments.Num() == 0)
+	{
+		return;
+	}
+
+	float OxygenSum = 0.f;
+	int32 TotalHotspots = 0;
+	float MaxModuleFireIntensity = 0.f;
+	for (const FShipCompartmentState& Module : Compartments)
+	{
+		OxygenSum += Module.OxygenLevel;
+		TotalHotspots += Module.FireHotspotCount;
+		MaxModuleFireIntensity = FMath::Max(MaxModuleFireIntensity, Module.FireIntensity);
+	}
+
+	OxygenLevel = OxygenSum / static_cast<float>(Compartments.Num());
+	FireHotspotCount = TotalHotspots;
+	FireIntensity = FMath::Clamp(MaxModuleFireIntensity, 0.f, 1.f);
+}
+
+bool UShipSystemsComponent::ValidateMandatoryModules()
+{
+	TArray<FText> Errors;
+	const bool bIsValid = ValidateCurrentSetup(Errors);
+	for (const FText& Error : Errors)
+	{
+		PushAlert(Error, EShipAlertSeverity::Critical);
+	}
+	LastConfigValidationErrors = Errors;
+	return bIsValid;
+}
+
+bool UShipSystemsComponent::ValidateCurrentSetup(TArray<FText>& OutErrors) const
+{
+	OutErrors.Reset();
+
+	const bool bHasReactor = Compartments.ContainsByPredicate([](const FShipCompartmentState& Module)
+	{
+		return Module.ModuleType == EShipModuleType::Reactor;
+	});
+	const bool bHasEngine = Compartments.ContainsByPredicate([](const FShipCompartmentState& Module)
+	{
+		return Module.ModuleType == EShipModuleType::Engine;
+	});
+	const bool bHasBridge = Compartments.ContainsByPredicate([](const FShipCompartmentState& Module)
+	{
+		return Module.ModuleType == EShipModuleType::Bridge;
+	});
+	const bool bHasAirlock = Compartments.ContainsByPredicate([](const FShipCompartmentState& Module)
+	{
+		return Module.ModuleType == EShipModuleType::Airlock;
+	});
+	const bool bHasOxygenStorageModule = Compartments.ContainsByPredicate([](const FShipCompartmentState& Module)
+	{
+		return Module.bProvidesOxygenStorage;
+	});
+	const bool bHasFuelStorageModule = Compartments.ContainsByPredicate([](const FShipCompartmentState& Module)
+	{
+		return Module.bProvidesFuelStorage;
+	});
+
+	if (!bHasReactor)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory module type: Reactor")));
+	}
+	if (!bHasEngine)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory module type: Engine")));
+	}
+	if (!bHasBridge)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory module type: Bridge")));
+	}
+	if (!bHasAirlock)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory module type: Airlock")));
+	}
+	if (!bHasOxygenStorageModule)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory module capability: OxygenStorage")));
+	}
+	if (!bHasFuelStorageModule)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory module capability: FuelStorage")));
+	}
+
+	if (OxygenReserve <= 0.f)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory resource: OxygenReserve > 0")));
+	}
+	if (FuelReserve <= 0.f)
+	{
+		OutErrors.Add(FText::FromString(TEXT("Missing mandatory resource: FuelReserve > 0")));
+	}
+
+	const int32 Reactor = FindFirstModuleIndexByType(EShipModuleType::Reactor);
+	const int32 Bridge = FindFirstModuleIndexByType(EShipModuleType::Bridge);
+	if (Reactor != INDEX_NONE && Bridge != INDEX_NONE)
+	{
+		TArray<TArray<int32>> Graph;
+		Graph.SetNum(Compartments.Num());
+		for (const FShipBulkheadState& Bulkhead : Bulkheads)
+		{
+			const int32 A = FindModuleIndexById(Bulkhead.ModuleA);
+			const int32 B = FindModuleIndexById(Bulkhead.ModuleB);
+			if (A == INDEX_NONE || B == INDEX_NONE)
+			{
+				continue;
+			}
+			Graph[A].Add(B);
+			Graph[B].Add(A);
+		}
+
+		TArray<bool> Visited;
+		Visited.Init(false, Compartments.Num());
+		TQueue<int32> Queue;
+		Queue.Enqueue(Reactor);
+		Visited[Reactor] = true;
+
+		bool bConnected = false;
+		while (!Queue.IsEmpty())
+		{
+			int32 Current = INDEX_NONE;
+			Queue.Dequeue(Current);
+			if (Current == Bridge)
+			{
+				bConnected = true;
+				break;
+			}
+
+			for (int32 Next : Graph[Current])
+			{
+				if (!Visited[Next])
+				{
+					Visited[Next] = true;
+					Queue.Enqueue(Next);
+				}
+			}
+		}
+		if (!bConnected)
+		{
+			OutErrors.Add(FText::FromString(TEXT("Invalid topology: Reactor and Bridge are disconnected")));
+		}
+	}
+
+	return OutErrors.Num() == 0;
+}
+
+bool UShipSystemsComponent::ApplyShipConfig(const UShipConfigAsset* ConfigAsset)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !ConfigAsset)
+	{
+		return false;
+	}
+
+	TArray<FText> Errors;
+	if (!ConfigAsset->ValidateConfig(Errors))
+	{
+		LastConfigValidationErrors = Errors;
+		for (const FText& Error : Errors)
+		{
+			PushAlert(Error, EShipAlertSeverity::Critical);
+		}
+		return false;
+	}
+
+	Compartments.Reset();
+	for (const FShipModuleConfig& ModuleConfig : ConfigAsset->Modules)
+	{
+		FShipCompartmentState ModuleState;
+		const UShipModuleDefinition* Definition = ModuleConfig.ModuleDefinition.LoadSynchronous();
+		ModuleState.ModuleId = ModuleConfig.ModuleId;
+		if (ModuleState.ModuleId.IsNone() && Definition)
+		{
+			ModuleState.ModuleId = Definition->ModuleDefinitionId;
+		}
+		ModuleState.ModuleType = Definition ? Definition->ModuleType : ModuleConfig.ModuleType;
+		ModuleState.bMandatory = ModuleConfig.bMandatory;
+		ModuleState.bProvidesOxygenStorage = Definition && Definition->HasCapability(EShipModuleCapability::OxygenStorage);
+		ModuleState.bProvidesFuelStorage = Definition && Definition->HasCapability(EShipModuleCapability::FuelStorage);
+		ModuleState.OxygenLevel = ModuleConfig.OxygenLevel;
+		ModuleState.FireHotspotCount = ModuleConfig.FireHotspotCount;
+		ModuleState.FireIntensity = FMath::Clamp(static_cast<float>(ModuleState.FireHotspotCount) / FMath::Max(1, MaxFireHotspots), 0.f, 1.f);
+		ModuleState.BreachSeverity = ModuleConfig.BreachSeverity;
+		Compartments.Add(ModuleState);
+	}
+
+	const TArray<FShipBulkheadState> PreviousBulkheads = Bulkheads;
+	Bulkheads.Reset();
+	for (const FShipConnectionConfig& Connection : ConfigAsset->Connections)
+	{
+		FShipBulkheadState Bulkhead;
+		Bulkhead.ModuleA = Connection.ModuleA;
+		Bulkhead.ModuleB = Connection.ModuleB;
+		Bulkhead.bOpen = Connection.bOpenByDefault;
+		Bulkheads.Add(Bulkhead);
+	}
+	if (!AreBulkheadsEquivalent(PreviousBulkheads, Bulkheads))
+	{
+		OnBulkheadsChanged.Broadcast();
+	}
+
+	OxygenReserve = ConfigAsset->OxygenReserve;
+	FuelReserve = ConfigAsset->FuelReserve;
+	ActiveShipConfigId = ConfigAsset->ConfigId.IsNone() ? ConfigAsset->GetFName() : ConfigAsset->ConfigId;
+
+	TArray<FText> LocalErrors;
+	ValidateCurrentSetup(LocalErrors);
+	LastConfigValidationErrors = LocalErrors;
+	for (const FText& Error : LocalErrors)
+	{
+		PushAlert(Error, EShipAlertSeverity::Critical);
+	}
+
+	RebuildGlobalSnapshotFromModules();
+	PushAlert(FText::Format(FText::FromString(TEXT("Applied ship config: {0}")), FText::FromName(ActiveShipConfigId)), EShipAlertSeverity::Info);
+	return LocalErrors.Num() == 0;
+}
+
+int32 UShipSystemsComponent::FindModuleIndexById(FName ModuleId) const
+{
+	for (int32 i = 0; i < Compartments.Num(); ++i)
+	{
+		if (Compartments[i].ModuleId == ModuleId)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
+}
+
+int32 UShipSystemsComponent::FindFirstModuleIndexByType(EShipModuleType ModuleType) const
+{
+	for (int32 i = 0; i < Compartments.Num(); ++i)
+	{
+		if (Compartments[i].ModuleType == ModuleType)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
+}
+
+int32 UShipSystemsComponent::FindBulkheadIndex(FName ModuleA, FName ModuleB) const
+{
+	for (int32 i = 0; i < Bulkheads.Num(); ++i)
+	{
+		const FShipBulkheadState& Bulkhead = Bulkheads[i];
+		const bool bSameDirection = Bulkhead.ModuleA == ModuleA && Bulkhead.ModuleB == ModuleB;
+		const bool bOppositeDirection = Bulkhead.ModuleA == ModuleB && Bulkhead.ModuleB == ModuleA;
+		if (bSameDirection || bOppositeDirection)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
+}
+
+bool UShipSystemsComponent::AreBulkheadsEquivalent(const TArray<FShipBulkheadState>& A, const TArray<FShipBulkheadState>& B) const
+{
+	if (A.Num() != B.Num())
+	{
+		return false;
+	}
+
+	auto BuildNormalized = [](const TArray<FShipBulkheadState>& Source) -> TMap<FString, bool>
+	{
+		TMap<FString, bool> Result;
+		for (const FShipBulkheadState& Item : Source)
+		{
+			const FString SA = Item.ModuleA.ToString();
+			const FString SB = Item.ModuleB.ToString();
+			const FString Key = (SA <= SB) ? (SA + TEXT("|") + SB) : (SB + TEXT("|") + SA);
+			Result.Add(Key, Item.bOpen);
+		}
+		return Result;
+	};
+
+	const TMap<FString, bool> NA = BuildNormalized(A);
+	const TMap<FString, bool> NB = BuildNormalized(B);
+	if (NA.Num() != NB.Num())
+	{
+		return false;
+	}
+
+	for (const TPair<FString, bool>& Pair : NA)
+	{
+		const bool* State = NB.Find(Pair.Key);
+		if (!State || *State != Pair.Value)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool UShipSystemsComponent::IsModuleConnectedToOxygenSource(int32 ModuleIndex) const
+{
+	if (!Compartments.IsValidIndex(ModuleIndex))
+	{
+		return false;
+	}
+
+	const int32 SourceIndex = FindModuleIndexById(OxygenSourceModuleId);
+	if (SourceIndex == INDEX_NONE)
+	{
+		return true;
+	}
+	if (ModuleIndex == SourceIndex)
+	{
+		return true;
+	}
+
+	TArray<bool> Visited;
+	Visited.Init(false, Compartments.Num());
+	TQueue<int32> Queue;
+	Queue.Enqueue(SourceIndex);
+	Visited[SourceIndex] = true;
+
+	while (!Queue.IsEmpty())
+	{
+		int32 Current = INDEX_NONE;
+		Queue.Dequeue(Current);
+		if (Current == ModuleIndex)
+		{
+			return true;
+		}
+
+		for (const FShipBulkheadState& Bulkhead : Bulkheads)
+		{
+			if (!Bulkhead.bOpen)
+			{
+				continue;
+			}
+
+			const int32 A = FindModuleIndexById(Bulkhead.ModuleA);
+			const int32 B = FindModuleIndexById(Bulkhead.ModuleB);
+			if (A == INDEX_NONE || B == INDEX_NONE)
+			{
+				continue;
+			}
+
+			int32 Next = INDEX_NONE;
+			if (Current == A)
+			{
+				Next = B;
+			}
+			else if (Current == B)
+			{
+				Next = A;
+			}
+
+			if (Next != INDEX_NONE && !Visited[Next])
+			{
+				Visited[Next] = true;
+				Queue.Enqueue(Next);
+			}
+		}
+	}
+
+	return false;
+}
+
+bool UShipSystemsComponent::SetBulkheadOpen(FName ModuleA, FName ModuleB, bool bOpen)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return false;
+	}
+
+	const int32 BulkheadIndex = FindBulkheadIndex(ModuleA, ModuleB);
+	if (BulkheadIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	FShipBulkheadState& Bulkhead = Bulkheads[BulkheadIndex];
+	if (Bulkhead.bOpen == bOpen)
+	{
+		return true;
+	}
+
+	Bulkhead.bOpen = bOpen;
+	OnBulkheadsChanged.Broadcast();
+	PushAlert(
+		FText::Format(
+			FText::FromString(TEXT("Bulkhead {0}<->{1} {2}")),
+			FText::FromName(Bulkhead.ModuleA),
+			FText::FromName(Bulkhead.ModuleB),
+			bOpen ? FText::FromString(TEXT("opened")) : FText::FromString(TEXT("closed"))
+		),
+		bOpen ? EShipAlertSeverity::Info : EShipAlertSeverity::Warning
+	);
+	return true;
+}
+
+bool UShipSystemsComponent::GetCompartmentStateById(FName ModuleId, FShipCompartmentState& OutState) const
+{
+	const int32 ModuleIndex = FindModuleIndexById(ModuleId);
+	if (ModuleIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutState = Compartments[ModuleIndex];
+	return true;
+}
+
+bool UShipSystemsComponent::IsCompartmentConnectedToOxygenSource(FName ModuleId) const
+{
+	const int32 ModuleIndex = FindModuleIndexById(ModuleId);
+	return IsModuleConnectedToOxygenSource(ModuleIndex);
+}
+
+bool UShipSystemsComponent::GetBulkheadOpenState(FName ModuleA, FName ModuleB, bool& bOutOpen) const
+{
+	const int32 BulkheadIndex = FindBulkheadIndex(ModuleA, ModuleB);
+	if (BulkheadIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	bOutOpen = Bulkheads[BulkheadIndex].bOpen;
+	return true;
+}
+
+bool UShipSystemsComponent::AddFireHotspotToModule(FName ModuleId, int32 Count)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return false;
+	}
+
+	const int32 ModuleIndex = FindModuleIndexById(ModuleId);
+	if (ModuleIndex == INDEX_NONE || Count <= 0)
+	{
+		return false;
+	}
+
+	FShipCompartmentState& Module = Compartments[ModuleIndex];
+	Module.FireHotspotCount = FMath::Clamp(Module.FireHotspotCount + Count, 0, MaxFireHotspots);
+	Module.FireIntensity = FMath::Clamp(static_cast<float>(Module.FireHotspotCount) / FMath::Max(1, MaxFireHotspots), 0.f, 1.f);
+	RebuildGlobalSnapshotFromModules();
+	return true;
+}
+
+bool UShipSystemsComponent::SetModuleBreachSeverity(FName ModuleId, float NewSeverity)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return false;
+	}
+
+	const int32 ModuleIndex = FindModuleIndexById(ModuleId);
+	if (ModuleIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	Compartments[ModuleIndex].BreachSeverity = FMath::Clamp(NewSeverity, 0.f, 1.f);
+	return true;
 }
 
 void UShipSystemsComponent::PushAlert(const FText& Message, EShipAlertSeverity Severity)
@@ -492,7 +1083,16 @@ bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName Stati
 	}
 	if (ActionId == FName(TEXT("VentAtmosphere")))
 	{
-		OxygenLevel = FMath::Clamp(OxygenLevel - 1.0f * Magnitude, 0.f, TargetOxygenPercent);
+		if (Compartments.Num() == 0)
+		{
+			InitializeDefaultModuleLayout();
+		}
+		const float Delta = 1.0f * FMath::Abs(Magnitude);
+		for (FShipCompartmentState& Module : Compartments)
+		{
+			Module.OxygenLevel = FMath::Clamp(Module.OxygenLevel - Delta, 0.f, TargetOxygenPercent);
+		}
+		RebuildGlobalSnapshotFromModules();
 		return true;
 	}
 	if (ActionId == FName(TEXT("ToggleOxygenSupply")))
@@ -538,6 +1138,34 @@ bool UShipSystemsComponent::InternalApplyAction(AController* Issuer, FName Stati
 			RemoveOneFireHotspot(InstigatorPawn);
 		}
 		return true;
+	}
+	if (ActionId == FName(TEXT("SealReactorEngineBulkhead")))
+	{
+		return SetBulkheadOpen(FName(TEXT("Reactor")), FName(TEXT("Engine")), false);
+	}
+	if (ActionId == FName(TEXT("OpenReactorEngineBulkhead")))
+	{
+		return SetBulkheadOpen(FName(TEXT("Reactor")), FName(TEXT("Engine")), true);
+	}
+	if (ActionId == FName(TEXT("SealEngineBridgeBulkhead")))
+	{
+		return SetBulkheadOpen(FName(TEXT("Engine")), FName(TEXT("Bridge")), false);
+	}
+	if (ActionId == FName(TEXT("OpenEngineBridgeBulkhead")))
+	{
+		return SetBulkheadOpen(FName(TEXT("Engine")), FName(TEXT("Bridge")), true);
+	}
+	if (ActionId == FName(TEXT("SetReactorBreach")))
+	{
+		return SetModuleBreachSeverity(FName(TEXT("Reactor")), FMath::Abs(Magnitude));
+	}
+	if (ActionId == FName(TEXT("SetEngineBreach")))
+	{
+		return SetModuleBreachSeverity(FName(TEXT("Engine")), FMath::Abs(Magnitude));
+	}
+	if (ActionId == FName(TEXT("SetBridgeBreach")))
+	{
+		return SetModuleBreachSeverity(FName(TEXT("Bridge")), FMath::Abs(Magnitude));
 	}
 	if (ActionId == FName(TEXT("StartFireEvent"))) // отладка / директор миссий
 	{

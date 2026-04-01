@@ -67,6 +67,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ship|HUD|Format")
 	FText GetAlertHistoryText() const;
 
+	UFUNCTION(BlueprintPure, Category = "Ship|HUD|Format")
+	FText GetModuleStatusText() const;
+
+	UFUNCTION(BlueprintPure, Category = "Ship|HUD|Format")
+	FText GetBulkheadStatusText() const;
+
+	UFUNCTION(BlueprintPure, Category = "Ship|HUD|Format")
+	FText GetActiveConfigText() const;
+
+	UFUNCTION(BlueprintPure, Category = "Ship|HUD|Format")
+	FText GetConfigValidationText() const;
+
 	/** Прозрачность красной рамки экрана при пожаре (0..1). */
 	UFUNCTION(BlueprintPure, Category = "Ship|HUD|FX")
 	float GetFireFrameOpacity() const;
@@ -107,6 +119,18 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD|Alerts")
 	TArray<FShipAlertEntry> AlertHistory;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD|Modules")
+	TArray<FShipCompartmentState> ModuleStates;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD|Modules")
+	TArray<FShipBulkheadState> BulkheadStates;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD|Config")
+	FName ActiveShipConfigId = NAME_None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD|Config")
+	TArray<FText> ConfigValidationErrors;
 
 	/** Подсказка «нажми клавишу» при наведении лучом на станцию; обновляется в RefreshFromController. */
 	UPROPERTY(BlueprintReadOnly, Category = "Ship|HUD")

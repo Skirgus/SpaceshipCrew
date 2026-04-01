@@ -10,6 +10,7 @@ class UCrewRoleComponent;
 class AController;
 class APawn;
 class AShipInteractableBase;
+class UShipConfigAsset;
 
 UENUM(BlueprintType)
 enum class EShipAlertSeverity : uint8
@@ -17,6 +18,19 @@ enum class EShipAlertSeverity : uint8
 	Info UMETA(DisplayName = "Info"),
 	Warning UMETA(DisplayName = "Warning"),
 	Critical UMETA(DisplayName = "Critical")
+};
+
+UENUM(BlueprintType)
+enum class EShipModuleType : uint8
+{
+	Reactor UMETA(DisplayName = "Reactor"),
+	Engine UMETA(DisplayName = "Engine"),
+	Bridge UMETA(DisplayName = "Bridge"),
+	Airlock UMETA(DisplayName = "Airlock"),
+	Cargo UMETA(DisplayName = "Cargo"),
+	Medical UMETA(DisplayName = "Medical"),
+	Habitation UMETA(DisplayName = "Habitation"),
+	Custom UMETA(DisplayName = "Custom")
 };
 
 USTRUCT(BlueprintType)
@@ -34,7 +48,59 @@ struct SPACESHIPCREW_API FShipAlertEntry
 	float ServerTimeSeconds = 0.f;
 };
 
+USTRUCT(BlueprintType)
+struct SPACESHIPCREW_API FShipCompartmentState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	FName ModuleId = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	EShipModuleType ModuleType = EShipModuleType::Custom;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	bool bMandatory = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	bool bProvidesOxygenStorage = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	bool bProvidesFuelStorage = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules", meta = (ClampMin = "0.0", ClampMax = "30.0"))
+	float OxygenLevel = 21.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules", meta = (ClampMin = "0", ClampMax = "12"))
+	int32 FireHotspotCount = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float FireIntensity = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float BreachSeverity = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	float LowOxygenExtinguishProgress = 0.f;
+};
+
+USTRUCT(BlueprintType)
+struct SPACESHIPCREW_API FShipBulkheadState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	FName ModuleA = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	FName ModuleB = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	bool bOpen = true;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShipAlertSignature, const FShipAlertEntry&, Alert);
+DECLARE_MULTICAST_DELEGATE(FOnBulkheadsChangedNative);
 
 /**
  * Сервер-авторитетная симуляция корабля. Команды проходят авторизацию по роли,
@@ -60,6 +126,10 @@ public:
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Atmosphere")
 	float OxygenReserve = 100.f;
 
+	/** Запас топлива корабля (условные единицы). */
+	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Power")
+	float FuelReserve = 100.f;
+
 	/** Включена ли подача кислорода в атмосферу корабля. */
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Atmosphere")
 	bool bOxygenSupplyEnabled = true;
@@ -76,9 +146,19 @@ public:
 	UPROPERTY(ReplicatedUsing = OnRep_RecentAlerts, BlueprintReadOnly, Category = "Ship|Alerts")
 	TArray<FShipAlertEntry> RecentAlerts;
 
+	/** Идентификатор текущей примененной конфигурации корабля. */
+	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Config")
+	FName ActiveShipConfigId = NAME_None;
+
+	/** Ошибки валидации последнего примененного конфига (для HUD отладки). */
+	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Config")
+	TArray<FText> LastConfigValidationErrors;
+
 	/** Событие тревоги (срабатывает на сервере и клиентах через репликацию). */
 	UPROPERTY(BlueprintAssignable, Category = "Ship|Alerts")
 	FOnShipAlertSignature OnShipAlert;
+
+	FOnBulkheadsChangedNative OnBulkheadsChanged;
 
 	/** Класс станции тушения, которая спавнится рядом с реактором при пожаре. */
 	UPROPERTY(EditAnywhere, Category = "Ship|Fire")
@@ -116,6 +196,18 @@ public:
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, BlueprintReadOnly, Category = "Ship|Fire")
 	int32 FireHotspotCount = 0;
 
+	/** Локальные параметры по отсекам корабля. */
+	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	TArray<FShipCompartmentState> Compartments;
+
+	/** Состояние переборок между отсеками; закрытая переборка изолирует отсеки. */
+	UPROPERTY(ReplicatedUsing = OnRep_Snapshot, EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	TArray<FShipBulkheadState> Bulkheads;
+
+	/** Идентификатор модуля-источника кислородной магистрали. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ship|Modules")
+	FName OxygenSourceModuleId = FName(TEXT("Bridge"));
+
 	/**
 	 * Проверяет роль инициатора относительно StationPermission, затем применяет ActionId (расширяемо).
 	 * InstigatorPawn — запасной источник UCrewRoleComponent, если на сервере у пешки ещё нет Controller (редко при RPC).
@@ -129,7 +221,38 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ship|Alerts")
 	TArray<FShipAlertEntry> GetRecentAlerts() const { return RecentAlerts; }
 
+	UFUNCTION(BlueprintPure, Category = "Ship|Config")
+	FName GetActiveShipConfigId() const { return ActiveShipConfigId; }
+
+	UFUNCTION(BlueprintPure, Category = "Ship|Config")
+	TArray<FText> GetLastConfigValidationErrors() const { return LastConfigValidationErrors; }
+
+	UFUNCTION(BlueprintPure, Category = "Ship|Modules")
+	TArray<FShipCompartmentState> GetCompartments() const { return Compartments; }
+
+	UFUNCTION(BlueprintPure, Category = "Ship|Modules")
+	bool GetCompartmentStateById(FName ModuleId, FShipCompartmentState& OutState) const;
+
+	UFUNCTION(BlueprintPure, Category = "Ship|Modules")
+	bool IsCompartmentConnectedToOxygenSource(FName ModuleId) const;
+
+	UFUNCTION(BlueprintPure, Category = "Ship|Modules")
+	bool GetBulkheadOpenState(FName ModuleA, FName ModuleB, bool& bOutOpen) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Ship|Modules")
+	bool SetBulkheadOpen(FName ModuleA, FName ModuleB, bool bOpen);
+
+	UFUNCTION(BlueprintCallable, Category = "Ship|Modules")
+	bool AddFireHotspotToModule(FName ModuleId, int32 Count = 1);
+
+	UFUNCTION(BlueprintCallable, Category = "Ship|Modules")
+	bool SetModuleBreachSeverity(FName ModuleId, float NewSeverity);
+
+	UFUNCTION(BlueprintCallable, Category = "Ship|Config")
+	bool ApplyShipConfig(const UShipConfigAsset* ConfigAsset);
+
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void BeginPlay() override;
 
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -143,6 +266,16 @@ protected:
 	void SimulateSystems(float DeltaTime);
 	void EvaluateReactorFireRisk(float DeltaTime);
 	void TriggerReactorFire(const FText& Reason, EShipAlertSeverity Severity);
+	void InitializeDefaultModuleLayout();
+	void SimulateModuleCompartments(float DeltaTime);
+	void RebuildGlobalSnapshotFromModules();
+	bool ValidateMandatoryModules();
+	bool ValidateCurrentSetup(TArray<FText>& OutErrors) const;
+	int32 FindModuleIndexById(FName ModuleId) const;
+	int32 FindFirstModuleIndexByType(EShipModuleType ModuleType) const;
+	bool IsModuleConnectedToOxygenSource(int32 ModuleIndex) const;
+	int32 FindBulkheadIndex(FName ModuleA, FName ModuleB) const;
+	bool AreBulkheadsEquivalent(const TArray<FShipBulkheadState>& A, const TArray<FShipBulkheadState>& B) const;
 	void SpawnOneFireStation();
 	void RemoveOneFireHotspot(APawn* InstigatorPawn);
 	void SyncFireIntensityFromHotspots();
@@ -155,9 +288,6 @@ protected:
 
 	/** Накопитель гарантированного пожара при перегрузе >100%. */
 	float OverloadGuaranteeProgress = 0.f;
-
-	/** Накопитель постепенного затухания очагов при низком уровне O2. */
-	float LowOxygenExtinguishProgress = 0.f;
 
 	/** Станции тушения по числу очагов пожара. */
 	UPROPERTY()

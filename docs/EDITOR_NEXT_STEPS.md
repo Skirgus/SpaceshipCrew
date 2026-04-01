@@ -14,6 +14,7 @@
 | 6–8 | Game Mode / слот, роли DA, проверка PIE с ботами (§6–8) | Сделано |
 | 9 | Git | Актуально при новой машине / remote |
 | 10 | Пожары/O2/HUD (реактор 120%, fire frame, oxygen supply) | **Текущий шаг** |
+| 11 | Модульные комнаты, ShipConfig, двери/переборки (event-driven) | Сделано (checkpoint) |
 
 Подробный контекст сессии и коммит: **`docs/PLAN_AND_DISCUSSION.md`** → раздел **«Точка продолжения»**.
 
@@ -193,3 +194,25 @@
 4. Несколько очагов: растёт `Fire%`, появляются несколько fire-станций.
 5. Тушение: `Fire%` падает по очагам, станции удаляются по одной.
 6. Выключение O2: при `O2 <= 12%` новые очаги не возникают, существующие постепенно тухнут.
+
+## 11. Checkpoint: модульные комнаты и двери (2026-03-31)
+
+### Уже сделано
+
+- `ShipConfigAsset` + `ShipModuleDefinition` + `ShipModuleCatalog`.
+- Пресеты модулей (`Reactor/Engine/Bridge/Airlock/OxygenTank/FuelTank`) и билдер стартового конфига.
+- Рантайм применение конфига к кораблю и валидация обязательных модулей/ресурсов/связности.
+- Room-based визуализация модулей:
+  - interior-модули как "комнаты",
+  - exterior-модули как технические блоки.
+- Двери вынесены в `AShipDoorActor`.
+- Синхронизация дверей с `Bulkheads` переведена на **event-driven**:
+  - событие `OnBulkheadsChanged` из `UShipSystemsComponent`,
+  - обновление дверей в `AShipActor` без `Tick`.
+
+### Что проверить в PIE
+
+1. `SelectedShipConfig` задан в `BP_ShipGameMode`.
+2. В HUD: `Ship Config` и `Config Validate: OK`.
+3. При `SetBulkheadOpen(...)` двери реально открываются/закрываются.
+4. Стены interior-модулей блокируют проход, проемы только в room<->room.

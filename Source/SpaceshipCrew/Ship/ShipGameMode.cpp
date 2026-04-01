@@ -7,6 +7,7 @@
 #include "CrewBotBrainComponent.h"
 #include "CrewRoleComponent.h"
 #include "CrewRoleDefinition.h"
+#include "ShipConfigAsset.h"
 #include "ShipActor.h"
 #include "CrewSpawnMarkerComponent.h"
 #include "ShipCrewCharacter.h"
@@ -68,8 +69,15 @@ void BuildCrewSpawnTransformsInternal(
 	{
 		if (Ship)
 		{
-			const FVector Offset(float(SlotIndex) * 150.f, 0.f, 92.f);
-			OutPerSlot[SlotIndex] = FTransform(Ship->GetActorRotation(), Ship->GetActorLocation() + Offset);
+			FVector BoundsOrigin = Ship->GetActorLocation();
+			FVector BoundsExtent(400.f, 400.f, 120.f);
+			Ship->GetActorBounds(true, BoundsOrigin, BoundsExtent);
+			const FVector RandomOffset(
+				FMath::FRandRange(-BoundsExtent.X * 0.8f, BoundsExtent.X * 0.8f),
+				FMath::FRandRange(-BoundsExtent.Y * 0.8f, BoundsExtent.Y * 0.8f),
+				FMath::Max(92.f, BoundsExtent.Z * 0.25f)
+			);
+			OutPerSlot[SlotIndex] = FTransform(Ship->GetActorRotation(), BoundsOrigin + RandomOffset);
 		}
 		else
 		{
@@ -164,11 +172,13 @@ AShipGameMode::AShipGameMode()
 	PlayerControllerClass = AShipPlayerController::StaticClass();
 	DefaultPawnClass = AShipCrewCharacter::StaticClass();
 	CrewPawnClass = AShipCrewCharacter::StaticClass();
+	ShipActorClass = AShipActor::StaticClass();
 }
 
 void AShipGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+	EnsureShipSpawnedAndConfigured();
 	EnsureDefaultRoles();
 	EnsureCrewSpawned();
 }
@@ -284,6 +294,10 @@ void AShipGameMode::EnsureDefaultRoles()
 
 AShipActor* AShipGameMode::FindShipActor() const
 {
+	if (RuntimeSpawnedShip)
+	{
+		return RuntimeSpawnedShip;
+	}
 	if (UWorld* World = GetWorld())
 	{
 		for (TActorIterator<AShipActor> It(World); It; ++It)
@@ -294,9 +308,58 @@ AShipActor* AShipGameMode::FindShipActor() const
 	return nullptr;
 }
 
+void AShipGameMode::EnsureShipSpawnedAndConfigured()
+{
+	AShipActor* Ship = FindShipActor();
+	if (!Ship && GetWorld() && ShipActorClass)
+	{
+		FVector SpawnLoc(0.f, 0.f, 120.f);
+		FRotator SpawnRot = FRotator::ZeroRotator;
+		if (AActor* Start = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass()))
+		{
+			SpawnLoc = Start->GetActorLocation();
+			SpawnRot = Start->GetActorRotation();
+		}
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Ship = GetWorld()->SpawnActor<AShipActor>(ShipActorClass, SpawnLoc, SpawnRot, SpawnParams);
+		RuntimeSpawnedShip = Ship;
+	}
+
+	if (Ship)
+	{
+		ApplyShipConfigSelection(Ship);
+	}
+}
+
 void AShipGameMode::BuildCrewSpawnTransforms(AShipActor* Ship, const FVector& FallbackLocation, TArray<FTransform>& OutPerSlot) const
 {
 	BuildCrewSpawnTransformsInternal(MandatoryRoles, Ship, FallbackLocation, OutPerSlot);
+}
+
+void AShipGameMode::ApplyShipConfigSelection(AShipActor* Ship)
+{
+	if (!Ship)
+	{
+		return;
+	}
+
+	UShipConfigAsset* ConfigToApply = SelectedShipConfig.IsNull() ? nullptr : SelectedShipConfig.LoadSynchronous();
+	if (!ConfigToApply && !Ship->DefaultShipConfig.IsNull())
+	{
+		ConfigToApply = Ship->DefaultShipConfig.LoadSynchronous();
+	}
+
+	if (!ConfigToApply)
+	{
+		return;
+	}
+
+	if (!Ship->ApplyShipConfigAsset(ConfigToApply))
+	{
+		UE_LOG(LogSpaceshipCrew, Warning, TEXT("ShipGameMode: failed to apply selected ship config '%s'"), *GetNameSafe(ConfigToApply));
+	}
 }
 
 void AShipGameMode::FinalizeCrewPawnSpawn(AShipCrewCharacter* Spawned, int32 SlotIndex)

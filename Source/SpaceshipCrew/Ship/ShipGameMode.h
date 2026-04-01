@@ -13,6 +13,7 @@ class AShipActor;
 class AShipCrewCharacter;
 class UCrewRoleDefinition;
 class UShipCrewManifest;
+class UShipConfigAsset;
 
 /**
  * MVP для одиночной игры: спавнит одного игрока в слоте PlayerRoleSlotIndex и ботов на остальных обязательных ролях.
@@ -41,6 +42,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Crew")
 	TSubclassOf<AShipCrewCharacter> CrewPawnClass;
 
+	/** Конфиг корабля, выбираемый на уровне (fallback на AShipActor::DefaultShipConfig). */
+	UPROPERTY(EditAnywhere, Category = "Ship|Config")
+	TSoftObjectPtr<UShipConfigAsset> SelectedShipConfig;
+
+	/** Класс корабля для runtime-спавна, если на уровне нет уже размещенного корабля. */
+	UPROPERTY(EditAnywhere, Category = "Ship|Config")
+	TSubclassOf<AShipActor> ShipActorClass;
+
 	virtual void BeginPlay() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void RestartPlayer(AController* NewPlayer) override;
@@ -51,6 +60,7 @@ public:
 
 protected:
 	void EnsureDefaultRoles();
+	void EnsureShipSpawnedAndConfigured();
 	void EnsureCrewSpawned();
 	void RebuildGameStateCrewSlots();
 
@@ -60,12 +70,16 @@ protected:
 	AShipActor* FindShipActor() const;
 	/** Сначала маркеры (точный RoleId, затем пустой RoleId), оставшиеся слоты — смещение по умолчанию от корабля. */
 	void BuildCrewSpawnTransforms(AShipActor* Ship, const FVector& FallbackLocation, TArray<FTransform>& OutPerSlot) const;
+	void ApplyShipConfigSelection(AShipActor* Ship);
 
 	/** Экипаж уже в EnsureCrewSpawned; если слот игрока пуст — аварийный спавн у StartSpot / PlayerStart. */
 	AShipCrewCharacter* SpawnOrRetrieveHumanPawn(AController* NewPlayer, AActor* StartSpot);
 
 	UPROPERTY()
 	TArray<TObjectPtr<AShipCrewCharacter>> CrewPawns;
+
+	UPROPERTY()
+	TObjectPtr<AShipActor> RuntimeSpawnedShip = nullptr;
 
 	bool bCrewSpawned = false;
 };
