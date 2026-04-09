@@ -1,0 +1,79 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "ShipModuleTypes.h"
+#include "ShipModuleDefinition.generated.h"
+
+/**
+ * Определение модуля корабля — единица данных конструктора.
+ *
+ * Каждый экземпляр этого ассета описывает один тип модуля: его назначение,
+ * физические характеристики, контактные точки для стыковки и правила совместимости.
+ * Ассеты обнаруживаются автоматически через AssetManager (PrimaryAssetType "ShipModule")
+ * и доступны в рантайме через UShipModuleCatalog.
+ *
+ * Создание: Content Browser → ПКМ → Miscellaneous → Ship Module Definition.
+ * Дублирование: Ctrl+D / ПКМ → Duplicate (ModuleId сбрасывается автоматически).
+ */
+UCLASS(BlueprintType)
+class SPACESHIPCREW_API UShipModuleDefinition : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	/** Уникальный идентификатор модуля (обязательный, не может быть NAME_None). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
+	FName ModuleId;
+
+	/** Функциональный тип модуля. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
+	EShipModuleType ModuleType = EShipModuleType::Corridor;
+
+	/** Локализованное отображаемое название (обязательно). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
+	FText DisplayName;
+
+	/** Описание модуля для UI (необязательно). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
+	FText Description;
+
+	/** Масса модуля в кг (обязательно > 0). Влияет на расход топлива и маневренность. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics", meta = (ClampMin = "0.01"))
+	float Mass = 100.0f;
+
+	/** Габариты модуля в см (все компоненты обязательно > 0). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics")
+	FVector Size = FVector(400.0, 400.0, 300.0);
+
+	/** Есть ли внутренний объём, по которому может перемещаться экипаж. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interior")
+	bool bHasInterior = false;
+
+	/** Контактные точки (стыковочные узлы). Минимум одна, имена (SocketName) уникальны. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
+	TArray<FShipModuleContactPoint> ContactPoints;
+
+	/** Типы модулей, которые могут стыковаться с данным модулем. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
+	TArray<EShipModuleType> CompatibleModuleTypes;
+
+	// --- UPrimaryDataAsset ---
+
+	virtual FPrimaryAssetId GetPrimaryAssetId() const override;
+
+	// --- Валидация ---
+
+	/**
+	 * Проверяет корректность всех обязательных полей и контактных точек.
+	 * Вызывается при сохранении ассета и при запуске Data Validation.
+	 * Возвращает true если модуль валиден.
+	 */
+	bool Validate(TArray<FText>& OutErrors) const;
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+#endif
+};
