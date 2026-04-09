@@ -12,7 +12,8 @@ public class SpaceshipCrew : ModuleRules
 		{
 			ModuleDirectory,
 			Path.Combine(ModuleDirectory, "Menu"),
-			Path.Combine(ModuleDirectory, "UI")
+			Path.Combine(ModuleDirectory, "UI"),
+			Path.Combine(ModuleDirectory, "ShipModule")
 		});
 
 		PublicDependencyModuleNames.AddRange(new string[]
@@ -24,8 +25,18 @@ public class SpaceshipCrew : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
-			"ApplicationCore"
+			"ApplicationCore",
+			"AssetRegistry"
 		});
+
+		if (Target.Type == TargetType.Editor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"UnrealEd",
+				"AssetTools"
+			});
+		}
 
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test)
 		{
