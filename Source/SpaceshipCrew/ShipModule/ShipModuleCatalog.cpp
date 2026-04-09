@@ -109,7 +109,7 @@ void UShipModuleCatalog::ScanAndLoadModules()
 	{
 		UE_LOG(LogShipModuleCatalog, Log,
 			TEXT("ShipModuleCatalog: в Asset Registry не найдено ассетов класса ShipModuleDefinition под /Game. "
-				 "Создайте ассеты Ship Module Definition (Miscellaneous) и сохраните."));
+				 "Создайте ассеты Ship Module Definition (Miscellaneous) в Content/Data/ShipModules/ и сохраните."));
 		return;
 	}
 

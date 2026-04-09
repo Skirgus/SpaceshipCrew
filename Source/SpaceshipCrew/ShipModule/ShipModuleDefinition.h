@@ -14,6 +14,7 @@
  * и доступны в рантайме через UShipModuleCatalog.
  *
  * Создание: Content Browser → ПКМ → Miscellaneous → Ship Module Definition.
+ * Хранение: Content/Data/ShipModules/ (в редакторе /Game/Data/ShipModules), совпадает с PrimaryAssetTypesToScan в DefaultEngine.ini.
  * Дублирование: Ctrl+D / ПКМ → Duplicate (ModuleId сбрасывается автоматически).
  */
 UCLASS(BlueprintType)
