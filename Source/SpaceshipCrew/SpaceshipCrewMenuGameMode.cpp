@@ -6,5 +6,6 @@ ASpaceshipCrewMenuGameMode::ASpaceshipCrewMenuGameMode()
 {
 	PlayerControllerClass = ASpaceshipCrewPlayerController::StaticClass();
 	DefaultPawnClass = nullptr;
-	bStartPlayersAsSpectators = true;
+	SpectatorClass = nullptr;
+	bStartPlayersAsSpectators = false;
 }

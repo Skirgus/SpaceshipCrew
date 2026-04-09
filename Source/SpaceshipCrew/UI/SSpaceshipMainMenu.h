@@ -1,10 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SpaceshipCrewMenuRoute.h"
-#include "Widgets/SCompoundWidget.h"
+#include "SSpaceshipMainMenuBase.h"
 
-class SSpaceshipMainMenu : public SCompoundWidget
+/**
+ * Текущая реализация главного меню MVP: список маршрутов из SpaceshipCrewMenu и переходы на заглушки.
+ * Собирается в C++ (Construct в базовом классе + BuildMainMenuBody здесь); при смене на UMG можно опереться на USpaceshipCrewMenuWidgetBase.
+ */
+class SSpaceshipMainMenu : public SSpaceshipMainMenuBase
 {
 public:
 	SLATE_BEGIN_ARGS(SSpaceshipMainMenu) {}
@@ -17,15 +20,6 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-private:
-	FReply OnRouteClicked(ESpaceshipMenuRoute Route);
-	FReply OnBackClicked();
-
-	TSharedRef<SWidget> BuildMainPanel();
-
-	TWeakObjectPtr<UWorld> World;
-	TWeakObjectPtr<APlayerController> OwnerPC;
-
-	TSharedPtr<SWidgetSwitcher> MenuSwitcher;
-	FText PlaceholderTitle;
+protected:
+	virtual TSharedRef<SWidget> BuildMainMenuBody() override;
 };

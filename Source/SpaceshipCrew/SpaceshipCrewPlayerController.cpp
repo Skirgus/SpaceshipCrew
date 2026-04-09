@@ -1,6 +1,7 @@
 #include "SpaceshipCrewPlayerController.h"
 
 #include "Engine/GameViewportClient.h"
+#include "GameFramework/Pawn.h"
 #include "SSpaceshipMainMenu.h"
 
 void ASpaceshipCrewPlayerController::BeginPlay()
@@ -12,8 +13,17 @@ void ASpaceshipCrewPlayerController::BeginPlay()
 		return;
 	}
 
+	SetIgnoreLookInput(true);
+	SetIgnoreMoveInput(true);
+
 	bShowMouseCursor = true;
 	DefaultMouseCursor = EMouseCursor::Default;
+
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		ControlledPawn->DisableInput(this);
+	}
+	UnPossess();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -26,6 +36,10 @@ void ASpaceshipCrewPlayerController::BeginPlay()
 			ViewportClient->AddViewportWidgetContent(MainMenuWidget.ToSharedRef(), 1000);
 		}
 	}
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
 }
 
 void ASpaceshipCrewPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)

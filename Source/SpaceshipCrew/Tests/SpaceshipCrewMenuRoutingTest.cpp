@@ -1,3 +1,5 @@
+// Автотест реестра маршрутов главного меню (количество кнопок, непустые подписи, флаг «Выход»).
+
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS

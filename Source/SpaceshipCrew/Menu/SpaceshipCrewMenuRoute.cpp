@@ -1,5 +1,7 @@
 #include "SpaceshipCrewMenuRoute.h"
 
+// Реализация текстов через NSLOCTEXT (пространство SpaceshipCrew) для единообразия локализации.
+
 namespace SpaceshipCrewMenu
 {
 	TArray<ESpaceshipMenuRoute> GetOrderedMenuRoutes()

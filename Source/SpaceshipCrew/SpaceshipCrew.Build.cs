@@ -10,6 +10,7 @@ public class SpaceshipCrew : ModuleRules
 
 		PrivateIncludePaths.AddRange(new string[]
 		{
+			ModuleDirectory,
 			Path.Combine(ModuleDirectory, "Menu"),
 			Path.Combine(ModuleDirectory, "UI")
 		});
@@ -20,6 +21,7 @@ public class SpaceshipCrew : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"InputCore",
+			"UMG",
 			"Slate",
 			"SlateCore",
 			"ApplicationCore"

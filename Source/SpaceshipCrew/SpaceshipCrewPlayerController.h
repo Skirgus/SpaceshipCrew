@@ -7,6 +7,10 @@
 
 class SSpaceshipMainMenu;
 
+/**
+ * PlayerController главного меню: показывает Slate-интерфейс во вьюпорте, режим ввода «только UI»,
+ * блокирует поворот камеры от мыши (без пешки / без спектатора).
+ */
 UCLASS()
 class SPACESHIPCREW_API ASpaceshipCrewPlayerController : public APlayerController
 {

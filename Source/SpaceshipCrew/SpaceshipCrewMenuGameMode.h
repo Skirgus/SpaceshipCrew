@@ -5,6 +5,9 @@
 #include "SpaceshipCrew.h"
 #include "SpaceshipCrewMenuGameMode.generated.h"
 
+/**
+ * GameMode стартового экрана: без пешки и без наблюдателя, только PlayerController с меню.
+ */
 UCLASS()
 class SPACESHIPCREW_API ASpaceshipCrewMenuGameMode : public AGameModeBase
 {

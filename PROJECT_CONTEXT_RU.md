@@ -31,6 +31,13 @@
 
 Команды художников нет: примитивы UE, greybox, бесплатные ассеты с фиксацией в `Content/THIRD_PARTY_ASSETS.md` при использовании.
 
+## UI (подход к реализации)
+
+- **Два параллельных базовых слоя** (на выбор экрана, не смешивать в одном виджете без нужды):
+  - **Slate:** абстрактный `SSpaceshipMainMenuBase` (`SCompoundWidget`) — общая геометрия, переключение экранов, крупная типографика; конкретный экран наследует и реализует содержимое (например `BuildMainMenuBody()`), сборка через `Construct` в C++.
+  - **UMG / Blueprint:** абстрактный `USpaceshipCrewMenuWidgetBase` (`UUserWidget`) — для ручной сборки разметки в редакторе: наследование Blueprint от этого класса, общая логика и начальная разметка при необходимости в `NativeConstruct` в C++.
+- **Текущее главное меню MVP** остаётся на Slate (`SSpaceshipMainMenu` от `SSpaceshipMainMenuBase`), чтобы не тянуть UMG-ассеты до отдельной задачи; переход на UMG — через наследника `USpaceshipCrewMenuWidgetBase` и подключение в PlayerController/HUD по мере готовности.
+
 ## Куда смотреть дальше
 
 1. **`MVP_TASKS_AND_PROMPTS_RU.md`** — задачи T01–T12, T02a и трёхэтапные промты (Plan → Implementation → Review/QA).
