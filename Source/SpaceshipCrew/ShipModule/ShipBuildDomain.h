@@ -35,8 +35,11 @@ struct FShipBuildModuleConnection
  */
 struct FShipBuildValidationResult
 {
-	bool bIsValid = false;
+	/** Критические ошибки: при наличии хотя бы одной сборка невалидна (`bIsValid == false`). */
 	TArray<FString> Errors;
+	/** Предупреждения: не влияют на `bIsValid` (T02c-1 чеклист). */
+	TArray<FString> Warnings;
+	bool bIsValid = false;
 	float TotalMass = 0.0f;
 };
 
@@ -111,6 +114,7 @@ private:
 	const FShipBuildModuleInstance* FindModuleInstance(FName InstanceId) const;
 	bool AreModuleTypesCompatible(const UShipModuleDefinition& Source, const UShipModuleDefinition& Target) const;
 	void AddError(TArray<FString>& OutErrors, const FString& ErrorText) const;
+	void AddWarning(TArray<FString>& OutWarnings, const FString& WarningText) const;
 
 	const IShipBuildModuleResolver& Resolver;
 	TArray<FShipBuildModuleInstance> Modules;
