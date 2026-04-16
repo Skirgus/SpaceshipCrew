@@ -1,12 +1,12 @@
 #include "SpaceshipShipBuilderGameMode.h"
 
-#include "GameFramework/SpectatorPawn.h"
 #include "SpaceshipShipBuilderPlayerController.h"
+#include "SpaceshipShipBuilderSpectatorPawn.h"
 
 ASpaceshipShipBuilderGameMode::ASpaceshipShipBuilderGameMode()
 {
 	PlayerControllerClass = ASpaceshipShipBuilderPlayerController::StaticClass();
-	DefaultPawnClass = ASpectatorPawn::StaticClass();
-	SpectatorClass = ASpectatorPawn::StaticClass();
+	DefaultPawnClass = ASpaceshipShipBuilderSpectatorPawn::StaticClass();
+	SpectatorClass = ASpaceshipShipBuilderSpectatorPawn::StaticClass();
 	bStartPlayersAsSpectators = true;
 }

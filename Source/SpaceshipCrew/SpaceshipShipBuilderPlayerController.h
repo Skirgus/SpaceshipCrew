@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "ShipBuilderDraftTypes.h"
 #include "ShipBuildDomain.h"
+#include "ShipModuleTypes.h"
 #include "SpaceshipCrew.h"
 #include "SpaceshipShipBuilderPlayerController.generated.h"
 
@@ -42,18 +43,36 @@ public:
 	void AppendModuleToDraft(FName ModuleId);
 	void RequestExitToMainMenu();
 
+	/** Сумма эффективной стоимости модулей в черновике (CreditCost или масса). */
+	int32 GetDraftTotalCreditCost() const;
+
 	void RefreshShipBuilderUi();
+
+	/** Типы модулей, которые реально есть в каталоге, по возрастанию enum. */
+	TArray<EShipModuleType> GetCatalogModuleTypesSorted() const;
+
+	int32 GetCatalogCategoryIndex() const { return CatalogCategoryIndex; }
+
+	/** Переключение категории в открытом каталоге (Q — предыдущая, T — следующая). */
+	void CycleCatalogCategory(int32 Delta);
 
 private:
 	void ToggleCatalog();
 	void ToggleChecklist();
 	void OnExitPressed();
+	void CatalogCyclePrev();
+	void CatalogCycleNext();
+
+	void EnsureCatalogCategoryIndexValid();
 
 	FShipBuilderDraftConfig Draft;
 
 	FName HoveredCatalogModuleId = NAME_None;
 	bool bCatalogOpen = false;
 	bool bChecklistOpen = false;
+
+	/** Индекс в GetCatalogModuleTypesSorted() для фильтра списка каталога. */
+	int32 CatalogCategoryIndex = 0;
 
 	TSharedPtr<SSpaceshipShipBuilderRoot> ShipBuilderSlate;
 };
