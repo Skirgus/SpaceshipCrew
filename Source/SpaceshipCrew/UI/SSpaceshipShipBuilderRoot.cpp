@@ -1,7 +1,7 @@
 #include "SSpaceshipShipBuilderRoot.h"
 
 #include "SpaceshipShipBuilderPlayerController.h"
-#include "ShipBuilderParameterEvaluator.h"
+#include "ShipBuilder/ShipBuilderParameterEvaluator.h"
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "Widgets/Input/SButton.h"

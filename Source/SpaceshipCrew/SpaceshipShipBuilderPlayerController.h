@@ -2,8 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
-#include "ShipBuilderDraftTypes.h"
-#include "ShipBuildDomain.h"
+#include "ShipBuilder/ShipBuilderDraftTypes.h"
+#include "ShipModule/ShipBuildDomain.h"
 #include "ShipModuleTypes.h"
 #include "SpaceshipCrew.h"
 #include "SpaceshipShipBuilderPlayerController.generated.h"

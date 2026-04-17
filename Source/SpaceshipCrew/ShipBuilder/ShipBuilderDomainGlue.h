@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 
-#include "ShipBuilderDraftTypes.h"
+#include "ShipBuilder/ShipBuilderDraftTypes.h"
 
 class IShipBuildModuleResolver;
 class FShipBuildDomainModel;

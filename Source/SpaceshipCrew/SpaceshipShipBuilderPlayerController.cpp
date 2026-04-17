@@ -3,7 +3,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
 #include "Kismet/GameplayStatics.h"
-#include "ShipBuilderDomainGlue.h"
+#include "ShipBuilder/ShipBuilderDomainGlue.h"
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "ShipModuleTypes.h"
