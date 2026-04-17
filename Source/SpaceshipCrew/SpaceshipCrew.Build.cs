@@ -13,7 +13,8 @@ public class SpaceshipCrew : ModuleRules
 			ModuleDirectory,
 			Path.Combine(ModuleDirectory, "Menu"),
 			Path.Combine(ModuleDirectory, "UI"),
-			Path.Combine(ModuleDirectory, "ShipModule")
+			Path.Combine(ModuleDirectory, "ShipModule"),
+			Path.Combine(ModuleDirectory, "ShipBuilder")
 		});
 
 		PublicDependencyModuleNames.AddRange(new string[]
