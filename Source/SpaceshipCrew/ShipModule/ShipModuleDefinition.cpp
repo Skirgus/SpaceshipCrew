@@ -20,6 +20,15 @@ FPrimaryAssetId UShipModuleDefinition::GetPrimaryAssetId() const
 	return FPrimaryAssetId(TEXT("ShipModule"), ModuleId);
 }
 
+int32 UShipModuleDefinition::GetEffectiveCreditCost() const
+{
+	if (CreditCost > 0)
+	{
+		return CreditCost;
+	}
+	return FMath::Max(1, FMath::RoundToInt(Mass));
+}
+
 // ----------------------------------------------------------------------------
 // Валидация (доступна и в рантайме, и в редакторе)
 // ----------------------------------------------------------------------------

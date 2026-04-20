@@ -43,6 +43,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics", meta = (ClampMin = "0.01"))
 	float Mass = 100.0f;
 
+	/** Стоимость в кредитах для UI конструктора. Если 0 — для суммы используется округлённая масса. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Economy", meta = (ClampMin = "0"))
+	int32 CreditCost = 0;
+
 	/** Габариты модуля в см (все компоненты обязательно > 0). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics")
 	FVector Size = FVector(400.0, 400.0, 300.0);
@@ -58,6 +62,9 @@ public:
 	/** Типы модулей, которые могут стыковаться с данным модулем. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
 	TArray<EShipModuleType> CompatibleModuleTypes;
+
+	/** Эффективная стоимость для суммы в конструкторе (CreditCost или оценка по массе). */
+	int32 GetEffectiveCreditCost() const;
 
 	// --- UPrimaryDataAsset ---
 

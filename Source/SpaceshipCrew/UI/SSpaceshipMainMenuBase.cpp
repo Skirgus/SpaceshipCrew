@@ -1,6 +1,8 @@
 #include "SSpaceshipMainMenuBase.h"
 
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Menu/SpaceshipCrewLevelTravel.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -112,6 +114,19 @@ FReply SSpaceshipMainMenuBase::OnRouteClicked(ESpaceshipMenuRoute Route)
 		if (UWorld* W = World.Get())
 		{
 			UKismetSystemLibrary::QuitGame(W, OwnerPC.Get(), EQuitPreference::Quit, false);
+		}
+		return FReply::Handled();
+	}
+
+	if (Route == ESpaceshipMenuRoute::Constructor)
+	{
+		if (UWorld* W = World.Get())
+		{
+			UGameplayStatics::OpenLevel(
+				W,
+				FName(SpaceshipCrewLevelTravel::GetPlayMapPackagePath()),
+				false,
+				SpaceshipCrewLevelTravel::GetShipBuilderGameOptions());
 		}
 		return FReply::Handled();
 	}
