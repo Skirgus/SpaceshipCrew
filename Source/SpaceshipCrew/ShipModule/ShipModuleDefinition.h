@@ -55,6 +55,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interior")
 	bool bHasInterior = false;
 
+	/**
+	 * Принудительная сторона проёма в оболочке модуля (MVP-визуал).
+	 * В первую очередь используется для Airlock: выбранная сторона отображается как проём,
+	 * даже если к ней не пристыкован соседний модуль.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interior")
+	EShipModuleOpeningSide ForcedOpeningSide = EShipModuleOpeningSide::None;
+
 	/** Контактные точки (стыковочные узлы). Минимум одна, имена (SocketName) уникальны. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
 	TArray<FShipModuleContactPoint> ContactPoints;

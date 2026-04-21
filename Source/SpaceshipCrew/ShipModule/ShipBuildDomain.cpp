@@ -373,6 +373,7 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 	{
 		bool bHasReactor = false;
 		bool bHasBridge = false;
+		bool bHasAirlock = false;
 		bool bHasFuelTank = false;
 		bool bHasOxygenTank = false;
 		int32 EngineCount = 0;
@@ -389,6 +390,9 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 				break;
 			case EShipModuleType::Bridge:
 				bHasBridge = true;
+				break;
+			case EShipModuleType::Airlock:
+				bHasAirlock = true;
 				break;
 			case EShipModuleType::FuelTank:
 				bHasFuelTank = true;
@@ -410,6 +414,10 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 		if (!bHasBridge)
 		{
 			AddWarning(Result.Warnings, TEXT("Нет мостика: нет явного модуля управления (предупреждение)."));
+		}
+		if (!bHasAirlock)
+		{
+			AddWarning(Result.Warnings, TEXT("Нет шлюза (Airlock): нет явной точки выхода наружу (предупреждение)."));
 		}
 		if (!bHasFuelTank)
 		{

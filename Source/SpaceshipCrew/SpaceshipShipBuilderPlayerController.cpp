@@ -3,6 +3,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
 #include "Kismet/GameplayStatics.h"
+#include "ShipBuilder/ShipBuilderModulePreviewActor.h"
 #include "ShipBuilder/ShipBuilderDomainGlue.h"
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
@@ -26,6 +27,9 @@ void ASpaceshipShipBuilderPlayerController::BeginPlay()
 
 	if (UWorld* World = GetWorld())
 	{
+		EnsurePreviewActor();
+		RefreshPreviewFromDraft();
+
 		if (UGameViewportClient* ViewportClient = World->GetGameViewport())
 		{
 			ShipBuilderSlate = SNew(SSpaceshipShipBuilderRoot).OwnerPC(this);
@@ -37,6 +41,12 @@ void ASpaceshipShipBuilderPlayerController::BeginPlay()
 
 void ASpaceshipShipBuilderPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (PreviewActor)
+	{
+		PreviewActor->Destroy();
+		PreviewActor = nullptr;
+	}
+
 	if (ShipBuilderSlate.IsValid())
 	{
 		if (UWorld* World = GetWorld())
@@ -196,6 +206,7 @@ void ASpaceshipShipBuilderPlayerController::AppendModuleToDraft(const FName Modu
 	if (!ModuleId.IsNone())
 	{
 		Draft.ModuleIds.Add(ModuleId);
+		RefreshPreviewFromDraft();
 	}
 }
 
@@ -216,6 +227,37 @@ void ASpaceshipShipBuilderPlayerController::RefreshShipBuilderUi()
 	if (ShipBuilderSlate.IsValid())
 	{
 		ShipBuilderSlate->Invalidate(EInvalidateWidgetReason::LayoutAndVolatility);
+	}
+}
+
+void ASpaceshipShipBuilderPlayerController::EnsurePreviewActor()
+{
+	if (PreviewActor || !GetWorld())
+	{
+		return;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	PreviewActor = GetWorld()->SpawnActor<AShipBuilderModulePreviewActor>(
+		AShipBuilderModulePreviewActor::StaticClass(),
+		FVector::ZeroVector,
+		FRotator::ZeroRotator,
+		SpawnParams);
+}
+
+void ASpaceshipShipBuilderPlayerController::RefreshPreviewFromDraft()
+{
+	EnsurePreviewActor();
+	if (!PreviewActor)
+	{
+		return;
+	}
+
+	if (UShipModuleCatalog* Catalog = GetModuleCatalog())
+	{
+		PreviewActor->RebuildFromDraft(Draft, *Catalog);
 	}
 }
 
