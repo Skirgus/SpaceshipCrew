@@ -56,6 +56,9 @@ protected:
 	/** Пулы инстансов по мешам для цельных блоков без интерьера. */
 	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> SolidMeshPools;
 
+	/** Пулы инстансов по мешам для ручных override-элементов. */
+	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> OverrideMeshPools;
+
 	/** Зазор между модулями в линейной цепочке (см). */
 	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview", meta = (ClampMin = "0.0"))
 	float ModuleGap = 0.0f;
@@ -97,6 +100,7 @@ protected:
 	int32 DamageEveryNthPanel = 6;
 
 private:
+	void AddTransformInstance(UInstancedStaticMeshComponent& Component, const FTransform& Transform) const;
 	void AddBoxInstance(UInstancedStaticMeshComponent& Component, const FVector& Center, const FVector& Size) const;
 	void AddShellPanel(
 		UInstancedStaticMeshComponent& NormalComponent,

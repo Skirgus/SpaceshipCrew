@@ -35,7 +35,11 @@ public class SpaceshipCrew : ModuleRules
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
 				"UnrealEd",
-				"AssetTools"
+				"AssetTools",
+				"ContentBrowser",
+				"PropertyEditor",
+				"ToolMenus",
+				"AdvancedPreviewScene"
 			});
 		}
 

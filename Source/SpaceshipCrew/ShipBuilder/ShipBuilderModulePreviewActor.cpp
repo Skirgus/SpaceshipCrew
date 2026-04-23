@@ -5,6 +5,7 @@
 #include "ShipModule/ShipModuleCatalog.h"
 #include "ShipModule/ShipModuleDefinition.h"
 #include "ShipModule/ShipModuleTypes.h"
+#include "ShipModule/ShipModuleVisualOverride.h"
 #include "UObject/ConstructorHelpers.h"
 
 AShipBuilderModulePreviewActor::AShipBuilderModulePreviewActor()
@@ -68,6 +69,13 @@ void AShipBuilderModulePreviewActor::AddBoxInstance(
 {
 	const FVector Scale = Size / 100.0f;
 	const FTransform Transform(FRotator::ZeroRotator, Center, Scale);
+	AddTransformInstance(Component, Transform);
+}
+
+void AShipBuilderModulePreviewActor::AddTransformInstance(
+	UInstancedStaticMeshComponent& Component,
+	const FTransform& Transform) const
+{
 	Component.AddInstance(Transform);
 }
 
@@ -179,6 +187,7 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 	ClearPools(DamagedPanelMeshPools);
 	ClearPools(DoorFrameMeshPools);
 	ClearPools(SolidMeshPools);
+	ClearPools(OverrideMeshPools);
 
 	if (Draft.ModuleIds.Num() == 0)
 	{
@@ -226,6 +235,29 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 
 		const FVector Center = Resolved[Index].Center;
 		const FVector Size = Def->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f));
+
+		// Ручной override визуала полностью заменяет процедурную генерацию "коробки".
+		if (const UShipModuleVisualOverride* VisualOverride = Def->GetVisualOverride())
+		{
+			if (VisualOverride->VisualParts.Num() > 0)
+			{
+				for (const FShipModuleVisualPart& Part : VisualOverride->VisualParts)
+				{
+					UStaticMesh* PartMesh = Part.Mesh.Get();
+					if (!PartMesh)
+					{
+						continue;
+					}
+
+					UInstancedStaticMeshComponent& OverridePool = GetOrCreatePool(OverrideMeshPools, PartMesh, TEXT("Override"));
+					FTransform FinalTransform = Part.RelativeTransform;
+					FinalTransform.AddToTranslation(Center);
+					AddTransformInstance(OverridePool, FinalTransform);
+				}
+				continue;
+			}
+		}
+
 		if (!Def->bHasInterior)
 		{
 			UStaticMesh* SolidMesh = ResolveMeshForType(

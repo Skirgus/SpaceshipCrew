@@ -41,7 +41,7 @@ namespace ShipBuildDomainPrivate
 		const UShipModuleDefinition& ModuleDefinition,
 		const FName SocketName)
 	{
-		for (const FShipModuleContactPoint& ContactPoint : ModuleDefinition.ContactPoints)
+		for (const FShipModuleContactPoint& ContactPoint : ModuleDefinition.GetResolvedContactPoints())
 		{
 			if (ContactPoint.SocketName == SocketName)
 			{
@@ -55,7 +55,7 @@ namespace ShipBuildDomainPrivate
 	{
 		for (const UShipModuleDefinition* Definition : Definitions)
 		{
-			if (Definition && Definition->ContactPoints.Num() > 0)
+			if (Definition && Definition->GetResolvedContactPoints().Num() > 0)
 			{
 				return Definition;
 			}
@@ -84,9 +84,9 @@ namespace ShipBuildDomainPrivate
 					continue;
 				}
 
-				for (const FShipModuleContactPoint& SocketA : CandidateA->ContactPoints)
+				for (const FShipModuleContactPoint& SocketA : CandidateA->GetResolvedContactPoints())
 				{
-					for (const FShipModuleContactPoint& SocketB : CandidateB->ContactPoints)
+					for (const FShipModuleContactPoint& SocketB : CandidateB->GetResolvedContactPoints())
 					{
 						const bool bSocketCompatible = AreSocketTypesCompatible(SocketA.SocketType, SocketB.SocketType);
 						const bool bTypeCompatibleAB = IsTypeAllowedBySource(*CandidateA, CandidateB->ModuleType);
@@ -538,11 +538,12 @@ static void RunShipBuildDebugScenario(const TArray<FString>& Args, UWorld* World
 			return;
 		}
 
+		const TArray<FShipModuleContactPoint>& ThirdSockets = ThirdDefinition->GetResolvedContactPoints();
 		BuildModel.AddAttachedModule(
 			TEXT("InvalidAttach"),
 			ThirdDefinition->ModuleId,
 			TEXT("Root"),
-			ThirdDefinition->ContactPoints[0].SocketName,
+			ThirdSockets[0].SocketName,
 			FirstSocket->SocketName,
 			nullptr);
 	}

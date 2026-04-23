@@ -37,14 +37,14 @@ namespace ShipBuilderDomainGluePrivate
 			return false;
 		}
 
-		for (const FShipModuleContactPoint& ExistingCP : ExistingDef.ContactPoints)
+		for (const FShipModuleContactPoint& ExistingCP : ExistingDef.GetResolvedContactPoints())
 		{
 			if (ExistingCP.SocketName.IsNone() || UsedExistingSockets.Contains(ExistingCP.SocketName))
 			{
 				continue;
 			}
 
-			for (const FShipModuleContactPoint& NewCP : NewDef.ContactPoints)
+			for (const FShipModuleContactPoint& NewCP : NewDef.GetResolvedContactPoints())
 			{
 				if (NewCP.SocketName.IsNone())
 				{
