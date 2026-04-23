@@ -12,6 +12,7 @@
 #include "Engine/StaticMesh.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
+#include "SceneManagement.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "CollisionQueryParams.h"
@@ -24,7 +25,9 @@
 #include "UnrealWidget.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Views/SListView.h"
@@ -60,6 +63,7 @@ public:
 		FVector& Drag,
 		FRotator& Rot,
 		FVector& Scale) override;
+	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual UE::Widget::EWidgetMode GetWidgetMode() const override;
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 	virtual bool InputAxis(const FInputKeyEventArgs& EventArgs) override;
@@ -254,6 +258,10 @@ public:
 	void SetSelectedPartIndex(const int32 NewIndex)
 	{
 		SelectedPartIndex = NewIndex;
+		if (ViewportClient.IsValid())
+		{
+			ViewportClient->Invalidate();
+		}
 	}
 
 	void SetTransformWidgetMode(const UE::Widget::EWidgetMode NewMode)
@@ -277,6 +285,46 @@ public:
 			&& ToolAsset->TargetVisualOverride
 			&& ToolAsset->TargetVisualOverride->VisualParts.IsValidIndex(SelectedPartIndex)
 			&& PartIndexToComponent.Contains(SelectedPartIndex);
+	}
+
+	bool GetSelectedPartBounds(FBox& OutBounds) const
+	{
+		if (!HasSelectedPart())
+		{
+			return false;
+		}
+		const TWeakObjectPtr<UStaticMeshComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex);
+		if (CompPtr == nullptr || !CompPtr->IsValid())
+		{
+			return false;
+		}
+		OutBounds = (*CompPtr)->Bounds.GetBox();
+		return true;
+	}
+
+	void RefreshSelectedPartVisualFromData()
+	{
+		if (!HasSelectedPart())
+		{
+			return;
+		}
+
+		const FTransform& Relative = ToolAsset->TargetVisualOverride->VisualParts[SelectedPartIndex].RelativeTransform;
+		if (const TWeakObjectPtr<UStaticMeshComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex))
+		{
+			if (CompPtr->IsValid())
+			{
+				FTransform PreviewWorldTransform = Relative;
+				PreviewWorldTransform.AddToTranslation(FVector(0.0f, 0.0f, PreviewFloorOffsetZ));
+				(*CompPtr)->SetWorldTransform(PreviewWorldTransform);
+				(*CompPtr)->MarkRenderTransformDirty();
+			}
+		}
+
+		if (ViewportClient.IsValid())
+		{
+			ViewportClient->Invalidate();
+		}
 	}
 
 	int32 GetFirstVisiblePartIndex() const
@@ -336,45 +384,6 @@ public:
 				PreviewWorldTransform.AddToTranslation(FVector(0.0f, 0.0f, PreviewFloorOffsetZ));
 				(*CompPtr)->SetWorldTransform(PreviewWorldTransform);
 			}
-		}
-		return true;
-	}
-
-	bool ApplyDirectMouseTransform(const FVector& TranslationDelta, const FRotator& RotationDelta)
-	{
-		if (!HasSelectedPart())
-		{
-			return false;
-		}
-
-		const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "DirectMouseTransform", "Transform Ship Module Part"));
-		ToolAsset->TargetVisualOverride->SetFlags(RF_Transactional);
-		ToolAsset->TargetVisualOverride->Modify();
-		FShipModuleVisualPart& Part = ToolAsset->TargetVisualOverride->VisualParts[SelectedPartIndex];
-		FTransform T = Part.RelativeTransform;
-		T.AddToTranslation(TranslationDelta);
-		if (!RotationDelta.IsNearlyZero())
-		{
-			FRotator R = T.Rotator();
-			R += RotationDelta;
-			T.SetRotation(R.Quaternion());
-		}
-		Part.RelativeTransform = T;
-		ToolAsset->TargetVisualOverride->MarkPackageDirty();
-
-		if (const TWeakObjectPtr<UStaticMeshComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex))
-		{
-			if (CompPtr->IsValid())
-			{
-				FTransform PreviewWorldTransform = Part.RelativeTransform;
-				PreviewWorldTransform.AddToTranslation(FVector(0.0f, 0.0f, PreviewFloorOffsetZ));
-				(*CompPtr)->SetWorldTransform(PreviewWorldTransform);
-				(*CompPtr)->MarkRenderTransformDirty();
-			}
-		}
-		if (ViewportClient.IsValid())
-		{
-			ViewportClient->Invalidate();
 		}
 		return true;
 	}
@@ -560,9 +569,34 @@ bool FShipModuleEditorToolViewportClient::InputWidgetDelta(
 	return FEditorViewportClient::InputWidgetDelta(InViewport, CurrentAxis, Drag, Rot, Scale);
 }
 
+void FShipModuleEditorToolViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
+	FEditorViewportClient::Draw(View, PDI);
+
+	const TSharedPtr<SShipModuleEditorToolViewport> Pinned = OwnerViewport.Pin();
+	if (!Pinned.IsValid() || PDI == nullptr)
+	{
+		return;
+	}
+
+	FBox SelectedBounds(EForceInit::ForceInitToZero);
+	if (!Pinned->GetSelectedPartBounds(SelectedBounds))
+	{
+		return;
+	}
+
+	const FVector Expand(2.0f, 2.0f, 2.0f);
+	DrawWireBox(PDI, SelectedBounds.ExpandBy(Expand), FLinearColor::Yellow, SDPG_Foreground, 1.5f);
+}
+
 UE::Widget::EWidgetMode FShipModuleEditorToolViewportClient::GetWidgetMode() const
 {
-	return UE::Widget::WM_None;
+	const TSharedPtr<SShipModuleEditorToolViewport> Pinned = OwnerViewport.Pin();
+	if (!Pinned.IsValid() || !Pinned->HasSelectedPart())
+	{
+		return UE::Widget::WM_None;
+	}
+	return Pinned->GetTransformWidgetMode();
 }
 
 bool FShipModuleEditorToolViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
@@ -577,15 +611,15 @@ bool FShipModuleEditorToolViewportClient::InputKey(const FInputKeyEventArgs& Eve
 	const bool bHasAlt = EventArgs.Viewport
 		&& (EventArgs.Viewport->KeyState(EKeys::LeftAlt) || EventArgs.Viewport->KeyState(EKeys::RightAlt));
 
-	if (EventArgs.Event == IE_Pressed && EventArgs.Key == EKeys::LeftMouseButton)
+	if (EventArgs.Event == IE_Pressed && EventArgs.Key == EKeys::LeftMouseButton && EventArgs.Viewport)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] InputKey: LMB pressed (viewport valid=%d)"), EventArgs.Viewport ? 1 : 0);
-		if (EventArgs.Viewport && Pinned->HandleViewportClickSelection(EventArgs.Viewport))
+		// Fallback click-selection path for this custom viewport; do not steal gizmo axis clicks.
+		HHitProxy* HitProxy = EventArgs.Viewport->GetHitProxy(EventArgs.Viewport->GetMouseX(), EventArgs.Viewport->GetMouseY());
+		const bool bIsWidgetAxisHit = HitProxy && HitProxy->IsA(HWidgetAxis::StaticGetType());
+		if (!bIsWidgetAxisHit && Pinned->HandleViewportClickSelection(EventArgs.Viewport))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] InputKey: selection handled"));
 			return true;
 		}
-		UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] InputKey: selection not handled"));
 	}
 
 	if (EventArgs.Event == IE_Pressed && EventArgs.Key == EKeys::Delete)
@@ -664,34 +698,15 @@ bool FShipModuleEditorToolViewportClient::InputAxis(const FInputKeyEventArgs& Ev
 	const bool bLMB = EventArgs.Viewport->KeyState(EKeys::LeftMouseButton);
 	const bool bRMB = EventArgs.Viewport->KeyState(EKeys::RightMouseButton);
 	const bool bMMB = EventArgs.Viewport->KeyState(EKeys::MiddleMouseButton);
-	const bool bCtrl = EventArgs.Viewport->KeyState(EKeys::LeftControl) || EventArgs.Viewport->KeyState(EKeys::RightControl);
 
-	// LMB drag: move selected part. Ctrl+LMB: rotate selected part.
-	if (bLMB && !bRMB && !bMMB && Pinned->HasSelectedPart())
+	// LMB is reserved for selection and gizmo interaction.
+	if (bLMB && !bRMB && !bMMB)
 	{
-		if (bCtrl)
-		{
-			const FRotator RotationDelta(-MouseYDelta * 0.25f, MouseXDelta * 0.25f, 0.0f);
-			if (Pinned->ApplyDirectMouseTransform(FVector::ZeroVector, RotationDelta))
-			{
-				return true;
-			}
-		}
-		else
-		{
-			const FRotator ViewRot = GetViewRotation();
-			const FVector Right = FRotationMatrix(ViewRot).GetScaledAxis(EAxis::Y);
-			const FVector Up = FRotationMatrix(ViewRot).GetScaledAxis(EAxis::Z);
-			const FVector TranslationDelta = (Right * MouseXDelta + Up * -MouseYDelta) * 0.5f;
-			if (Pinned->ApplyDirectMouseTransform(TranslationDelta, FRotator::ZeroRotator))
-			{
-				return true;
-			}
-		}
+		return FEditorViewportClient::InputAxis(EventArgs);
 	}
 
-	// RMB drag: move camera (pan in view plane).
-	if (bRMB && !bLMB && !bMMB)
+	// MMB drag: move camera (pan in view plane), like Blueprint viewport.
+	if (bMMB && !bLMB && !bRMB)
 	{
 		const FRotator ViewRot = GetViewRotation();
 		const FVector Right = FRotationMatrix(ViewRot).GetScaledAxis(EAxis::Y);
@@ -702,8 +717,8 @@ bool FShipModuleEditorToolViewportClient::InputAxis(const FInputKeyEventArgs& Ev
 		return true;
 	}
 
-	// MMB drag: orbit/look around current point without translating camera.
-	if (bMMB && !bLMB && !bRMB)
+	// RMB drag: change camera look direction without translating position.
+	if (bRMB && !bLMB && !bMMB)
 	{
 		FRotator NewRot = GetViewRotation();
 		NewRot.Yaw += MouseXDelta * 0.25f;
@@ -721,6 +736,13 @@ void FShipModuleEditorToolViewportClient::ProcessClick(FSceneView& View, HHitPro
 	const TSharedPtr<SShipModuleEditorToolViewport> Pinned = OwnerViewport.Pin();
 	if (Pinned.IsValid() && Event == IE_Pressed && Key == EKeys::LeftMouseButton)
 	{
+		// Let UE handle gizmo axis clicks, otherwise dragging the widget turns into panel re-selection.
+		if (HitProxy && HitProxy->IsA(HWidgetAxis::StaticGetType()))
+		{
+			FEditorViewportClient::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
+			return;
+		}
+
 		UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] ProcessClick: LMB pressed at (%u, %u)"), HitX, HitY);
 		if (Pinned->HandleViewportClickSelectionByScreen(static_cast<int32>(HitX), static_cast<int32>(HitY), &View))
 		{
@@ -927,57 +949,192 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnUseSelectedAsset)
 		];
 
-	TSharedRef<SWidget> NudgeButtons =
-		SNew(SUniformGridPanel)
-		.SlotPadding(FMargin(2.0f))
-		+ SUniformGridPanel::Slot(0, 0)
+	auto GetSelectedTransform = [this]() -> const FTransform*
+	{
+		if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+		{
+			if (Override->VisualParts.IsValidIndex(SelectedPartIndex))
+			{
+				return &Override->VisualParts[SelectedPartIndex].RelativeTransform;
+			}
+		}
+		return nullptr;
+	};
+
+	auto CommitSelectedTransform = [this](TFunctionRef<void(FTransform&)> Mutator)
+	{
+		UShipModuleVisualOverride* Override = ResolveEditableOverride(false);
+		if (!Override || !Override->VisualParts.IsValidIndex(SelectedPartIndex))
+		{
+			return;
+		}
+		const int32 PreservedPartIndex = SelectedPartIndex;
+		const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "EditTransformFields", "Edit Ship Module Part Transform"));
+		Override->Modify();
+		Mutator(Override->VisualParts[SelectedPartIndex].RelativeTransform);
+		Override->MarkPackageDirty();
+		OnRefreshPreview();
+		SelectPartIndex(PreservedPartIndex, false);
+		if (ViewportWidget.IsValid())
+		{
+			ViewportWidget->Invalidate();
+		}
+	};
+
+	auto PreviewSelectedTransformValue = [this](int32 Row, int32 Axis, float NewValue)
+	{
+		UShipModuleVisualOverride* Override = ResolveEditableOverride(false);
+		if (!Override || !Override->VisualParts.IsValidIndex(SelectedPartIndex))
+		{
+			return;
+		}
+
+		FTransform& T = Override->VisualParts[SelectedPartIndex].RelativeTransform;
+		if (Row == 0)
+		{
+			FVector L = T.GetTranslation();
+			if (Axis == 0) L.X = NewValue;
+			else if (Axis == 1) L.Y = NewValue;
+			else L.Z = NewValue;
+			T.SetTranslation(L);
+		}
+		else if (Row == 1)
+		{
+			FRotator R = T.Rotator();
+			if (Axis == 0) R.Roll = NewValue;
+			else if (Axis == 1) R.Pitch = NewValue;
+			else R.Yaw = NewValue;
+			T.SetRotation(R.Quaternion());
+		}
+		else
+		{
+			FVector S = T.GetScale3D();
+			if (Axis == 0) S.X = NewValue;
+			else if (Axis == 1) S.Y = NewValue;
+			else S.Z = NewValue;
+			T.SetScale3D(S);
+		}
+
+		if (ViewportWidget.IsValid())
+		{
+			ViewportWidget->RefreshSelectedPartVisualFromData();
+		}
+	};
+
+	auto OptionalComponent = [](const FTransform* T, int32 Row, int32 Axis) -> TOptional<float>
+	{
+		if (!T)
+		{
+			return TOptional<float>();
+		}
+		if (Row == 0)
+		{
+			const FVector L = T->GetTranslation();
+			return Axis == 0 ? L.X : (Axis == 1 ? L.Y : L.Z);
+		}
+		if (Row == 1)
+		{
+			const FRotator R = T->Rotator();
+			return Axis == 0 ? R.Roll : (Axis == 1 ? R.Pitch : R.Yaw);
+		}
+		const FVector S = T->GetScale3D();
+		return Axis == 0 ? S.X : (Axis == 1 ? S.Y : S.Z);
+	};
+
+	TSharedRef<SGridPanel> TransformGrid =
+		SNew(SGridPanel)
+		.FillColumn(0, 0.9f)
+		.FillColumn(1, 1.0f)
+		.FillColumn(2, 1.0f)
+		.FillColumn(3, 1.0f)
+		+ SGridPanel::Slot(0, 0).Padding(FMargin(2.0f))
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("X-")))
-			.OnClicked_Lambda([this]() { return OnNudgeSelectedPart(FVector(-10.0f, 0.0f, 0.0f)); })
+			SNew(STextBlock).Text(FText::FromString(TEXT("")))
 		]
-		+ SUniformGridPanel::Slot(1, 0)
+		+ SGridPanel::Slot(1, 0).Padding(FMargin(2.0f))
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("X+")))
-			.OnClicked_Lambda([this]() { return OnNudgeSelectedPart(FVector(10.0f, 0.0f, 0.0f)); })
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("X")))
+			.ColorAndOpacity(FSlateColor(FLinearColor(0.85f, 0.25f, 0.25f)))
 		]
-		+ SUniformGridPanel::Slot(0, 1)
+		+ SGridPanel::Slot(2, 0).Padding(FMargin(2.0f))
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Y-")))
-			.OnClicked_Lambda([this]() { return OnNudgeSelectedPart(FVector(0.0f, -10.0f, 0.0f)); })
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Y")))
+			.ColorAndOpacity(FSlateColor(FLinearColor(0.25f, 0.85f, 0.25f)))
 		]
-		+ SUniformGridPanel::Slot(1, 1)
+		+ SGridPanel::Slot(3, 0).Padding(FMargin(2.0f))
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Y+")))
-			.OnClicked_Lambda([this]() { return OnNudgeSelectedPart(FVector(0.0f, 10.0f, 0.0f)); })
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Z")))
+			.ColorAndOpacity(FSlateColor(FLinearColor(0.30f, 0.50f, 1.00f)))
 		]
-		+ SUniformGridPanel::Slot(0, 2)
+		+ SGridPanel::Slot(0, 1).Padding(FMargin(2.0f))
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Z-")))
-			.OnClicked_Lambda([this]() { return OnNudgeSelectedPart(FVector(0.0f, 0.0f, -10.0f)); })
+			SNew(STextBlock).Text(FText::FromString(TEXT("Location")))
 		]
-		+ SUniformGridPanel::Slot(1, 2)
+		+ SGridPanel::Slot(0, 2).Padding(FMargin(2.0f))
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Z+")))
-			.OnClicked_Lambda([this]() { return OnNudgeSelectedPart(FVector(0.0f, 0.0f, 10.0f)); })
+			SNew(STextBlock).Text(FText::FromString(TEXT("Rotation")))
 		]
-		+ SUniformGridPanel::Slot(2, 0)
+		+ SGridPanel::Slot(0, 3).Padding(FMargin(2.0f))
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Yaw-15")))
-			.OnClicked_Lambda([this]() { return OnRotateSelectedPart(-15.0f); })
-		]
-		+ SUniformGridPanel::Slot(2, 1)
-		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Yaw+15")))
-			.OnClicked_Lambda([this]() { return OnRotateSelectedPart(15.0f); })
+			SNew(STextBlock).Text(FText::FromString(TEXT("Scale")))
 		];
+
+	for (int32 Row = 0; Row < 3; ++Row)
+	{
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			const int32 LocalRow = Row;
+			const int32 LocalAxis = Axis;
+			TransformGrid->AddSlot(LocalAxis + 1, LocalRow + 1)
+			.Padding(FMargin(2.0f))
+			[
+				SNew(SNumericEntryBox<float>)
+				.MinDesiredValueWidth(70.0f)
+				.Value_Lambda([GetSelectedTransform, OptionalComponent, LocalRow, LocalAxis]()
+				{
+					return OptionalComponent(GetSelectedTransform(), LocalRow, LocalAxis);
+				})
+				.OnValueChanged_Lambda([PreviewSelectedTransformValue, LocalRow, LocalAxis](float NewValue)
+				{
+					PreviewSelectedTransformValue(LocalRow, LocalAxis, NewValue);
+				})
+				.OnValueCommitted_Lambda([CommitSelectedTransform, LocalRow, LocalAxis](float NewValue, ETextCommit::Type)
+				{
+					CommitSelectedTransform([LocalRow, LocalAxis, NewValue](FTransform& T)
+					{
+						if (LocalRow == 0)
+						{
+							FVector L = T.GetTranslation();
+							if (LocalAxis == 0) L.X = NewValue;
+							else if (LocalAxis == 1) L.Y = NewValue;
+							else L.Z = NewValue;
+							T.SetTranslation(L);
+						}
+						else if (LocalRow == 1)
+						{
+							FRotator R = T.Rotator();
+							if (LocalAxis == 0) R.Roll = NewValue;
+							else if (LocalAxis == 1) R.Pitch = NewValue;
+							else R.Yaw = NewValue;
+							T.SetRotation(R.Quaternion());
+						}
+						else
+						{
+							FVector S = T.GetScale3D();
+							if (LocalAxis == 0) S.X = NewValue;
+							else if (LocalAxis == 1) S.Y = NewValue;
+							else S.Z = NewValue;
+							T.SetScale3D(S);
+						}
+					});
+				})
+			];
+		}
+	}
+	TSharedRef<SWidget> TransformFields = TransformGrid;
 
 	TSharedRef<SWidget> GizmoModeButtons =
 		SNew(SUniformGridPanel)
@@ -1044,12 +1201,12 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 		.AutoHeight()
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
 		[
-			SNew(STextBlock).Text(FText::FromString(TEXT("Nudge selected")))
+			SNew(STextBlock).Text(FText::FromString(TEXT("Transform selected")))
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
-		[NudgeButtons]
+		[TransformFields]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
@@ -1092,6 +1249,7 @@ void FShipModuleEditorToolAssetEditor::OnRefreshPreview()
 	if (ViewportWidget.IsValid())
 	{
 		ViewportWidget->RebuildPreview();
+		ViewportWidget->Invalidate();
 	}
 	RebuildPartItems();
 
@@ -1198,10 +1356,17 @@ void FShipModuleEditorToolAssetEditor::OnPartSelectionChanged(TSharedPtr<int32> 
 	{
 		return;
 	}
-	UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] PartsList selection changed: item valid=%d index=%d"),
-		Item.IsValid() ? 1 : 0,
-		Item.IsValid() ? *Item : INDEX_NONE);
-	SelectPartIndex(Item.IsValid() ? *Item : INDEX_NONE, false);
+
+	// During list refresh/rebuild Slate may emit transient "no item" selection events.
+	// Ignore them to keep current selected part stable while editing transform fields.
+	if (!Item.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] PartsList selection changed: transient null item ignored"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] PartsList selection changed: index=%d"), *Item);
+	SelectPartIndex(*Item, false);
 }
 
 void FShipModuleEditorToolAssetEditor::SelectPartIndex(const int32 NewIndex, const bool bFromViewport)
@@ -1218,6 +1383,10 @@ void FShipModuleEditorToolAssetEditor::SelectPartIndex(const int32 NewIndex, con
 	if (ViewportWidget.IsValid())
 	{
 		ViewportWidget->SetSelectedPartIndex(SelectedPartIndex);
+	}
+	if (ViewportWidget.IsValid())
+	{
+		ViewportWidget->Invalidate();
 	}
 	if (PartsListView.IsValid())
 	{
