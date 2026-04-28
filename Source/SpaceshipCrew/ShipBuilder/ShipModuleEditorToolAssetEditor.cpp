@@ -8,8 +8,11 @@
 #include "AdvancedPreviewScene.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SceneComponent.h"
 #include "EditorViewportClient.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Blueprint.h"
+#include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "SceneManagement.h"
@@ -20,11 +23,13 @@
 #include "SceneView.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "PropertyEditorModule.h"
+#include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "SEditorViewport.h"
 #include "UnrealWidget.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SGridPanel.h"
@@ -41,6 +46,35 @@ namespace ShipModuleEditorToolAssetEditorTabs
 	static const FName Viewport(TEXT("ShipModuleEditorTool_Viewport"));
 	static const FName Details(TEXT("ShipModuleEditorTool_Details"));
 static const FName Parts(TEXT("ShipModuleEditorTool_Parts"));
+}
+
+namespace ShipModuleEditorToolAssetEditorPrivate
+{
+	static UClass* ResolveActorClassFromAssetData(const FAssetData& Asset)
+	{
+		if (Asset.GetClass()->IsChildOf(UBlueprint::StaticClass()))
+		{
+			if (UBlueprint* Blueprint = Cast<UBlueprint>(Asset.GetAsset()))
+			{
+				UClass* Generated = Blueprint->GeneratedClass;
+				if (Generated && Generated->IsChildOf(AActor::StaticClass()))
+				{
+					return Generated;
+				}
+			}
+		}
+		else if (Asset.GetClass()->IsChildOf(UClass::StaticClass()))
+		{
+			if (UClass* ClassAsset = Cast<UClass>(Asset.GetAsset()))
+			{
+				if (ClassAsset->IsChildOf(AActor::StaticClass()))
+				{
+					return ClassAsset;
+				}
+			}
+		}
+		return nullptr;
+	}
 }
 
 class FShipModuleEditorToolViewportClient final : public FEditorViewportClient
@@ -103,7 +137,7 @@ public:
 	void RebuildPreview()
 	{
 		PreviewFloorOffsetZ = 0.0f;
-		for (UStaticMeshComponent* Comp : PreviewComponents)
+		for (USceneComponent* Comp : PreviewComponents)
 		{
 			if (IsValid(Comp))
 			{
@@ -113,6 +147,17 @@ public:
 				}
 			}
 		}
+		if (PreviewScene && PreviewScene->GetWorld())
+		{
+			for (AActor* Actor : PreviewActors)
+			{
+				if (IsValid(Actor))
+				{
+					PreviewScene->GetWorld()->DestroyActor(Actor);
+				}
+			}
+		}
+		PreviewActors.Reset();
 		PreviewComponents.Reset();
 		ComponentToPartIndex.Reset();
 		PartIndexToComponent.Reset();
@@ -139,21 +184,62 @@ public:
 			{
 				const FShipModuleVisualPart& Part = OverrideAsset->VisualParts[PartIndex];
 				UStaticMesh* PartMesh = Part.Mesh.Get();
-				if (!PartMesh)
+				UClass* PartActorClass = Part.ActorClass.IsNull() ? nullptr : Part.ActorClass.LoadSynchronous();
+				if (PartMesh)
 				{
-					continue;
+					UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(GetTransientPackage());
+					Comp->SetStaticMesh(PartMesh);
+					Comp->SetMobility(EComponentMobility::Movable);
+					Comp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+					if (PreviewScene)
+					{
+						PreviewScene->AddComponent(Comp, Part.RelativeTransform);
+					}
+					PreviewComponents.Add(Comp);
+					ComponentToPartIndex.Add(Comp, PartIndex);
+					PartIndexToComponent.Add(PartIndex, Comp);
 				}
-				UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(GetTransientPackage());
-				Comp->SetStaticMesh(PartMesh);
-				Comp->SetMobility(EComponentMobility::Movable);
-				Comp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-				if (PreviewScene)
+				else if (PartActorClass && PartActorClass->IsChildOf(AActor::StaticClass()) && PreviewScene && PreviewScene->GetWorld())
 				{
-					PreviewScene->AddComponent(Comp, Part.RelativeTransform);
+					FActorSpawnParameters SpawnParams;
+					SpawnParams.ObjectFlags = RF_Transient;
+					SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+					AActor* PreviewActor = PreviewScene->GetWorld()->SpawnActor<AActor>(PartActorClass, Part.RelativeTransform, SpawnParams);
+					if (!IsValid(PreviewActor))
+					{
+						continue;
+					}
+
+					USceneComponent* RootComp = PreviewActor->GetRootComponent();
+					UPrimitiveComponent* PrimaryPrimitive = Cast<UPrimitiveComponent>(RootComp);
+					if (!PrimaryPrimitive)
+					{
+						TArray<UPrimitiveComponent*> Components;
+						PreviewActor->GetComponents<UPrimitiveComponent>(Components);
+						for (UPrimitiveComponent* Prim : Components)
+						{
+							if (Prim)
+							{
+								PrimaryPrimitive = Prim;
+								break;
+							}
+						}
+					}
+					if (RootComp)
+					{
+						PreviewComponents.Add(RootComp);
+						PartIndexToComponent.Add(PartIndex, RootComp);
+						if (PrimaryPrimitive)
+						{
+							ComponentToPartIndex.Add(PrimaryPrimitive, PartIndex);
+						}
+						PreviewActors.Add(PreviewActor);
+					}
+					else
+					{
+						PreviewScene->GetWorld()->DestroyActor(PreviewActor);
+					}
 				}
-				PreviewComponents.Add(Comp);
-				ComponentToPartIndex.Add(Comp, PartIndex);
-				PartIndexToComponent.Add(PartIndex, Comp);
 			}
 			AlignPreviewAboveFloor();
 			UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] RebuildPreview: override parts=%d mappedComponents=%d"),
@@ -208,13 +294,18 @@ private:
 		}
 
 		double MinZ = TNumericLimits<double>::Max();
-		for (UStaticMeshComponent* Comp : PreviewComponents)
+		for (USceneComponent* Comp : PreviewComponents)
 		{
 			if (!IsValid(Comp))
 			{
 				continue;
 			}
-			MinZ = FMath::Min<double>(MinZ, Comp->Bounds.GetBox().Min.Z);
+			UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(Comp);
+			if (!Prim)
+			{
+				continue;
+			}
+			MinZ = FMath::Min<double>(MinZ, Prim->Bounds.GetBox().Min.Z);
 		}
 		if (!FMath::IsFinite(MinZ))
 		{
@@ -230,7 +321,7 @@ private:
 		}
 		PreviewFloorOffsetZ = static_cast<float>(DeltaZ);
 
-		for (UStaticMeshComponent* Comp : PreviewComponents)
+		for (USceneComponent* Comp : PreviewComponents)
 		{
 			if (!IsValid(Comp))
 			{
@@ -293,13 +384,23 @@ public:
 		{
 			return false;
 		}
-		const TWeakObjectPtr<UStaticMeshComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex);
+		const TWeakObjectPtr<USceneComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex);
 		if (CompPtr == nullptr || !CompPtr->IsValid())
 		{
 			return false;
 		}
-		OutBounds = (*CompPtr)->Bounds.GetBox();
-		return true;
+		if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(CompPtr->Get()))
+		{
+			OutBounds = Prim->Bounds.GetBox();
+			return true;
+		}
+		AActor* Owner = CompPtr->Get()->GetOwner();
+		if (IsValid(Owner))
+		{
+			OutBounds = Owner->GetComponentsBoundingBox(true);
+			return OutBounds.IsValid != 0;
+		}
+		return false;
 	}
 
 	void RefreshSelectedPartVisualFromData()
@@ -310,14 +411,17 @@ public:
 		}
 
 		const FTransform& Relative = ToolAsset->TargetVisualOverride->VisualParts[SelectedPartIndex].RelativeTransform;
-		if (const TWeakObjectPtr<UStaticMeshComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex))
+		if (const TWeakObjectPtr<USceneComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex))
 		{
 			if (CompPtr->IsValid())
 			{
 				FTransform PreviewWorldTransform = Relative;
 				PreviewWorldTransform.AddToTranslation(FVector(0.0f, 0.0f, PreviewFloorOffsetZ));
 				(*CompPtr)->SetWorldTransform(PreviewWorldTransform);
-				(*CompPtr)->MarkRenderTransformDirty();
+				if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(CompPtr->Get()))
+				{
+					Prim->MarkRenderTransformDirty();
+				}
 			}
 		}
 
@@ -330,7 +434,7 @@ public:
 	int32 GetFirstVisiblePartIndex() const
 	{
 		int32 Result = INDEX_NONE;
-		for (const TPair<int32, TWeakObjectPtr<UStaticMeshComponent>>& Pair : PartIndexToComponent)
+		for (const TPair<int32, TWeakObjectPtr<USceneComponent>>& Pair : PartIndexToComponent)
 		{
 			if (!Pair.Value.IsValid())
 			{
@@ -376,7 +480,7 @@ public:
 		}
 		Part.RelativeTransform = T;
 		ToolAsset->TargetVisualOverride->MarkPackageDirty();
-		if (const TWeakObjectPtr<UStaticMeshComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex))
+		if (const TWeakObjectPtr<USceneComponent>* CompPtr = PartIndexToComponent.Find(SelectedPartIndex))
 		{
 			if (CompPtr->IsValid())
 			{
@@ -428,14 +532,32 @@ public:
 		int32 HitPartIndex = INDEX_NONE;
 		float BestDistanceSq = TNumericLimits<float>::Max();
 
-		for (const TPair<int32, TWeakObjectPtr<UStaticMeshComponent>>& Pair : PartIndexToComponent)
+		for (const TPair<int32, TWeakObjectPtr<USceneComponent>>& Pair : PartIndexToComponent)
 		{
 			if (!Pair.Value.IsValid())
 			{
 				continue;
 			}
 
-			UStaticMeshComponent* Component = Pair.Value.Get();
+			USceneComponent* SceneComp = Pair.Value.Get();
+			UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(SceneComp);
+			if (!Component && IsValid(SceneComp))
+			{
+				AActor* Owner = SceneComp->GetOwner();
+				if (IsValid(Owner))
+				{
+					TArray<UPrimitiveComponent*> Components;
+					Owner->GetComponents<UPrimitiveComponent>(Components);
+					for (UPrimitiveComponent* Prim : Components)
+					{
+						if (Prim)
+						{
+							Component = Prim;
+							break;
+						}
+					}
+				}
+			}
 			if (!IsValid(Component))
 			{
 				continue;
@@ -534,9 +656,10 @@ public:
 	TObjectPtr<UStaticMesh> CubeMesh = nullptr;
 	TUniquePtr<FAdvancedPreviewScene> PreviewScene;
 	TSharedPtr<FShipModuleEditorToolViewportClient> ViewportClient;
-	TArray<TObjectPtr<UStaticMeshComponent>> PreviewComponents;
+	TArray<TObjectPtr<USceneComponent>> PreviewComponents;
+	TArray<TObjectPtr<AActor>> PreviewActors;
 	TMap<const UPrimitiveComponent*, int32> ComponentToPartIndex;
-	TMap<int32, TWeakObjectPtr<UStaticMeshComponent>> PartIndexToComponent;
+	TMap<int32, TWeakObjectPtr<USceneComponent>> PartIndexToComponent;
 	int32 SelectedPartIndex = INDEX_NONE;
 	float PreviewFloorOffsetZ = 0.0f;
 	UE::Widget::EWidgetMode CurrentWidgetMode = UE::Widget::WM_Translate;
@@ -921,14 +1044,102 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 			.OnSelectionChanged(this, &FShipModuleEditorToolAssetEditor::OnPartSelectionChanged)
 		];
 
+	auto AddVisualPartFromAsset = [this](UStaticMesh* InMesh, UClass* InActorClass)
+	{
+		if (!InMesh && !InActorClass)
+		{
+			return;
+		}
+
+		UShipModuleVisualOverride* Override = ResolveEditableOverride(true);
+		if (!Override)
+		{
+			return;
+		}
+
+		const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "AddPartFromPicker", "Add Ship Module Part From Picker"));
+		Override->Modify();
+		FShipModuleVisualPart NewPart;
+		NewPart.Mesh = InMesh;
+		NewPart.ActorClass = InActorClass;
+		Override->VisualParts.Add(NewPart);
+		SelectedPartIndex = Override->VisualParts.Num() - 1;
+		Override->MarkPackageDirty();
+		OnRefreshPreview();
+		SelectPartIndex(SelectedPartIndex, false);
+	};
+
+	TSharedPtr<SComboButton> AddPartComboButton;
+	TSharedRef<SWidget> AddPartMenu =
+		SNew(SBox)
+		.WidthOverride(320.0f)
+		[
+		SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(8.0f, 8.0f, 8.0f, 2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("Static Mesh")))
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(8.0f, 0.0f, 8.0f, 6.0f))
+		[
+			SNew(SObjectPropertyEntryBox)
+			.AllowedClass(UStaticMesh::StaticClass())
+			.OnObjectChanged_Lambda([AddVisualPartFromAsset, &AddPartComboButton](const FAssetData& Asset)
+			{
+				if (UStaticMesh* Mesh = Cast<UStaticMesh>(Asset.GetAsset()))
+				{
+					AddVisualPartFromAsset(Mesh, nullptr);
+					if (AddPartComboButton.IsValid())
+					{
+						AddPartComboButton->SetIsOpen(false);
+					}
+				}
+			})
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(8.0f, 2.0f, 8.0f, 2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("Actor Blueprint")))
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(8.0f, 0.0f, 8.0f, 8.0f))
+		[
+			SNew(SObjectPropertyEntryBox)
+			.AllowedClass(UBlueprint::StaticClass())
+			.OnObjectChanged_Lambda([AddVisualPartFromAsset, &AddPartComboButton](const FAssetData& Asset)
+			{
+				UClass* ActorClass = ShipModuleEditorToolAssetEditorPrivate::ResolveActorClassFromAssetData(Asset);
+				if (ActorClass)
+				{
+					AddVisualPartFromAsset(nullptr, ActorClass);
+					if (AddPartComboButton.IsValid())
+					{
+						AddPartComboButton->SetIsOpen(false);
+					}
+				}
+			})
+		]
+		];
+
 	TSharedRef<SWidget> ActionButtons =
 		SNew(SUniformGridPanel)
 		.SlotPadding(FMargin(2.0f))
 		+ SUniformGridPanel::Slot(0, 0)
 		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Add")))
-			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnAddPart)
+			SAssignNew(AddPartComboButton, SComboButton)
+			.ButtonContent()
+			[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Добавить")))
+			]
+			.MenuContent()
+			[
+				AddPartMenu
+			]
 		]
 		+ SUniformGridPanel::Slot(1, 0)
 		[
@@ -941,12 +1152,6 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 			SNew(SButton)
 			.Text(FText::FromString(TEXT("Remove")))
 			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnRemovePart)
-		]
-		+ SUniformGridPanel::Slot(0, 1)
-		[
-			SNew(SButton)
-			.Text(FText::FromString(TEXT("Use Selected Asset")))
-			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnUseSelectedAsset)
 		];
 
 	auto GetSelectedTransform = [this]() -> const FTransform*
@@ -1341,6 +1546,12 @@ TSharedRef<ITableRow> FShipModuleEditorToolAssetEditor::GeneratePartRow(TSharedP
 			{
 				Label = FString::Printf(TEXT("%d: %s"), Index, *Mesh->GetName());
 			}
+			else if (UClass* ActorClass = Override->VisualParts[Index].ActorClass.IsNull()
+				? nullptr
+				: Override->VisualParts[Index].ActorClass.LoadSynchronous())
+			{
+				Label = FString::Printf(TEXT("%d: %s (Actor)"), Index, *ActorClass->GetName());
+			}
 		}
 	}
 
@@ -1430,17 +1641,45 @@ FReply FShipModuleEditorToolAssetEditor::OnAddPart()
 	{
 		return FReply::Handled();
 	}
+
+	TArray<FAssetData> SelectedAssets;
+	FContentBrowserModule& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	ContentBrowser.Get().GetSelectedAssets(SelectedAssets);
+
+	UStaticMesh* SelectedMesh = nullptr;
+	UClass* SelectedActorClass = nullptr;
+	for (const FAssetData& Asset : SelectedAssets)
+	{
+		if (!SelectedMesh && Asset.GetClass()->IsChildOf(UStaticMesh::StaticClass()))
+		{
+			SelectedMesh = Cast<UStaticMesh>(Asset.GetAsset());
+		}
+		if (!SelectedActorClass)
+		{
+			SelectedActorClass = ShipModuleEditorToolAssetEditorPrivate::ResolveActorClassFromAssetData(Asset);
+		}
+		if (SelectedMesh || SelectedActorClass)
+		{
+			break;
+		}
+	}
+
+	// Add only supported visual assets: static meshes or placeable actor classes.
+	if (!SelectedMesh && !SelectedActorClass)
+	{
+		return FReply::Handled();
+	}
 	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "AddPart", "Add Ship Module Part"));
 	Override->Modify();
 
 	FShipModuleVisualPart NewPart;
-	if (ToolAsset && ToolAsset->DefaultPartMesh)
-	{
-		NewPart.Mesh = ToolAsset->DefaultPartMesh;
-	}
+	NewPart.Mesh = SelectedMesh;
+	NewPart.ActorClass = SelectedActorClass;
 	Override->VisualParts.Add(NewPart);
+	SelectedPartIndex = Override->VisualParts.Num() - 1;
 	Override->MarkPackageDirty();
 	OnRefreshPreview();
+	SelectPartIndex(SelectedPartIndex, false);
 	return FReply::Handled();
 }
 
@@ -1488,6 +1727,7 @@ FReply FShipModuleEditorToolAssetEditor::OnUseSelectedAsset()
 	ContentBrowser.Get().GetSelectedAssets(SelectedAssets);
 
 	UStaticMesh* SelectedMesh = nullptr;
+	UClass* SelectedActorClass = nullptr;
 	for (const FAssetData& Asset : SelectedAssets)
 	{
 		if (Asset.GetClass()->IsChildOf(UStaticMesh::StaticClass()))
@@ -1498,22 +1738,29 @@ FReply FShipModuleEditorToolAssetEditor::OnUseSelectedAsset()
 				break;
 			}
 		}
+		SelectedActorClass = ShipModuleEditorToolAssetEditorPrivate::ResolveActorClassFromAssetData(Asset);
+		if (SelectedActorClass)
+		{
+			break;
+		}
 	}
-	if (!SelectedMesh)
+	if (!SelectedMesh && !SelectedActorClass)
 	{
 		return FReply::Handled();
 	}
-	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "AssignMesh", "Assign Mesh to Ship Module Part"));
+	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "AssignVisualAsset", "Assign Visual Asset to Ship Module Part"));
 	Override->Modify();
 
 	if (Override->VisualParts.IsValidIndex(SelectedPartIndex))
 	{
 		Override->VisualParts[SelectedPartIndex].Mesh = SelectedMesh;
+		Override->VisualParts[SelectedPartIndex].ActorClass = SelectedActorClass;
 	}
 	else
 	{
 		FShipModuleVisualPart NewPart;
 		NewPart.Mesh = SelectedMesh;
+		NewPart.ActorClass = SelectedActorClass;
 		Override->VisualParts.Add(NewPart);
 		SelectedPartIndex = Override->VisualParts.Num() - 1;
 	}
@@ -1565,7 +1812,8 @@ FReply FShipModuleEditorToolAssetEditor::OnPartsDragOver(const FGeometry& Geomet
 
 	for (const FAssetData& Asset : AssetOp->GetAssets())
 	{
-		if (Asset.GetClass()->IsChildOf(UStaticMesh::StaticClass()))
+		if (Asset.GetClass()->IsChildOf(UStaticMesh::StaticClass())
+			|| ShipModuleEditorToolAssetEditorPrivate::ResolveActorClassFromAssetData(Asset) != nullptr)
 		{
 			return FReply::Handled();
 		}
@@ -1586,19 +1834,24 @@ FReply FShipModuleEditorToolAssetEditor::OnPartsDrop(const FGeometry& Geometry, 
 	{
 		return FReply::Unhandled();
 	}
-	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "DropMeshes", "Drop Meshes to Ship Module Parts"));
+	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "DropVisualAssets", "Drop Visual Assets to Ship Module Parts"));
 	Override->Modify();
 
 	bool bApplied = false;
 	bool bUsedSelectionSlot = false;
 	for (const FAssetData& Asset : AssetOp->GetAssets())
 	{
-		if (!Asset.GetClass()->IsChildOf(UStaticMesh::StaticClass()))
+		UStaticMesh* Mesh = nullptr;
+		UClass* ActorClass = nullptr;
+		if (Asset.GetClass()->IsChildOf(UStaticMesh::StaticClass()))
 		{
-			continue;
+			Mesh = Cast<UStaticMesh>(Asset.GetAsset());
 		}
-		UStaticMesh* Mesh = Cast<UStaticMesh>(Asset.GetAsset());
-		if (!Mesh)
+		else
+		{
+			ActorClass = ShipModuleEditorToolAssetEditorPrivate::ResolveActorClassFromAssetData(Asset);
+		}
+		if (!Mesh && !ActorClass)
 		{
 			continue;
 		}
@@ -1606,12 +1859,14 @@ FReply FShipModuleEditorToolAssetEditor::OnPartsDrop(const FGeometry& Geometry, 
 		if (!bUsedSelectionSlot && Override->VisualParts.IsValidIndex(SelectedPartIndex))
 		{
 			Override->VisualParts[SelectedPartIndex].Mesh = Mesh;
+			Override->VisualParts[SelectedPartIndex].ActorClass = ActorClass;
 			bUsedSelectionSlot = true;
 		}
 		else
 		{
 			FShipModuleVisualPart NewPart;
 			NewPart.Mesh = Mesh;
+			NewPart.ActorClass = ActorClass;
 			Override->VisualParts.Add(NewPart);
 			SelectedPartIndex = Override->VisualParts.Num() - 1;
 		}

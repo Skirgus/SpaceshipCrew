@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "GameFramework/Actor.h"
 #include "ShipModuleTypes.h"
 #include "ShipModuleVisualOverride.generated.h"
 
@@ -17,6 +18,10 @@ struct FShipModuleVisualPart
 	/** Меш элемента. Если не задан — запись игнорируется. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
 	TObjectPtr<UStaticMesh> Mesh = nullptr;
+
+	/** Опциональный actor class для элемента (например, кресло/консоль как Blueprint Actor). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
+	TSoftClassPtr<AActor> ActorClass;
 
 	/** Локальный transform элемента относительно центра модуля. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
