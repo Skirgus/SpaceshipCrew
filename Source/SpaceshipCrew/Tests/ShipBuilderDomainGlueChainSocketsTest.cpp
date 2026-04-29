@@ -9,6 +9,7 @@
 #include "ShipBuilder/ShipBuilderDomainGlue.h"
 #include "ShipModule/ShipBuildDomain.h"
 #include "ShipModule/ShipModuleDefinition.h"
+#include "ShipModule/ShipModuleVisualOverride.h"
 
 namespace ShipBuilderDomainGlueChainSocketsTestPrivate
 {
@@ -130,6 +131,78 @@ bool FShipBuilderDomainGlueChainSocketsTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("MiddleUsesTwoDistinctSockets"), MidSockets.Num(), 2);
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipBuilderDomainGlueChainResolvesOverrideSocketsTest,
+	"SpaceshipCrew.ShipBuilder.DomainGlue.ResolvesOverrideSockets",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+
+bool FShipBuilderDomainGlueChainResolvesOverrideSocketsTest::RunTest(const FString& Parameters)
+{
+	using namespace ShipBuilderDomainGlueChainSocketsTestPrivate;
+
+	FTestResolver Resolver;
+
+	UShipModuleDefinition* Root = MakeDefinition(
+		TEXT("RootBridgeOverride"),
+		EShipModuleType::Bridge,
+		{ TEXT("Front") },
+		{ EShipModuleType::Corridor });
+
+	UShipModuleDefinition* Middle = MakeDefinition(
+		TEXT("MidCorridorOverride"),
+		EShipModuleType::Corridor,
+		{ TEXT("A"), TEXT("B") },
+		{ EShipModuleType::Bridge, EShipModuleType::Corridor });
+
+	UShipModuleVisualOverride* MiddleOverride = NewObject<UShipModuleVisualOverride>();
+	MiddleOverride->bOverrideContactPoints = true;
+	MiddleOverride->ContactPointsOverride.Reset();
+	FShipModuleContactPoint OverrideCp;
+	OverrideCp.SocketName = TEXT("OnlyOverride");
+	OverrideCp.SocketType = EShipModuleSocketType::Horizontal;
+	MiddleOverride->ContactPointsOverride.Add(OverrideCp);
+	Middle->VisualOverride = MiddleOverride;
+
+	UShipModuleDefinition* Tail = MakeDefinition(
+		TEXT("TailCorridorOverride"),
+		EShipModuleType::Corridor,
+		{ TEXT("Rear") },
+		{ EShipModuleType::Corridor });
+
+	Resolver.Add(Root);
+	Resolver.Add(Middle);
+	Resolver.Add(Tail);
+
+	FShipBuilderDraftConfig Draft;
+	Draft.ModuleIds = { Root->ModuleId, Middle->ModuleId, Tail->ModuleId };
+
+	FShipBuildDomainModel Model(Resolver);
+	FString Error;
+	const bool bBuilt = SpaceshipCrew_BuildDomainFromDraftChain(Draft, Resolver, Model, Error);
+	TestTrue(FString::Printf(TEXT("BuildChainWithOverrideSockets: %s"), *Error), bBuilt);
+	if (!bBuilt)
+	{
+		return false;
+	}
+
+	TSet<FName> MiddleUsedSockets;
+	for (const FShipBuildModuleConnection& Connection : Model.GetConnections())
+	{
+		if (Connection.ModuleAInstanceId == TEXT("Draft1"))
+		{
+			MiddleUsedSockets.Add(Connection.ModuleASocketName);
+		}
+		if (Connection.ModuleBInstanceId == TEXT("Draft1"))
+		{
+			MiddleUsedSockets.Add(Connection.ModuleBSocketName);
+		}
+	}
+
+	TestEqual(TEXT("MiddleShouldUseSingleOverrideSocket"), MiddleUsedSockets.Num(), 1);
+	TestTrue(TEXT("MiddleUsesOverrideSocketName"), MiddleUsedSockets.Contains(TEXT("OnlyOverride")));
 	return true;
 }
 

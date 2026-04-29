@@ -29,6 +29,14 @@ public:
 	/** Скопировать контактные точки ModuleDefinition в override и включить их использование. */
 	UFUNCTION(CallInEditor, Category = "ShipBuilder|Editor Tool")
 	void CopyContactPointsToOverride();
+
+	/** Добавить новую контактную точку в override (для authoring сокетов в editor tool). */
+	UFUNCTION(CallInEditor, Category = "ShipBuilder|Editor Tool")
+	void AddContactPointToOverride();
+
+	/** Удалить последнюю контактную точку из override. */
+	UFUNCTION(CallInEditor, Category = "ShipBuilder|Editor Tool")
+	void RemoveLastContactPointFromOverride();
 #endif
 
 	/** Модуль, который редактируется. */

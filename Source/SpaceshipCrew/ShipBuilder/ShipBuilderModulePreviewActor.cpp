@@ -2,6 +2,8 @@
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "ShipBuilder/ShipBuilderDomainGlue.h"
+#include "ShipModule/ShipBuildDomain.h"
 #include "ShipModule/ShipModuleCatalog.h"
 #include "ShipModule/ShipModuleDefinition.h"
 #include "ShipModule/ShipModuleTypes.h"
@@ -207,6 +209,11 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 	TArray<FResolvedModule> Resolved;
 	Resolved.Reserve(Draft.ModuleIds.Num());
 
+	FCatalogShipBuildModuleResolver Resolver(Catalog);
+	FShipBuildDomainModel DomainModel(Resolver);
+	FString BuildDomainError;
+	const bool bHasDomainChain = SpaceshipCrew_BuildDomainFromDraftChain(Draft, Resolver, DomainModel, BuildDomainError);
+
 	float CursorX = 0.0f;
 	for (const FName ModuleId : Draft.ModuleIds)
 	{
@@ -272,8 +279,77 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 			continue;
 		}
 
-		const bool bHasPrevInterior = Index > 0 && Resolved[Index - 1].Def && Resolved[Index - 1].Def->bHasInterior;
-		const bool bHasNextInterior = Index + 1 < Resolved.Num() && Resolved[Index + 1].Def && Resolved[Index + 1].Def->bHasInterior;
+		const FName CurrentInstanceId = *FString::Printf(TEXT("Draft%d"), Index);
+		bool bOpenBackBySocket = false;
+		bool bOpenFrontBySocket = false;
+		if (bHasDomainChain)
+		{
+			auto IsDoorwaySocket = [Def](const FName SocketName) -> bool
+			{
+				for (const FShipModuleContactPoint& CP : Def->GetResolvedContactPoints())
+				{
+					if (CP.SocketName == SocketName)
+					{
+						return CP.SocketType == EShipModuleSocketType::Horizontal
+							|| CP.SocketType == EShipModuleSocketType::Universal;
+					}
+				}
+				return false;
+			};
+
+			for (const FShipBuildModuleConnection& Connection : DomainModel.GetConnections())
+			{
+				const bool bCurrentAsA = Connection.ModuleAInstanceId == CurrentInstanceId;
+				const bool bCurrentAsB = Connection.ModuleBInstanceId == CurrentInstanceId;
+				if (!bCurrentAsA && !bCurrentAsB)
+				{
+					continue;
+				}
+
+				const FName OtherInstanceId = bCurrentAsA ? Connection.ModuleBInstanceId : Connection.ModuleAInstanceId;
+				const FName CurrentSocketName = bCurrentAsA ? Connection.ModuleASocketName : Connection.ModuleBSocketName;
+				const FString OtherInstanceString = OtherInstanceId.ToString();
+				if (!OtherInstanceString.StartsWith(TEXT("Draft")))
+				{
+					continue;
+				}
+				const int32 OtherIndex = FCString::Atoi(*OtherInstanceString.RightChop(5));
+				if (!Resolved.IsValidIndex(OtherIndex) || !Resolved[OtherIndex].Def)
+				{
+					continue;
+				}
+
+				const UShipModuleDefinition* OtherDef = Resolved[OtherIndex].Def;
+				const FName OtherSocketName = bCurrentAsA ? Connection.ModuleBSocketName : Connection.ModuleASocketName;
+				const bool bDoorwayPair = IsDoorwaySocket(CurrentSocketName)
+					&& [OtherDef, OtherSocketName]()
+					{
+						for (const FShipModuleContactPoint& CP : OtherDef->GetResolvedContactPoints())
+						{
+							if (CP.SocketName == OtherSocketName)
+							{
+								return CP.SocketType == EShipModuleSocketType::Horizontal
+									|| CP.SocketType == EShipModuleSocketType::Universal;
+							}
+						}
+						return false;
+					}();
+				if (!bDoorwayPair)
+				{
+					continue;
+				}
+
+				if (OtherIndex < Index)
+				{
+					bOpenBackBySocket = true;
+				}
+				else if (OtherIndex > Index)
+				{
+					bOpenFrontBySocket = true;
+				}
+			}
+		}
+
 		const bool bForceFrontOpening = ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Front);
 		const bool bForceBackOpening = ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Back);
 		const bool bForceLeftOpening = ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Left);
@@ -321,7 +397,7 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 		}
 
 		// Тыльная и фронтальная стенки. На стыке interior-модулей ставим рамку дверного проёма.
-		if (!bHasPrevInterior && !bForceBackOpening)
+		if (!bOpenBackBySocket && !bForceBackOpening)
 		{
 			AddShellPanel(PanelPool, DamagedPool, Center + FVector(-X * 0.5f + T * 0.5f, 0.0f, 0.0f), FVector(T, Y, Z), GlobalPanelOrdinal);
 		}
@@ -330,7 +406,7 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 			AddDoorOpeningFrame(FramePool, Center + FVector(-X * 0.5f + T * 0.5f, 0.0f, 0.0f), T, Y, Z, true);
 		}
 
-		if (!bHasNextInterior && !bForceFrontOpening)
+		if (!bOpenFrontBySocket && !bForceFrontOpening)
 		{
 			AddShellPanel(PanelPool, DamagedPool, Center + FVector(X * 0.5f - T * 0.5f, 0.0f, 0.0f), FVector(T, Y, Z), GlobalPanelOrdinal);
 		}

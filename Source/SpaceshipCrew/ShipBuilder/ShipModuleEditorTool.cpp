@@ -71,6 +71,79 @@ void UShipModuleEditorTool::CopyContactPointsToOverride()
 	UE_LOG(LogTemp, Log, TEXT("ShipModuleEditorTool: ContactPoints скопированы в override '%s'."), *OverrideAsset->GetName());
 }
 
+void UShipModuleEditorTool::AddContactPointToOverride()
+{
+	UShipModuleVisualOverride* OverrideAsset = ResolveOrCreateOverrideAsset();
+	if (!OverrideAsset)
+	{
+		return;
+	}
+
+	OverrideAsset->Modify();
+	OverrideAsset->bOverrideContactPoints = true;
+
+	FShipModuleContactPoint NewPoint;
+	if (TargetModuleDefinition)
+	{
+		const FVector Size = TargetModuleDefinition->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f));
+		NewPoint.RelativeLocation = FVector(Size.X * 0.5f, 0.0f, 0.0f);
+	}
+	else
+	{
+		NewPoint.RelativeLocation = FVector(100.0f, 0.0f, 0.0f);
+	}
+	NewPoint.RelativeRotation = FRotator::ZeroRotator;
+	NewPoint.SocketType = EShipModuleSocketType::Horizontal;
+
+	int32 Suffix = OverrideAsset->ContactPointsOverride.Num();
+	FName CandidateName = *FString::Printf(TEXT("Socket_%d"), Suffix);
+	while (OverrideAsset->ContactPointsOverride.ContainsByPredicate(
+		[CandidateName](const FShipModuleContactPoint& Existing)
+		{
+			return Existing.SocketName == CandidateName;
+		}))
+	{
+		++Suffix;
+		CandidateName = *FString::Printf(TEXT("Socket_%d"), Suffix);
+	}
+	NewPoint.SocketName = CandidateName;
+
+	OverrideAsset->ContactPointsOverride.Add(NewPoint);
+	OverrideAsset->MarkPackageDirty();
+
+	if (bAutoAssignOverrideToDefinition && TargetModuleDefinition)
+	{
+		TargetModuleDefinition->Modify();
+		TargetModuleDefinition->VisualOverride = OverrideAsset;
+		TargetModuleDefinition->MarkPackageDirty();
+	}
+
+	MarkPackageDirty();
+}
+
+void UShipModuleEditorTool::RemoveLastContactPointFromOverride()
+{
+	UShipModuleVisualOverride* OverrideAsset = ResolveOrCreateOverrideAsset();
+	if (!OverrideAsset || OverrideAsset->ContactPointsOverride.Num() == 0)
+	{
+		return;
+	}
+
+	OverrideAsset->Modify();
+	OverrideAsset->bOverrideContactPoints = true;
+	OverrideAsset->ContactPointsOverride.RemoveAt(OverrideAsset->ContactPointsOverride.Num() - 1);
+	OverrideAsset->MarkPackageDirty();
+
+	if (bAutoAssignOverrideToDefinition && TargetModuleDefinition)
+	{
+		TargetModuleDefinition->Modify();
+		TargetModuleDefinition->VisualOverride = OverrideAsset;
+		TargetModuleDefinition->MarkPackageDirty();
+	}
+
+	MarkPackageDirty();
+}
+
 UShipModuleVisualOverride* UShipModuleEditorTool::ResolveOrCreateOverrideAsset()
 {
 	if (TargetVisualOverride)

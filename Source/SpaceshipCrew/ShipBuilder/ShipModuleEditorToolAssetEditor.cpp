@@ -10,8 +10,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "EditorViewportClient.h"
+#include "CanvasItem.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Blueprint.h"
+#include "Engine/Canvas.h"
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
@@ -30,6 +32,7 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SGridPanel.h"
@@ -40,6 +43,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Engine/Engine.h"
 
 namespace ShipModuleEditorToolAssetEditorTabs
 {
@@ -50,6 +54,52 @@ static const FName Parts(TEXT("ShipModuleEditorTool_Parts"));
 
 namespace ShipModuleEditorToolAssetEditorPrivate
 {
+	static int32 GetProceduralPartIndexBySideIndex(const int32 SideIndex)
+	{
+		// Procedural panel order:
+		// 0 Bottom, 1 Top, 2 Left, 3 Right, 4 Back, 5 Front.
+		switch (SideIndex)
+		{
+		case 0: return 5; // Front
+		case 1: return 4; // Back
+		case 2: return 2; // Left
+		case 3: return 3; // Right
+		case 4: return 1; // Top
+		case 5: return 0; // Bottom
+		default: return INDEX_NONE;
+		}
+	}
+
+	static FText GetPanelDisplayNameBySideIndex(const int32 SideIndex)
+	{
+		switch (SideIndex)
+		{
+		case 0: return FText::FromString(TEXT("Front (+X)"));
+		case 1: return FText::FromString(TEXT("Back (-X)"));
+		case 2: return FText::FromString(TEXT("Left (-Y)"));
+		case 3: return FText::FromString(TEXT("Right (+Y)"));
+		case 4: return FText::FromString(TEXT("Top (+Z)"));
+		case 5: return FText::FromString(TEXT("Bottom (-Z)"));
+		default: return FText::FromString(TEXT("Unknown"));
+		}
+	}
+
+	static FText GetPanelDisplayNameByProceduralPartIndex(const int32 PartIndex)
+	{
+		// Procedural panel order in FillVisualPartsFromDefinition:
+		// 0 Bottom, 1 Top, 2 Left, 3 Right, 4 Back, 5 Front.
+		switch (PartIndex)
+		{
+		case 0: return GetPanelDisplayNameBySideIndex(5);
+		case 1: return GetPanelDisplayNameBySideIndex(4);
+		case 2: return GetPanelDisplayNameBySideIndex(2);
+		case 3: return GetPanelDisplayNameBySideIndex(3);
+		case 4: return GetPanelDisplayNameBySideIndex(1);
+		case 5: return GetPanelDisplayNameBySideIndex(0);
+		default: return FText::GetEmpty();
+		}
+	}
+
 	static UClass* ResolveActorClassFromAssetData(const FAssetData& Asset)
 	{
 		if (Asset.GetClass()->IsChildOf(UBlueprint::StaticClass()))
@@ -98,6 +148,7 @@ public:
 		FRotator& Rot,
 		FVector& Scale) override;
 	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
+	virtual void DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas) override;
 	virtual UE::Widget::EWidgetMode GetWidgetMode() const override;
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 	virtual bool InputAxis(const FInputKeyEventArgs& EventArgs) override;
@@ -112,6 +163,8 @@ class SShipModuleEditorToolViewport final : public SEditorViewport
 public:
 	SLATE_BEGIN_ARGS(SShipModuleEditorToolViewport) {}
 		SLATE_ARGUMENT(TFunction<void(int32)>, OnSelectPartFromViewport)
+		SLATE_ARGUMENT(TFunction<void(int32)>, OnSelectSocketFromViewport)
+		SLATE_ARGUMENT(TFunction<bool()>, IsSocketEditMode)
 		SLATE_ARGUMENT(TFunction<void()>, OnDuplicateSelectedFromViewport)
 		SLATE_ARGUMENT(TFunction<void()>, OnDeleteSelectedFromViewport)
 		SLATE_ARGUMENT(TFunction<void()>, OnUseSelectedAssetFromViewport)
@@ -125,6 +178,8 @@ public:
 		CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 		PreviewScene = MakeUnique<FAdvancedPreviewScene>(FPreviewScene::ConstructionValues());
 		OnSelectPartFromViewport = InArgs._OnSelectPartFromViewport;
+		OnSelectSocketFromViewport = InArgs._OnSelectSocketFromViewport;
+		IsSocketEditMode = InArgs._IsSocketEditMode;
 		OnDuplicateSelectedFromViewport = InArgs._OnDuplicateSelectedFromViewport;
 		OnDeleteSelectedFromViewport = InArgs._OnDeleteSelectedFromViewport;
 		OnUseSelectedAssetFromViewport = InArgs._OnUseSelectedAssetFromViewport;
@@ -346,9 +401,23 @@ private:
 	}
 
 public:
+	bool IsSocketModeEnabled() const
+	{
+		return IsSocketEditMode && IsSocketEditMode();
+	}
+
 	void SetSelectedPartIndex(const int32 NewIndex)
 	{
 		SelectedPartIndex = NewIndex;
+		if (ViewportClient.IsValid())
+		{
+			ViewportClient->Invalidate();
+		}
+	}
+
+	void SetSelectedSocketIndex(const int32 NewIndex)
+	{
+		SelectedSocketIndex = NewIndex;
 		if (ViewportClient.IsValid())
 		{
 			ViewportClient->Invalidate();
@@ -458,6 +527,101 @@ public:
 			+ FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
 	}
 
+	bool HasSelectedSocket() const
+	{
+		return ToolAsset.IsValid()
+			&& ToolAsset->TargetVisualOverride
+			&& ToolAsset->TargetVisualOverride->ContactPointsOverride.IsValidIndex(SelectedSocketIndex);
+	}
+
+	void DrawSocketMarkers(FPrimitiveDrawInterface* PDI) const
+	{
+		if (!PDI || !ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride)
+		{
+			return;
+		}
+		for (int32 SocketIndex = 0; SocketIndex < ToolAsset->TargetVisualOverride->ContactPointsOverride.Num(); ++SocketIndex)
+		{
+			const FShipModuleContactPoint& Socket = ToolAsset->TargetVisualOverride->ContactPointsOverride[SocketIndex];
+			const FVector SocketLocation = Socket.RelativeLocation + FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
+			const FVector Forward = Socket.RelativeRotation.Vector();
+			const bool bSelectedSocket = SocketIndex == SelectedSocketIndex;
+			const FLinearColor SocketColor = bSelectedSocket ? FLinearColor::Yellow : FLinearColor(0.1f, 0.7f, 1.0f);
+			DrawWireSphere(PDI, SocketLocation, SocketColor, 14.0f, 12, SDPG_Foreground, 1.5f);
+			PDI->DrawLine(SocketLocation, SocketLocation + Forward * 48.0f, SocketColor, SDPG_Foreground, 1.5f);
+		}
+	}
+
+	void DrawSocketOpeningGhosts(FPrimitiveDrawInterface* PDI) const
+	{
+		if (!PDI || !ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride || !ToolAsset->TargetModuleDefinition || !ToolAsset->TargetModuleDefinition->bHasInterior)
+		{
+			return;
+		}
+		for (int32 SocketIndex = 0; SocketIndex < ToolAsset->TargetVisualOverride->ContactPointsOverride.Num(); ++SocketIndex)
+		{
+			const FShipModuleContactPoint& Socket = ToolAsset->TargetVisualOverride->ContactPointsOverride[SocketIndex];
+			FVector OpeningCenter = FVector::ZeroVector;
+			FVector OpeningSize = FVector::ZeroVector;
+			if (!TryBuildSocketOpeningGhost(Socket, OpeningCenter, OpeningSize))
+			{
+				continue;
+			}
+			const FLinearColor GhostColor = (SocketIndex == SelectedSocketIndex)
+				? FLinearColor(0.35f, 1.0f, 0.35f, 0.55f)
+				: FLinearColor(0.30f, 0.80f, 1.0f, 0.35f);
+			DrawWireBox(PDI, FBox::BuildAABB(OpeningCenter, OpeningSize * 0.5f), GhostColor, SDPG_Foreground, 1.5f);
+
+			// Only top-mounted vertical socket previews ramp down into interior.
+			FVector RampCenter = FVector::ZeroVector;
+			FVector RampSize = FVector::ZeroVector;
+			if (TryBuildSocketRampGhost(Socket, RampCenter, RampSize))
+			{
+				DrawWireBox(PDI, FBox::BuildAABB(RampCenter, RampSize * 0.5f), GhostColor.CopyWithNewOpacity(0.45f), SDPG_Foreground, 1.2f);
+			}
+		}
+	}
+
+	void DrawSocketLabels(FSceneView& View, FCanvas& Canvas) const
+	{
+		if (!ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride)
+		{
+			return;
+		}
+		for (int32 SocketIndex = 0; SocketIndex < ToolAsset->TargetVisualOverride->ContactPointsOverride.Num(); ++SocketIndex)
+		{
+			const FShipModuleContactPoint& Socket = ToolAsset->TargetVisualOverride->ContactPointsOverride[SocketIndex];
+			const FVector SocketLocation = Socket.RelativeLocation + FVector(0.0f, 0.0f, PreviewFloorOffsetZ + 22.0f);
+			FVector2D ScreenPos;
+			if (!View.WorldToPixel(SocketLocation, ScreenPos))
+			{
+				continue;
+			}
+
+			const FString Label = Socket.SocketName.IsNone()
+				? FString::Printf(TEXT("Socket_%d"), SocketIndex)
+				: Socket.SocketName.ToString();
+
+			FCanvasTextItem TextItem(
+				ScreenPos,
+				FText::FromString(Label),
+				GEngine ? GEngine->GetSmallFont() : nullptr,
+				SocketIndex == SelectedSocketIndex ? FLinearColor::Yellow : FLinearColor::White);
+			TextItem.EnableShadow(FLinearColor::Black);
+			Canvas.DrawItem(TextItem);
+		}
+	}
+
+	FVector GetSelectedSocketWidgetLocation() const
+	{
+		if (!HasSelectedSocket())
+		{
+			return FVector::ZeroVector;
+		}
+		return ToolAsset->TargetVisualOverride->ContactPointsOverride[SelectedSocketIndex].RelativeLocation
+			+ FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
+	}
+
 	bool ApplyWidgetDeltaToSelectedPart(FVector& Drag, FRotator& Rot, FVector& Scale)
 	{
 		if (!HasSelectedPart())
@@ -492,8 +656,218 @@ public:
 		return true;
 	}
 
+	bool ApplyWidgetDeltaToSelectedSocket(FVector& Drag, FRotator& Rot)
+	{
+		if (!HasSelectedSocket())
+		{
+			return false;
+		}
+		const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "MoveSocket", "Move Ship Module Socket"));
+		ToolAsset->TargetVisualOverride->SetFlags(RF_Transactional);
+		ToolAsset->TargetVisualOverride->Modify();
+		const FShipModuleContactPoint Previous = ToolAsset->TargetVisualOverride->ContactPointsOverride[SelectedSocketIndex];
+		FShipModuleContactPoint& Socket = ToolAsset->TargetVisualOverride->ContactPointsOverride[SelectedSocketIndex];
+		Socket.RelativeLocation += Drag;
+		Socket.RelativeRotation += Rot;
+		SnapSocketToSurface(Socket);
+		if (!CanPlaceOpeningForSocket(Socket))
+		{
+			Socket = Previous;
+		}
+		ToolAsset->TargetVisualOverride->MarkPackageDirty();
+		return true;
+	}
+
+	void SnapSocketToSurface(FShipModuleContactPoint& InOutSocket) const
+	{
+		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition)
+		{
+			return;
+		}
+
+		const FVector Size = ToolAsset->TargetModuleDefinition->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f));
+		const FVector Half = Size * 0.5f;
+		FVector P = InOutSocket.RelativeLocation;
+
+		const float DistPosX = FMath::Abs(Half.X - P.X);
+		const float DistNegX = FMath::Abs(-Half.X - P.X);
+		const float DistPosY = FMath::Abs(Half.Y - P.Y);
+		const float DistNegY = FMath::Abs(-Half.Y - P.Y);
+		const float DistPosZ = FMath::Abs(Half.Z - P.Z);
+		const float DistNegZ = FMath::Abs(-Half.Z - P.Z);
+
+		enum class EFace : uint8 { PosX, NegX, PosY, NegY, PosZ, NegZ };
+		float BestDist = TNumericLimits<float>::Max();
+		EFace BestFace = EFace::PosX;
+		auto TryFace = [&BestDist, &BestFace](const float Dist, const EFace Face)
+		{
+			if (Dist < BestDist)
+			{
+				BestDist = Dist;
+				BestFace = Face;
+			}
+		};
+		TryFace(DistPosX, EFace::PosX);
+		TryFace(DistNegX, EFace::NegX);
+		TryFace(DistPosY, EFace::PosY);
+		TryFace(DistNegY, EFace::NegY);
+		TryFace(DistPosZ, EFace::PosZ);
+		TryFace(DistNegZ, EFace::NegZ);
+
+		P.X = FMath::Clamp(P.X, -Half.X, Half.X);
+		P.Y = FMath::Clamp(P.Y, -Half.Y, Half.Y);
+		P.Z = FMath::Clamp(P.Z, -Half.Z, Half.Z);
+
+		switch (BestFace)
+		{
+		case EFace::PosX:
+			P.X = Half.X;
+			InOutSocket.RelativeRotation = FRotator(0.0f, 0.0f, 0.0f);
+			break;
+		case EFace::NegX:
+			P.X = -Half.X;
+			InOutSocket.RelativeRotation = FRotator(0.0f, 180.0f, 0.0f);
+			break;
+		case EFace::PosY:
+			P.Y = Half.Y;
+			InOutSocket.RelativeRotation = FRotator(0.0f, 90.0f, 0.0f);
+			break;
+		case EFace::NegY:
+			P.Y = -Half.Y;
+			InOutSocket.RelativeRotation = FRotator(0.0f, -90.0f, 0.0f);
+			break;
+		case EFace::PosZ:
+			P.Z = Half.Z;
+			InOutSocket.RelativeRotation = FRotator(-90.0f, 0.0f, 0.0f);
+			break;
+		case EFace::NegZ:
+			P.Z = -Half.Z;
+			InOutSocket.RelativeRotation = FRotator(90.0f, 0.0f, 0.0f);
+			break;
+		}
+		if (InOutSocket.SocketType != EShipModuleSocketType::Universal)
+		{
+			const bool bHorizontalFace = BestFace == EFace::PosX || BestFace == EFace::NegX || BestFace == EFace::PosY || BestFace == EFace::NegY;
+			InOutSocket.SocketType = bHorizontalFace ? EShipModuleSocketType::Horizontal : EShipModuleSocketType::Vertical;
+		}
+
+		if (InOutSocket.SocketType != EShipModuleSocketType::Vertical)
+		{
+			const float HalfDoorWidth = 80.0f;
+			const float HalfDoorHeight = 110.0f;
+			if (BestFace == EFace::PosX || BestFace == EFace::NegX)
+			{
+				P.Y = FMath::Clamp(P.Y, -Half.Y + HalfDoorWidth, Half.Y - HalfDoorWidth);
+				P.Z = FMath::Clamp(P.Z, -Half.Z + HalfDoorHeight, Half.Z - HalfDoorHeight);
+			}
+			else if (BestFace == EFace::PosY || BestFace == EFace::NegY)
+			{
+				P.X = FMath::Clamp(P.X, -Half.X + HalfDoorWidth, Half.X - HalfDoorWidth);
+				P.Z = FMath::Clamp(P.Z, -Half.Z + HalfDoorHeight, Half.Z - HalfDoorHeight);
+			}
+		}
+		if (InOutSocket.SocketType != EShipModuleSocketType::Horizontal)
+		{
+			const float HalfHatch = 80.0f;
+			if (BestFace == EFace::PosZ || BestFace == EFace::NegZ)
+			{
+				P.X = FMath::Clamp(P.X, -Half.X + HalfHatch, Half.X - HalfHatch);
+				P.Y = FMath::Clamp(P.Y, -Half.Y + HalfHatch, Half.Y - HalfHatch);
+			}
+		}
+
+		InOutSocket.RelativeLocation = P;
+	}
+
+	bool TryBuildSocketOpeningGhost(const FShipModuleContactPoint& Socket, FVector& OutCenter, FVector& OutSize) const
+	{
+		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition)
+		{
+			return false;
+		}
+		const FVector Size = ToolAsset->TargetModuleDefinition->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f));
+		const FVector Half = Size * 0.5f;
+		const FVector P = Socket.RelativeLocation + FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
+		const float Thickness = 10.0f;
+		const float DoorWidth = 160.0f;
+		const float DoorHeight = 220.0f;
+		const float HatchSize = 160.0f;
+		const float Eps = 0.5f;
+
+		if (FMath::Abs(FMath::Abs(Socket.RelativeLocation.X) - Half.X) < Eps)
+		{
+			OutCenter = P;
+			OutSize = FVector(Thickness, DoorWidth, DoorHeight);
+			return Socket.SocketType != EShipModuleSocketType::Vertical
+				&& (FMath::Abs(Socket.RelativeLocation.Y) <= Half.Y - DoorWidth * 0.5f)
+				&& (FMath::Abs(Socket.RelativeLocation.Z) <= Half.Z - DoorHeight * 0.5f);
+		}
+		if (FMath::Abs(FMath::Abs(Socket.RelativeLocation.Y) - Half.Y) < Eps)
+		{
+			OutCenter = P;
+			OutSize = FVector(DoorWidth, Thickness, DoorHeight);
+			return Socket.SocketType != EShipModuleSocketType::Vertical
+				&& (FMath::Abs(Socket.RelativeLocation.X) <= Half.X - DoorWidth * 0.5f)
+				&& (FMath::Abs(Socket.RelativeLocation.Z) <= Half.Z - DoorHeight * 0.5f);
+		}
+		if (FMath::Abs(FMath::Abs(Socket.RelativeLocation.Z) - Half.Z) < Eps)
+		{
+			OutCenter = P;
+			OutSize = FVector(HatchSize, HatchSize, Thickness);
+			return Socket.SocketType != EShipModuleSocketType::Horizontal
+				&& (FMath::Abs(Socket.RelativeLocation.X) <= Half.X - HatchSize * 0.5f)
+				&& (FMath::Abs(Socket.RelativeLocation.Y) <= Half.Y - HatchSize * 0.5f);
+		}
+		return false;
+	}
+
+	bool TryBuildSocketRampGhost(const FShipModuleContactPoint& Socket, FVector& OutCenter, FVector& OutSize) const
+	{
+		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition || Socket.SocketType == EShipModuleSocketType::Horizontal)
+		{
+			return false;
+		}
+		const FVector Size = ToolAsset->TargetModuleDefinition->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f));
+		const FVector Half = Size * 0.5f;
+		const float Eps = 0.5f;
+
+		// Bottom socket: opening only, no ramp ghost.
+		if (FMath::Abs(Socket.RelativeLocation.Z + Half.Z) < Eps)
+		{
+			return false;
+		}
+
+		// Top socket: show narrow ramp volume from ceiling opening towards interior floor.
+		if (FMath::Abs(Socket.RelativeLocation.Z - Half.Z) < Eps)
+		{
+			const FVector P = Socket.RelativeLocation + FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
+			const float RampWidth = 100.0f;
+			const float RampDepth = 180.0f;
+			const float RampHeight = FMath::Max(60.0f, Size.Z * 0.5f);
+			OutCenter = P + FVector(0.0f, 0.0f, -RampHeight * 0.5f);
+			OutSize = FVector(RampWidth, RampDepth, RampHeight);
+			return true;
+		}
+		return false;
+	}
+
+	bool CanPlaceOpeningForSocket(const FShipModuleContactPoint& Socket) const
+	{
+		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition || !ToolAsset->TargetModuleDefinition->bHasInterior)
+		{
+			return true;
+		}
+		FVector DummyCenter = FVector::ZeroVector;
+		FVector DummySize = FVector::ZeroVector;
+		return TryBuildSocketOpeningGhost(Socket, DummyCenter, DummySize);
+	}
+
 	bool HandleViewportClickSelection(FViewport* InViewport)
 	{
+		if (IsSocketEditMode && IsSocketEditMode())
+		{
+			return false;
+		}
 		if (!ViewportClient.IsValid() || !InViewport)
 		{
 			return false;
@@ -503,6 +877,10 @@ public:
 
 	bool HandleViewportClickSelectionByScreen(const int32 MouseX, const int32 MouseY, const FSceneView* OptionalSceneView)
 	{
+		if (IsSocketEditMode && IsSocketEditMode())
+		{
+			return false;
+		}
 		if (!ViewportClient.IsValid())
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] ClickSelect: ViewportClient invalid"));
@@ -612,6 +990,62 @@ public:
 		return false;
 	}
 
+	bool HandleViewportSocketSelectionByScreen(const int32 MouseX, const int32 MouseY, const FSceneView* OptionalSceneView)
+	{
+		if (!ViewportClient.IsValid() || !ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride)
+		{
+			return false;
+		}
+		const FSceneView* SceneView = OptionalSceneView;
+		if (SceneView == nullptr)
+		{
+			FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
+				ViewportClient->Viewport,
+				ViewportClient->GetScene(),
+				ViewportClient->EngineShowFlags).SetRealtimeUpdate(ViewportClient->IsRealtime()));
+			SceneView = ViewportClient->CalcSceneView(&ViewFamily);
+		}
+		if (!SceneView)
+		{
+			return false;
+		}
+
+		FViewportCursorLocation Cursor(SceneView, ViewportClient.Get(), MouseX, MouseY);
+		const FVector RayStart = Cursor.GetOrigin();
+		const FVector RayDir = Cursor.GetDirection().GetSafeNormal();
+		constexpr float PickRadius = 35.0f;
+		const float PickRadiusSq = PickRadius * PickRadius;
+
+		int32 HitSocketIndex = INDEX_NONE;
+		float BestDistanceSq = TNumericLimits<float>::Max();
+		for (int32 Index = 0; Index < ToolAsset->TargetVisualOverride->ContactPointsOverride.Num(); ++Index)
+		{
+			const FShipModuleContactPoint& Socket = ToolAsset->TargetVisualOverride->ContactPointsOverride[Index];
+			const FVector SocketLocation = Socket.RelativeLocation + FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
+			const FVector ToSocket = SocketLocation - RayStart;
+			const float Projection = FVector::DotProduct(ToSocket, RayDir);
+			if (Projection <= 0.0f)
+			{
+				continue;
+			}
+			const FVector ClosestPoint = RayStart + RayDir * Projection;
+			const float DistanceSq = FVector::DistSquared(SocketLocation, ClosestPoint);
+			if (DistanceSq > PickRadiusSq || DistanceSq >= BestDistanceSq)
+			{
+				continue;
+			}
+			BestDistanceSq = DistanceSq;
+			HitSocketIndex = Index;
+		}
+
+		if (HitSocketIndex == INDEX_NONE || !OnSelectSocketFromViewport)
+		{
+			return false;
+		}
+		OnSelectSocketFromViewport(HitSocketIndex);
+		return true;
+	}
+
 	void RequestDuplicateSelected()
 	{
 		if (OnDuplicateSelectedFromViewport)
@@ -661,9 +1095,12 @@ public:
 	TMap<const UPrimitiveComponent*, int32> ComponentToPartIndex;
 	TMap<int32, TWeakObjectPtr<USceneComponent>> PartIndexToComponent;
 	int32 SelectedPartIndex = INDEX_NONE;
+	int32 SelectedSocketIndex = INDEX_NONE;
 	float PreviewFloorOffsetZ = 0.0f;
 	UE::Widget::EWidgetMode CurrentWidgetMode = UE::Widget::WM_Translate;
 	TFunction<void(int32)> OnSelectPartFromViewport;
+	TFunction<void(int32)> OnSelectSocketFromViewport;
+	TFunction<bool()> IsSocketEditMode;
 	TFunction<void()> OnDuplicateSelectedFromViewport;
 	TFunction<void()> OnDeleteSelectedFromViewport;
 	TFunction<void()> OnUseSelectedAssetFromViewport;
@@ -674,7 +1111,12 @@ public:
 FVector FShipModuleEditorToolViewportClient::GetWidgetLocation() const
 {
 	const TSharedPtr<SShipModuleEditorToolViewport> Pinned = OwnerViewport.Pin();
-	return Pinned.IsValid() ? Pinned->GetSelectedPartWidgetLocation() : FVector::ZeroVector;
+	if (!Pinned.IsValid())
+	{
+		return FVector::ZeroVector;
+	}
+	const bool bSocketMode = Pinned->IsSocketModeEnabled();
+	return bSocketMode ? Pinned->GetSelectedSocketWidgetLocation() : Pinned->GetSelectedPartWidgetLocation();
 }
 
 bool FShipModuleEditorToolViewportClient::InputWidgetDelta(
@@ -685,7 +1127,16 @@ bool FShipModuleEditorToolViewportClient::InputWidgetDelta(
 	FVector& Scale)
 {
 	const TSharedPtr<SShipModuleEditorToolViewport> Pinned = OwnerViewport.Pin();
-	if (Pinned.IsValid() && Pinned->ApplyWidgetDeltaToSelectedPart(Drag, Rot, Scale))
+	if (!Pinned.IsValid())
+	{
+		return FEditorViewportClient::InputWidgetDelta(InViewport, CurrentAxis, Drag, Rot, Scale);
+	}
+	const bool bSocketMode = Pinned->IsSocketModeEnabled();
+	if (bSocketMode && Pinned->ApplyWidgetDeltaToSelectedSocket(Drag, Rot))
+	{
+		return true;
+	}
+	if (!bSocketMode && Pinned->ApplyWidgetDeltaToSelectedPart(Drag, Rot, Scale))
 	{
 		return true;
 	}
@@ -702,6 +1153,9 @@ void FShipModuleEditorToolViewportClient::Draw(const FSceneView* View, FPrimitiv
 		return;
 	}
 
+	Pinned->DrawSocketMarkers(PDI);
+	Pinned->DrawSocketOpeningGhosts(PDI);
+
 	FBox SelectedBounds(EForceInit::ForceInitToZero);
 	if (!Pinned->GetSelectedPartBounds(SelectedBounds))
 	{
@@ -712,10 +1166,31 @@ void FShipModuleEditorToolViewportClient::Draw(const FSceneView* View, FPrimitiv
 	DrawWireBox(PDI, SelectedBounds.ExpandBy(Expand), FLinearColor::Yellow, SDPG_Foreground, 1.5f);
 }
 
+void FShipModuleEditorToolViewportClient::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)
+{
+	FEditorViewportClient::DrawCanvas(InViewport, View, Canvas);
+
+	const TSharedPtr<SShipModuleEditorToolViewport> Pinned = OwnerViewport.Pin();
+	if (!Pinned.IsValid())
+	{
+		return;
+	}
+	Pinned->DrawSocketLabels(View, Canvas);
+}
+
 UE::Widget::EWidgetMode FShipModuleEditorToolViewportClient::GetWidgetMode() const
 {
 	const TSharedPtr<SShipModuleEditorToolViewport> Pinned = OwnerViewport.Pin();
-	if (!Pinned.IsValid() || !Pinned->HasSelectedPart())
+	if (!Pinned.IsValid())
+	{
+		return UE::Widget::WM_None;
+	}
+	const bool bSocketMode = Pinned->IsSocketModeEnabled();
+	if (bSocketMode)
+	{
+		return Pinned->HasSelectedSocket() ? Pinned->GetTransformWidgetMode() : UE::Widget::WM_None;
+	}
+	if (!Pinned->HasSelectedPart())
 	{
 		return UE::Widget::WM_None;
 	}
@@ -867,7 +1342,11 @@ void FShipModuleEditorToolViewportClient::ProcessClick(FSceneView& View, HHitPro
 		}
 
 		UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] ProcessClick: LMB pressed at (%u, %u)"), HitX, HitY);
-		if (Pinned->HandleViewportClickSelectionByScreen(static_cast<int32>(HitX), static_cast<int32>(HitY), &View))
+		const bool bSocketMode = Pinned->IsSocketModeEnabled();
+		const bool bHandled = bSocketMode
+			? Pinned->HandleViewportSocketSelectionByScreen(static_cast<int32>(HitX), static_cast<int32>(HitY), &View)
+			: Pinned->HandleViewportClickSelectionByScreen(static_cast<int32>(HitX), static_cast<int32>(HitY), &View);
+		if (bHandled)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] ProcessClick: selection handled"));
 			return;
@@ -899,6 +1378,14 @@ void FShipModuleEditorToolAssetEditor::InitEditor(
 		.OnSelectPartFromViewport([this](int32 Index)
 		{
 			SelectPartIndex(Index, true);
+		})
+		.OnSelectSocketFromViewport([this](int32 Index)
+		{
+			SelectSocketIndex(Index);
+		})
+		.IsSocketEditMode([this]()
+		{
+			return bSocketEditMode;
 		})
 		.OnDuplicateSelectedFromViewport([this]()
 		{
@@ -1034,6 +1521,7 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnDetailsTab(const FSp
 TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpawnTabArgs& Args)
 {
 	RebuildPartItems();
+	RebuildSocketItems();
 
 	TSharedRef<SWidget> ListArea =
 		SNew(SBorder)
@@ -1384,6 +1872,278 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 			})
 		];
 
+	TSharedRef<SWidget> SocketsListArea =
+		SNew(SBorder)
+		[
+			SAssignNew(SocketsListView, SListView<TSharedPtr<int32>>)
+			.ListItemsSource(&SocketItems)
+			.OnGenerateRow(this, &FShipModuleEditorToolAssetEditor::GenerateSocketRow)
+			.OnSelectionChanged(this, &FShipModuleEditorToolAssetEditor::OnSocketSelectionChanged)
+		];
+
+	auto GetSelectedSocket = [this]() -> FShipModuleContactPoint*
+	{
+		if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+		{
+			if (Override->ContactPointsOverride.IsValidIndex(SelectedSocketIndex))
+			{
+				return &Override->ContactPointsOverride[SelectedSocketIndex];
+			}
+		}
+		return nullptr;
+	};
+
+	auto CommitSelectedSocket = [this](TFunctionRef<void(FShipModuleContactPoint&)> Mutator)
+	{
+		UShipModuleVisualOverride* Override = ResolveEditableOverride(false);
+		if (!Override || !Override->ContactPointsOverride.IsValidIndex(SelectedSocketIndex))
+		{
+			return;
+		}
+		const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "EditSocketFields", "Edit Ship Module Socket"));
+		Override->Modify();
+		Override->bOverrideContactPoints = true;
+		const FShipModuleContactPoint PreviousSocket = Override->ContactPointsOverride[SelectedSocketIndex];
+		Mutator(Override->ContactPointsOverride[SelectedSocketIndex]);
+		SnapSocketToModuleSurface(Override->ContactPointsOverride[SelectedSocketIndex]);
+		if (!CanPlaceSocketOpening(Override->ContactPointsOverride[SelectedSocketIndex]))
+		{
+			Override->ContactPointsOverride[SelectedSocketIndex] = PreviousSocket;
+		}
+		Override->MarkPackageDirty();
+		OnRefreshPreview();
+		SelectSocketIndex(SelectedSocketIndex);
+	};
+
+	auto GetSocketValue = [GetSelectedSocket](int32 Row, int32 Axis) -> TOptional<float>
+	{
+		const FShipModuleContactPoint* Socket = GetSelectedSocket();
+		if (!Socket)
+		{
+			return TOptional<float>();
+		}
+		if (Row == 0)
+		{
+			return Axis == 0 ? Socket->RelativeLocation.X : (Axis == 1 ? Socket->RelativeLocation.Y : Socket->RelativeLocation.Z);
+		}
+		return Axis == 0 ? Socket->RelativeRotation.Roll : (Axis == 1 ? Socket->RelativeRotation.Pitch : Socket->RelativeRotation.Yaw);
+	};
+
+	auto GetSocketTypeLabel = [](const TCHAR* Label) -> FText
+	{
+		return FText::FromString(Label);
+	};
+
+	auto GetSocketTypeButtonColor = [GetSelectedSocket](const EShipModuleSocketType CandidateType) -> FSlateColor
+	{
+		const FShipModuleContactPoint* Socket = GetSelectedSocket();
+		const bool bSelected = Socket && Socket->SocketType == CandidateType;
+		return bSelected
+			? FSlateColor(FLinearColor(0.22f, 0.45f, 0.85f, 1.0f))
+			: FSlateColor::UseForeground();
+	};
+
+	TSharedRef<SGridPanel> SocketTransformGrid =
+		SNew(SGridPanel)
+		.FillColumn(0, 0.9f)
+		.FillColumn(1, 1.0f)
+		.FillColumn(2, 1.0f)
+		.FillColumn(3, 1.0f)
+		+ SGridPanel::Slot(0, 0).Padding(FMargin(2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("")))
+		]
+		+ SGridPanel::Slot(1, 0).Padding(FMargin(2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("X")))
+		]
+		+ SGridPanel::Slot(2, 0).Padding(FMargin(2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("Y")))
+		]
+		+ SGridPanel::Slot(3, 0).Padding(FMargin(2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("Z")))
+		]
+		+ SGridPanel::Slot(0, 1).Padding(FMargin(2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("Location")))
+		]
+		+ SGridPanel::Slot(0, 2).Padding(FMargin(2.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("Rotation")))
+		];
+
+	for (int32 Row = 0; Row < 2; ++Row)
+	{
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			const int32 LocalRow = Row;
+			const int32 LocalAxis = Axis;
+			SocketTransformGrid->AddSlot(LocalAxis + 1, LocalRow + 1)
+			.Padding(FMargin(2.0f))
+			[
+				SNew(SNumericEntryBox<float>)
+				.MinDesiredValueWidth(70.0f)
+				.Value_Lambda([GetSocketValue, LocalRow, LocalAxis]()
+				{
+					return GetSocketValue(LocalRow, LocalAxis);
+				})
+				.OnValueCommitted_Lambda([CommitSelectedSocket, LocalRow, LocalAxis](float NewValue, ETextCommit::Type)
+				{
+					CommitSelectedSocket([LocalRow, LocalAxis, NewValue](FShipModuleContactPoint& Socket)
+					{
+						if (LocalRow == 0)
+						{
+							if (LocalAxis == 0) Socket.RelativeLocation.X = NewValue;
+							else if (LocalAxis == 1) Socket.RelativeLocation.Y = NewValue;
+							else Socket.RelativeLocation.Z = NewValue;
+						}
+						else
+						{
+							if (LocalAxis == 0) Socket.RelativeRotation.Roll = NewValue;
+							else if (LocalAxis == 1) Socket.RelativeRotation.Pitch = NewValue;
+							else Socket.RelativeRotation.Yaw = NewValue;
+						}
+					});
+				})
+			];
+		}
+	}
+
+	TSharedRef<SWidget> SocketTypeButtons =
+		SNew(SUniformGridPanel)
+		.SlotPadding(FMargin(2.0f))
+		+ SUniformGridPanel::Slot(0, 0)
+		[
+			SNew(SButton)
+			.Text_Lambda([GetSocketTypeLabel]()
+			{
+				return GetSocketTypeLabel(TEXT("Horizontal"));
+			})
+			.ButtonColorAndOpacity_Lambda([GetSocketTypeButtonColor]()
+			{
+				return GetSocketTypeButtonColor(EShipModuleSocketType::Horizontal);
+			})
+			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnSetSocketType, EShipModuleSocketType::Horizontal)
+		]
+		+ SUniformGridPanel::Slot(1, 0)
+		[
+			SNew(SButton)
+			.Text_Lambda([GetSocketTypeLabel]()
+			{
+				return GetSocketTypeLabel(TEXT("Vertical"));
+			})
+			.ButtonColorAndOpacity_Lambda([GetSocketTypeButtonColor]()
+			{
+				return GetSocketTypeButtonColor(EShipModuleSocketType::Vertical);
+			})
+			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnSetSocketType, EShipModuleSocketType::Vertical)
+		]
+		+ SUniformGridPanel::Slot(2, 0)
+		[
+			SNew(SButton)
+			.Text_Lambda([GetSocketTypeLabel]()
+			{
+				return GetSocketTypeLabel(TEXT("Universal"));
+			})
+			.ButtonColorAndOpacity_Lambda([GetSocketTypeButtonColor]()
+			{
+				return GetSocketTypeButtonColor(EShipModuleSocketType::Universal);
+			})
+			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnSetSocketType, EShipModuleSocketType::Universal)
+		];
+
+	auto GetAttachedPanelIndex = [this]() -> int32
+	{
+		if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+		{
+			if (Override->ContactPointsOverride.IsValidIndex(SelectedSocketIndex))
+			{
+				return ResolveNearestPanelIndex(Override->ContactPointsOverride[SelectedSocketIndex]);
+			}
+		}
+		return 0;
+	};
+
+	TSharedRef<SWidget> SocketPanelDropdown =
+		SNew(SComboButton)
+		.ButtonContent()
+		[
+			SNew(STextBlock)
+			.Text_Lambda([GetAttachedPanelIndex]()
+			{
+				return ShipModuleEditorToolAssetEditorPrivate::GetPanelDisplayNameBySideIndex(GetAttachedPanelIndex());
+			})
+		]
+		.OnGetMenuContent_Lambda([this]()
+		{
+			FMenuBuilder MenuBuilder(true, nullptr);
+			for (int32 PanelIndex = 0; PanelIndex < 6; ++PanelIndex)
+			{
+				const int32 LocalPanelIndex = PanelIndex;
+				MenuBuilder.AddMenuEntry(
+					ShipModuleEditorToolAssetEditorPrivate::GetPanelDisplayNameBySideIndex(LocalPanelIndex),
+					FText::GetEmpty(),
+					FSlateIcon(),
+					FUIAction(FExecuteAction::CreateLambda([this, LocalPanelIndex]()
+					{
+						OnAttachSocketToPanel(LocalPanelIndex);
+					})));
+			}
+			return MenuBuilder.MakeWidget();
+		});
+
+	TSharedRef<SWidget> SocketNameEditor =
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(FMargin(0.0f, 0.0f, 6.0f, 0.0f))
+		[
+			SNew(STextBlock).Text(FText::FromString(TEXT("Socket Name")))
+		]
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.0f)
+		[
+			SNew(SEditableTextBox)
+			.Text_Lambda([GetSelectedSocket]()
+			{
+				if (const FShipModuleContactPoint* Socket = GetSelectedSocket())
+				{
+					return FText::FromName(Socket->SocketName);
+				}
+				return FText::GetEmpty();
+			})
+			.OnTextCommitted_Lambda([CommitSelectedSocket](const FText& NewText, ETextCommit::Type)
+			{
+				const FName NewName(*NewText.ToString().TrimStartAndEnd());
+				if (NewName.IsNone())
+				{
+					return;
+				}
+				CommitSelectedSocket([NewName](FShipModuleContactPoint& Socket)
+				{
+					Socket.SocketName = NewName;
+				});
+			})
+		];
+
+	TSharedRef<SWidget> SocketActionButtons =
+		SNew(SUniformGridPanel)
+		.SlotPadding(FMargin(2.0f))
+		+ SUniformGridPanel::Slot(0, 0)
+		[
+			SNew(SButton)
+			.Text(FText::FromString(TEXT("Add Socket")))
+			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnAddSocket)
+		]
+		+ SUniformGridPanel::Slot(1, 0)
+		[
+			SNew(SButton)
+			.Text(FText::FromString(TEXT("Remove Socket")))
+			.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnRemoveSocket)
+		];
+
 	return SNew(SDockTab)
 	[
 		SNew(SVerticalBox)
@@ -1392,36 +2152,188 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 		.Padding(FMargin(6.0f))
 		[
 			SNew(STextBlock)
-			.Text(FText::FromString(TEXT("Visual Parts")))
+			.Text_Lambda([this]()
+			{
+				return bSocketEditMode
+					? FText::FromString(TEXT("Socket Edit Mode"))
+					: FText::FromString(TEXT("Visual Parts"));
+			})
 		]
 		+ SVerticalBox::Slot()
 		.FillHeight(1.0f)
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
-		[ListArea]
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[ListArea]
+		]
 		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
-		[ActionButtons]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
+		.FillHeight(1.0f)
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
 		[
-			SNew(STextBlock).Text(FText::FromString(TEXT("Transform selected")))
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[SocketsListArea]
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
-		[TransformFields]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
 		[
-			SNew(STextBlock).Text(FText::FromString(TEXT("Gizmo mode")))
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[ActionButtons]
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
-		[GizmoModeButtons]
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[SocketActionButtons]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[SocketNameEditor]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Transform selected")))
+			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[TransformFields]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Gizmo mode")))
+			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[GizmoModeButtons]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Socket Transform")))
+			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[SocketTransformGrid]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Socket Type")))
+			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[SocketTypeButtons]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Attach To Panel")))
+			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[SocketPanelDropdown]
+		]
 	];
 }
 
@@ -1436,6 +2348,25 @@ void FShipModuleEditorToolAssetEditor::ExtendToolbar()
 				NAME_None,
 				FText::FromString(TEXT("Refresh Preview")),
 				FText::FromString(TEXT("Пересобрать превью во вьюпорте.")));
+			ToolbarBuilder.AddWidget(
+				SNew(SButton)
+				.Text_Lambda([Editor]()
+				{
+					return Editor->bSocketEditMode
+						? FText::FromString(TEXT("Panel Edit Mode"))
+						: FText::FromString(TEXT("Socket Edit Mode"));
+				})
+				.ToolTipText_Lambda([Editor]()
+				{
+					return Editor->bSocketEditMode
+						? FText::FromString(TEXT("Переключиться в режим редактирования панелей."))
+						: FText::FromString(TEXT("Переключиться в режим редактирования сокетов."));
+				})
+				.OnClicked_Lambda([Editor]()
+				{
+					Editor->ToggleSocketEditMode();
+					return FReply::Handled();
+				}));
 		}
 	};
 
@@ -1449,6 +2380,17 @@ void FShipModuleEditorToolAssetEditor::ExtendToolbar()
 	RegenerateMenusAndToolbars();
 }
 
+void FShipModuleEditorToolAssetEditor::ToggleSocketEditMode()
+{
+	bSocketEditMode = !bSocketEditMode;
+	if (bSocketEditMode)
+	{
+		SelectPartIndex(INDEX_NONE, false);
+		SnapAllSocketsToModuleSurface();
+	}
+	OnRefreshPreview();
+}
+
 void FShipModuleEditorToolAssetEditor::OnRefreshPreview()
 {
 	if (ViewportWidget.IsValid())
@@ -1457,25 +2399,51 @@ void FShipModuleEditorToolAssetEditor::OnRefreshPreview()
 		ViewportWidget->Invalidate();
 	}
 	RebuildPartItems();
+	RebuildSocketItems();
 
-	int32 DesiredSelection = SelectedPartIndex;
-	if (ViewportWidget.IsValid())
+	if (!bSocketEditMode)
 	{
-		const bool bCurrentVisible = DesiredSelection != INDEX_NONE
-			&& ViewportWidget->HasSelectedPart();
-		if (!bCurrentVisible)
+		int32 DesiredSelection = SelectedPartIndex;
+		if (ViewportWidget.IsValid())
 		{
-			DesiredSelection = ViewportWidget->GetFirstVisiblePartIndex();
+			const bool bCurrentVisible = DesiredSelection != INDEX_NONE
+				&& ViewportWidget->HasSelectedPart();
+			if (!bCurrentVisible)
+			{
+				DesiredSelection = ViewportWidget->GetFirstVisiblePartIndex();
+			}
+		}
+		if (DesiredSelection == INDEX_NONE && PartItems.Num() > 0)
+		{
+			DesiredSelection = 0;
+		}
+		if (DesiredSelection != INDEX_NONE)
+		{
+			SelectPartIndex(DesiredSelection, false);
 		}
 	}
-	if (DesiredSelection == INDEX_NONE && PartItems.Num() > 0)
+	else if (SelectedPartIndex != INDEX_NONE)
 	{
-		DesiredSelection = 0;
+		SelectPartIndex(INDEX_NONE, false);
 	}
-	if (DesiredSelection != INDEX_NONE)
+
+	int32 DesiredSocketSelection = SelectedSocketIndex;
+	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
 	{
-		SelectPartIndex(DesiredSelection, false);
+		if (Override->ContactPointsOverride.Num() == 0)
+		{
+			DesiredSocketSelection = INDEX_NONE;
+		}
+		else
+		{
+			DesiredSocketSelection = FMath::Clamp(DesiredSocketSelection, 0, Override->ContactPointsOverride.Num() - 1);
+		}
 	}
+	else
+	{
+		DesiredSocketSelection = INDEX_NONE;
+	}
+	SelectSocketIndex(DesiredSocketSelection);
 }
 
 void FShipModuleEditorToolAssetEditor::OnDetailsFinishedChanging(const FPropertyChangedEvent& PropertyChangedEvent)
@@ -1533,10 +2501,28 @@ void FShipModuleEditorToolAssetEditor::RebuildPartItems()
 	}
 }
 
+void FShipModuleEditorToolAssetEditor::RebuildSocketItems()
+{
+	SocketItems.Reset();
+	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+	{
+		for (int32 Index = 0; Index < Override->ContactPointsOverride.Num(); ++Index)
+		{
+			SocketItems.Add(MakeShared<int32>(Index));
+		}
+	}
+
+	if (SocketsListView.IsValid())
+	{
+		SocketsListView->RequestListRefresh();
+	}
+}
+
 TSharedRef<ITableRow> FShipModuleEditorToolAssetEditor::GeneratePartRow(TSharedPtr<int32> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	const int32 Index = Item.IsValid() ? *Item : INDEX_NONE;
 	FString Label = FString::Printf(TEXT("Part %d"), Index);
+	const FText ProceduralPanelName = ShipModuleEditorToolAssetEditorPrivate::GetPanelDisplayNameByProceduralPartIndex(Index);
 	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
 	{
 		if (Override->VisualParts.IsValidIndex(Index))
@@ -1554,6 +2540,30 @@ TSharedRef<ITableRow> FShipModuleEditorToolAssetEditor::GeneratePartRow(TSharedP
 			}
 		}
 	}
+	if (!ProceduralPanelName.IsEmpty())
+	{
+		Label = FString::Printf(TEXT("%s | %s"), *ProceduralPanelName.ToString(), *Label);
+	}
+
+	return SNew(STableRow<TSharedPtr<int32>>, OwnerTable)
+	[
+		SNew(STextBlock).Text(FText::FromString(Label))
+	];
+}
+
+TSharedRef<ITableRow> FShipModuleEditorToolAssetEditor::GenerateSocketRow(TSharedPtr<int32> Item, const TSharedRef<STableViewBase>& OwnerTable)
+{
+	const int32 Index = Item.IsValid() ? *Item : INDEX_NONE;
+	FString Label = FString::Printf(TEXT("Socket %d"), Index);
+	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+	{
+		if (Override->ContactPointsOverride.IsValidIndex(Index))
+		{
+			const FShipModuleContactPoint& CP = Override->ContactPointsOverride[Index];
+			const FString PanelLabel = ShipModuleEditorToolAssetEditorPrivate::GetPanelDisplayNameBySideIndex(ResolveNearestPanelIndex(CP)).ToString();
+			Label = FString::Printf(TEXT("%d: %s [%d] | Panel: %s"), Index, *CP.SocketName.ToString(), static_cast<int32>(CP.SocketType), *PanelLabel);
+		}
+	}
 
 	return SNew(STableRow<TSharedPtr<int32>>, OwnerTable)
 	[
@@ -1563,6 +2573,10 @@ TSharedRef<ITableRow> FShipModuleEditorToolAssetEditor::GeneratePartRow(TSharedP
 
 void FShipModuleEditorToolAssetEditor::OnPartSelectionChanged(TSharedPtr<int32> Item, ESelectInfo::Type SelectInfo)
 {
+	if (bSocketEditMode)
+	{
+		return;
+	}
 	if (bSyncingPartSelection)
 	{
 		return;
@@ -1578,6 +2592,19 @@ void FShipModuleEditorToolAssetEditor::OnPartSelectionChanged(TSharedPtr<int32> 
 
 	UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] PartsList selection changed: index=%d"), *Item);
 	SelectPartIndex(*Item, false);
+}
+
+void FShipModuleEditorToolAssetEditor::OnSocketSelectionChanged(TSharedPtr<int32> Item, ESelectInfo::Type SelectInfo)
+{
+	if (bSyncingSocketSelection)
+	{
+		return;
+	}
+	if (!Item.IsValid())
+	{
+		return;
+	}
+	SelectSocketIndex(*Item);
 }
 
 void FShipModuleEditorToolAssetEditor::SelectPartIndex(const int32 NewIndex, const bool bFromViewport)
@@ -1631,6 +2658,42 @@ void FShipModuleEditorToolAssetEditor::SelectPartIndex(const int32 NewIndex, con
 			PartsListView->ClearSelection();
 		}
 		bSyncingPartSelection = false;
+	}
+}
+
+void FShipModuleEditorToolAssetEditor::SelectSocketIndex(const int32 NewIndex)
+{
+	SelectedSocketIndex = NewIndex;
+	if (ViewportWidget.IsValid())
+	{
+		ViewportWidget->SetSelectedSocketIndex(SelectedSocketIndex);
+		ViewportWidget->Invalidate();
+	}
+	if (SocketsListView.IsValid())
+	{
+		bSyncingSocketSelection = true;
+		TSharedPtr<int32> Desired;
+		if (SelectedSocketIndex != INDEX_NONE)
+		{
+			for (const TSharedPtr<int32>& Item : SocketItems)
+			{
+				if (Item.IsValid() && *Item == SelectedSocketIndex)
+				{
+					Desired = Item;
+					break;
+				}
+			}
+		}
+		if (Desired.IsValid())
+		{
+			SocketsListView->SetSelection(Desired, ESelectInfo::Direct);
+			SocketsListView->RequestScrollIntoView(Desired);
+		}
+		else
+		{
+			SocketsListView->ClearSelection();
+		}
+		bSyncingSocketSelection = false;
 	}
 }
 
@@ -1711,6 +2774,81 @@ FReply FShipModuleEditorToolAssetEditor::OnRemovePart()
 	SelectedPartIndex = INDEX_NONE;
 	Override->MarkPackageDirty();
 	OnRefreshPreview();
+	return FReply::Handled();
+}
+
+FReply FShipModuleEditorToolAssetEditor::OnAddSocket()
+{
+	if (!ToolAsset)
+	{
+		return FReply::Handled();
+	}
+	ToolAsset->AddContactPointToOverride();
+	SnapAllSocketsToModuleSurface();
+	OnRefreshPreview();
+	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+	{
+		const int32 NewIndex = Override->ContactPointsOverride.Num() - 1;
+		SelectSocketIndex(NewIndex);
+		// New sockets are explicitly attached to a panel on creation.
+		OnAttachSocketToPanel(0); // Front (+X)
+	}
+	return FReply::Handled();
+}
+
+FReply FShipModuleEditorToolAssetEditor::OnRemoveSocket()
+{
+	if (!ToolAsset)
+	{
+		return FReply::Handled();
+	}
+	ToolAsset->RemoveLastContactPointFromOverride();
+	OnRefreshPreview();
+	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+	{
+		SelectSocketIndex(FMath::Clamp(SelectedSocketIndex, 0, Override->ContactPointsOverride.Num() - 1));
+	}
+	else
+	{
+		SelectSocketIndex(INDEX_NONE);
+	}
+	return FReply::Handled();
+}
+
+FReply FShipModuleEditorToolAssetEditor::OnSetSocketType(const EShipModuleSocketType NewType)
+{
+	UShipModuleVisualOverride* Override = ResolveEditableOverride(false);
+	if (!Override || !Override->ContactPointsOverride.IsValidIndex(SelectedSocketIndex))
+	{
+		return FReply::Handled();
+	}
+	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "SetSocketType", "Set Ship Module Socket Type"));
+	Override->Modify();
+	Override->bOverrideContactPoints = true;
+	Override->ContactPointsOverride[SelectedSocketIndex].SocketType = NewType;
+	Override->MarkPackageDirty();
+	OnRefreshPreview();
+	SelectSocketIndex(SelectedSocketIndex);
+	return FReply::Handled();
+}
+
+FReply FShipModuleEditorToolAssetEditor::OnAttachSocketToPanel(const int32 PanelIndex)
+{
+	UShipModuleVisualOverride* Override = ResolveEditableOverride(false);
+	if (!Override || !Override->ContactPointsOverride.IsValidIndex(SelectedSocketIndex))
+	{
+		return FReply::Handled();
+	}
+	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "AttachSocketToPanel", "Attach Ship Module Socket To Panel"));
+	Override->Modify();
+	Override->bOverrideContactPoints = true;
+
+	FShipModuleContactPoint& Socket = Override->ContactPointsOverride[SelectedSocketIndex];
+	SnapSocketToPanel(Socket, PanelIndex, true);
+
+	Override->MarkPackageDirty();
+	OnRefreshPreview();
+	SelectSocketIndex(SelectedSocketIndex);
 	return FReply::Handled();
 }
 
@@ -1800,6 +2938,199 @@ void FShipModuleEditorToolAssetEditor::HandleViewportDeleteSelected()
 void FShipModuleEditorToolAssetEditor::HandleViewportUseSelectedAsset()
 {
 	OnUseSelectedAsset();
+}
+
+bool FShipModuleEditorToolAssetEditor::TryGetPanelPlacementData(const int32 PanelIndex, FVector& OutCenter, FVector& OutHalfSize) const
+{
+	OutCenter = FVector::ZeroVector;
+	OutHalfSize = FVector(50.0f, 50.0f, 50.0f);
+
+	const UShipModuleVisualOverride* Override = nullptr;
+	if (ToolAsset)
+	{
+		Override = ToolAsset->TargetVisualOverride;
+	}
+
+	const int32 PartIndex = ShipModuleEditorToolAssetEditorPrivate::GetProceduralPartIndexBySideIndex(PanelIndex);
+	if (Override && Override->VisualParts.IsValidIndex(PartIndex))
+	{
+		const FTransform& T = Override->VisualParts[PartIndex].RelativeTransform;
+		OutCenter = T.GetTranslation();
+		OutHalfSize = T.GetScale3D().GetAbs() * 50.0f;
+		return true;
+	}
+
+	if (!ToolAsset || !ToolAsset->TargetModuleDefinition)
+	{
+		return false;
+	}
+
+	const FVector HalfModule = ToolAsset->TargetModuleDefinition->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f)) * 0.5f;
+	OutHalfSize = HalfModule;
+	switch (PanelIndex)
+	{
+	case 0: OutCenter = FVector(HalfModule.X, 0.0f, 0.0f); break;
+	case 1: OutCenter = FVector(-HalfModule.X, 0.0f, 0.0f); break;
+	case 2: OutCenter = FVector(0.0f, -HalfModule.Y, 0.0f); break;
+	case 3: OutCenter = FVector(0.0f, HalfModule.Y, 0.0f); break;
+	case 4: OutCenter = FVector(0.0f, 0.0f, HalfModule.Z); break;
+	case 5: OutCenter = FVector(0.0f, 0.0f, -HalfModule.Z); break;
+	default: return false;
+	}
+	return true;
+}
+
+int32 FShipModuleEditorToolAssetEditor::ResolveNearestPanelIndex(const FShipModuleContactPoint& Socket) const
+{
+	int32 BestPanel = 0;
+	float BestDist = TNumericLimits<float>::Max();
+	for (int32 PanelIndex = 0; PanelIndex < 6; ++PanelIndex)
+	{
+		FVector Center = FVector::ZeroVector;
+		FVector Half = FVector::ZeroVector;
+		if (!TryGetPanelPlacementData(PanelIndex, Center, Half))
+		{
+			continue;
+		}
+		float Dist = TNumericLimits<float>::Max();
+		switch (PanelIndex)
+		{
+		case 0: Dist = FMath::Abs((Center.X + Half.X) - Socket.RelativeLocation.X); break;
+		case 1: Dist = FMath::Abs((Center.X - Half.X) - Socket.RelativeLocation.X); break;
+		case 2: Dist = FMath::Abs((Center.Y - Half.Y) - Socket.RelativeLocation.Y); break;
+		case 3: Dist = FMath::Abs((Center.Y + Half.Y) - Socket.RelativeLocation.Y); break;
+		case 4: Dist = FMath::Abs((Center.Z + Half.Z) - Socket.RelativeLocation.Z); break;
+		case 5: Dist = FMath::Abs((Center.Z - Half.Z) - Socket.RelativeLocation.Z); break;
+		default: break;
+		}
+		if (Dist < BestDist)
+		{
+			BestDist = Dist;
+			BestPanel = PanelIndex;
+		}
+	}
+	return BestPanel;
+}
+
+void FShipModuleEditorToolAssetEditor::SnapSocketToPanel(FShipModuleContactPoint& InOutSocket, const int32 PanelIndex, const bool bAutoType) const
+{
+	FVector Center = FVector::ZeroVector;
+	FVector Half = FVector::ZeroVector;
+	if (!TryGetPanelPlacementData(PanelIndex, Center, Half))
+	{
+		return;
+	}
+
+	FVector P = InOutSocket.RelativeLocation;
+	const float HalfDoorWidth = 80.0f;
+	const float HalfDoorHeight = 110.0f;
+	const float HalfHatch = 80.0f;
+
+	switch (PanelIndex)
+	{
+	case 0: // Front (+X)
+		P.X = Center.X + Half.X;
+		P.Y = FMath::Clamp(P.Y, Center.Y - (Half.Y - HalfDoorWidth), Center.Y + (Half.Y - HalfDoorWidth));
+		P.Z = FMath::Clamp(P.Z, Center.Z - (Half.Z - HalfDoorHeight), Center.Z + (Half.Z - HalfDoorHeight));
+		InOutSocket.RelativeRotation = FRotator(0.0f, 0.0f, 0.0f);
+		if (bAutoType) InOutSocket.SocketType = EShipModuleSocketType::Horizontal;
+		break;
+	case 1: // Back (-X)
+		P.X = Center.X - Half.X;
+		P.Y = FMath::Clamp(P.Y, Center.Y - (Half.Y - HalfDoorWidth), Center.Y + (Half.Y - HalfDoorWidth));
+		P.Z = FMath::Clamp(P.Z, Center.Z - (Half.Z - HalfDoorHeight), Center.Z + (Half.Z - HalfDoorHeight));
+		InOutSocket.RelativeRotation = FRotator(0.0f, 180.0f, 0.0f);
+		if (bAutoType) InOutSocket.SocketType = EShipModuleSocketType::Horizontal;
+		break;
+	case 2: // Left (-Y)
+		P.Y = Center.Y - Half.Y;
+		P.X = FMath::Clamp(P.X, Center.X - (Half.X - HalfDoorWidth), Center.X + (Half.X - HalfDoorWidth));
+		P.Z = FMath::Clamp(P.Z, Center.Z - (Half.Z - HalfDoorHeight), Center.Z + (Half.Z - HalfDoorHeight));
+		InOutSocket.RelativeRotation = FRotator(0.0f, -90.0f, 0.0f);
+		if (bAutoType) InOutSocket.SocketType = EShipModuleSocketType::Horizontal;
+		break;
+	case 3: // Right (+Y)
+		P.Y = Center.Y + Half.Y;
+		P.X = FMath::Clamp(P.X, Center.X - (Half.X - HalfDoorWidth), Center.X + (Half.X - HalfDoorWidth));
+		P.Z = FMath::Clamp(P.Z, Center.Z - (Half.Z - HalfDoorHeight), Center.Z + (Half.Z - HalfDoorHeight));
+		InOutSocket.RelativeRotation = FRotator(0.0f, 90.0f, 0.0f);
+		if (bAutoType) InOutSocket.SocketType = EShipModuleSocketType::Horizontal;
+		break;
+	case 4: // Top (+Z)
+		P.Z = Center.Z + Half.Z;
+		P.X = FMath::Clamp(P.X, Center.X - (Half.X - HalfHatch), Center.X + (Half.X - HalfHatch));
+		P.Y = FMath::Clamp(P.Y, Center.Y - (Half.Y - HalfHatch), Center.Y + (Half.Y - HalfHatch));
+		InOutSocket.RelativeRotation = FRotator(-90.0f, 0.0f, 0.0f);
+		if (bAutoType) InOutSocket.SocketType = EShipModuleSocketType::Vertical;
+		break;
+	case 5: // Bottom (-Z)
+		P.Z = Center.Z - Half.Z;
+		P.X = FMath::Clamp(P.X, Center.X - (Half.X - HalfHatch), Center.X + (Half.X - HalfHatch));
+		P.Y = FMath::Clamp(P.Y, Center.Y - (Half.Y - HalfHatch), Center.Y + (Half.Y - HalfHatch));
+		InOutSocket.RelativeRotation = FRotator(90.0f, 0.0f, 0.0f);
+		if (bAutoType) InOutSocket.SocketType = EShipModuleSocketType::Vertical;
+		break;
+	default:
+		break;
+	}
+
+	InOutSocket.RelativeLocation = P;
+}
+
+void FShipModuleEditorToolAssetEditor::SnapSocketToModuleSurface(FShipModuleContactPoint& InOutSocket) const
+{
+	SnapSocketToPanel(InOutSocket, ResolveNearestPanelIndex(InOutSocket), true);
+}
+
+void FShipModuleEditorToolAssetEditor::SnapAllSocketsToModuleSurface()
+{
+	UShipModuleVisualOverride* Override = ResolveEditableOverride(false);
+	if (!Override || Override->ContactPointsOverride.Num() == 0)
+	{
+		return;
+	}
+	Override->Modify();
+	Override->bOverrideContactPoints = true;
+	for (FShipModuleContactPoint& Socket : Override->ContactPointsOverride)
+	{
+		SnapSocketToModuleSurface(Socket);
+	}
+	Override->MarkPackageDirty();
+}
+
+bool FShipModuleEditorToolAssetEditor::CanPlaceSocketOpening(const FShipModuleContactPoint& Socket) const
+{
+	if (!ToolAsset || !ToolAsset->TargetModuleDefinition || !ToolAsset->TargetModuleDefinition->bHasInterior)
+	{
+		return true;
+	}
+
+	const FVector Size = ToolAsset->TargetModuleDefinition->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f));
+	const FVector Half = Size * 0.5f;
+	const float DoorWidth = 160.0f;
+	const float DoorHeight = 220.0f;
+	const float HatchSize = 160.0f;
+	const float Eps = 0.5f;
+
+	if (FMath::Abs(FMath::Abs(Socket.RelativeLocation.X) - Half.X) < Eps)
+	{
+		return Socket.SocketType != EShipModuleSocketType::Vertical
+			&& (FMath::Abs(Socket.RelativeLocation.Y) <= Half.Y - DoorWidth * 0.5f)
+			&& (FMath::Abs(Socket.RelativeLocation.Z) <= Half.Z - DoorHeight * 0.5f);
+	}
+	if (FMath::Abs(FMath::Abs(Socket.RelativeLocation.Y) - Half.Y) < Eps)
+	{
+		return Socket.SocketType != EShipModuleSocketType::Vertical
+			&& (FMath::Abs(Socket.RelativeLocation.X) <= Half.X - DoorWidth * 0.5f)
+			&& (FMath::Abs(Socket.RelativeLocation.Z) <= Half.Z - DoorHeight * 0.5f);
+	}
+	if (FMath::Abs(FMath::Abs(Socket.RelativeLocation.Z) - Half.Z) < Eps)
+	{
+		return Socket.SocketType != EShipModuleSocketType::Horizontal
+			&& (FMath::Abs(Socket.RelativeLocation.X) <= Half.X - HatchSize * 0.5f)
+			&& (FMath::Abs(Socket.RelativeLocation.Y) <= Half.Y - HatchSize * 0.5f);
+	}
+	return false;
 }
 
 FReply FShipModuleEditorToolAssetEditor::OnPartsDragOver(const FGeometry& Geometry, const FDragDropEvent& DragDropEvent)
