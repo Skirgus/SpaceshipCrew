@@ -30,6 +30,12 @@ UObject* UShipModuleDefinitionFactory::FactoryCreateNew(
 	DefaultCP.SocketType = EShipModuleSocketType::Horizontal;
 	NewModule->ContactPoints.Add(DefaultCP);
 
+	FShipModuleContactPoint BackCP;
+	BackCP.SocketName = FName(TEXT("Back"));
+	BackCP.RelativeLocation = FVector(-200.0, 0.0, 0.0);
+	BackCP.SocketType = EShipModuleSocketType::Horizontal;
+	NewModule->ContactPoints.Add(BackCP);
+
 	return NewModule;
 }
 

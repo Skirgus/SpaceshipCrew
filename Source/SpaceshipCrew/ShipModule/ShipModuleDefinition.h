@@ -55,9 +55,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interior")
 	bool bHasInterior = false;
 
+	/**
+	 * Принудительная сторона проёма в оболочке модуля (MVP-визуал).
+	 * В первую очередь используется для Airlock: выбранная сторона отображается как проём,
+	 * даже если к ней не пристыкован соседний модуль.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interior")
+	EShipModuleOpeningSide ForcedOpeningSide = EShipModuleOpeningSide::None;
+
 	/** Контактные точки (стыковочные узлы). Минимум одна, имена (SocketName) уникальны. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
 	TArray<FShipModuleContactPoint> ContactPoints;
+
+	/**
+	 * Опциональный ручной визуальный override модуля.
+	 * Если назначен и содержит VisualParts, билдер отображает модуль по этим данным.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
+	TSoftObjectPtr<class UShipModuleVisualOverride> VisualOverride;
 
 	/** Типы модулей, которые могут стыковаться с данным модулем. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
@@ -65,6 +80,12 @@ public:
 
 	/** Эффективная стоимость для суммы в конструкторе (CreditCost или оценка по массе). */
 	int32 GetEffectiveCreditCost() const;
+
+	/** Контактные точки, учитывающие optional override из VisualOverride. */
+	const TArray<FShipModuleContactPoint>& GetResolvedContactPoints() const;
+
+	/** Загруженный visual override (если задан). */
+	const class UShipModuleVisualOverride* GetVisualOverride() const;
 
 	// --- UPrimaryDataAsset ---
 
