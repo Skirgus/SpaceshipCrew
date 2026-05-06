@@ -8,10 +8,9 @@ class IShipBuildModuleResolver;
 class FShipBuildDomainModel;
 
 /**
- * Строит линейную цепочку модулей по порядку в черновике (первый — корень, далее стык к предыдущему через первый контактный узел каждого определения).
- * Нужен для проверки T02b без UI стыковки.
- *
- * @return false если не удалось собрать цепочку; иначе OutModel заполнен.
+ * Строит доменную конфигурацию из draft.
+ * - Если в draft есть явные PlacedModules/Connections, использует их.
+ * - Иначе работает fallback-логика legacy-цепочки по ModuleIds.
  */
 bool SpaceshipCrew_BuildDomainFromDraftChain(
 	const FShipBuilderDraftConfig& Draft,

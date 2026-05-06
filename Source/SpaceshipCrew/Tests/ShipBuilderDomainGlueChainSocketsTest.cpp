@@ -206,5 +206,60 @@ bool FShipBuilderDomainGlueChainResolvesOverrideSocketsTest::RunTest(const FStri
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipBuilderDomainGluePlacedModulesTest,
+	"SpaceshipCrew.ShipBuilder.DomainGlue.PlacedModules",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+
+bool FShipBuilderDomainGluePlacedModulesTest::RunTest(const FString& Parameters)
+{
+	using namespace ShipBuilderDomainGlueChainSocketsTestPrivate;
+
+	FTestResolver Resolver;
+	UShipModuleDefinition* Lower = MakeDefinition(
+		TEXT("PlacedLower"),
+		EShipModuleType::Corridor,
+		{ TEXT("Top") },
+		{ EShipModuleType::Corridor });
+	Lower->ContactPoints[0].SocketType = EShipModuleSocketType::Vertical;
+
+	UShipModuleDefinition* Upper = MakeDefinition(
+		TEXT("PlacedUpper"),
+		EShipModuleType::Corridor,
+		{ TEXT("Bottom") },
+		{ EShipModuleType::Corridor });
+	Upper->ContactPoints[0].SocketType = EShipModuleSocketType::Vertical;
+
+	Resolver.Add(Lower);
+	Resolver.Add(Upper);
+
+	FShipBuilderDraftConfig Draft;
+	FShipBuilderDraftConfig::FPlacedModule A;
+	A.InstanceId = TEXT("A");
+	A.ModuleId = Lower->ModuleId;
+	A.GridPos = FIntVector(0, 0, 0);
+	A.YawStep = 0;
+	Draft.PlacedModules.Add(A);
+	FShipBuilderDraftConfig::FPlacedModule B;
+	B.InstanceId = TEXT("B");
+	B.ModuleId = Upper->ModuleId;
+	B.GridPos = FIntVector(0, 0, 1);
+	B.YawStep = 0;
+	Draft.PlacedModules.Add(B);
+	FShipBuilderDraftConfig::FConnection Link;
+	Link.ModuleAInstanceId = TEXT("A");
+	Link.ModuleASocketName = TEXT("Top");
+	Link.ModuleBInstanceId = TEXT("B");
+	Link.ModuleBSocketName = TEXT("Bottom");
+	Draft.Connections.Add(Link);
+
+	FShipBuildDomainModel Model(Resolver);
+	FString Error;
+	const bool bBuilt = SpaceshipCrew_BuildDomainFromDraftChain(Draft, Resolver, Model, Error);
+	TestTrue(FString::Printf(TEXT("BuildPlacedModules: %s"), *Error), bBuilt);
+	TestTrue(TEXT("PlacedModulesValidation"), Model.Validate().bIsValid);
+	return true;
+}
+
 #endif
 

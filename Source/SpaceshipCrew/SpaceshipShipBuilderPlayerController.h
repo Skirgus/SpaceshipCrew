@@ -24,6 +24,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
+	virtual void PlayerTick(float DeltaSeconds) override;
 
 	/** Черновик для UI и расчётов. */
 	FShipBuilderDraftConfig& AccessDraft() { return Draft; }
@@ -63,12 +64,43 @@ private:
 	void OnExitPressed();
 	void CatalogCyclePrev();
 	void CatalogCycleNext();
+	void RotatePlacementLeft();
+	void RotatePlacementRight();
+	void MovePlacementUp();
+	void MovePlacementDown();
+	void OnRightMouseLookPressed();
+	void OnRightMouseLookReleased();
+	void OnSelectOrBeginDragPressed();
+	void OnEndDragReleased();
+	void UpdateRightMouseLook();
+	void UpdateModuleDrag();
+	void UpdateHoveredModuleUnderCursor();
+	bool TrySelectModuleUnderCursor();
+	int32 FindDraftModuleIndexByInstanceId(FName InstanceId) const;
+	void RecomputeDraftConnectionSockets();
+	void RebuildConnectionsFromAdjacency();
+	bool IsGridCellOccupied(const FIntVector& Cell, FName IgnoreInstanceId = NAME_None) const;
+	FIntVector FindBestSnappedCell(const FIntVector& RawCell, FName MovingInstanceId) const;
 
 	void EnsureCatalogCategoryIndexValid();
 	void EnsurePreviewActor();
 	void RefreshPreviewFromDraft();
+	void SyncLegacyModuleIds();
+	FName MakeNextDraftInstanceId() const;
 
 	FShipBuilderDraftConfig Draft;
+	int32 PendingPlacementYawStep = 0;
+	int32 PendingPlacementZ = 0;
+	bool bDraggingModule = false;
+	bool bDragMovementActivated = false;
+	FVector2D DragStartMousePos = FVector2D::ZeroVector;
+	bool bRightMouseLookActive = false;
+	FVector2D LastRightMousePos = FVector2D::ZeroVector;
+	FName DraggedModuleInstanceId = NAME_None;
+	FName SelectedModuleInstanceId = NAME_None;
+	FName HoveredModuleInstanceId = NAME_None;
+	bool bHasDragTargetCell = false;
+	FIntVector DragTargetCell = FIntVector::ZeroValue;
 
 	FName HoveredCatalogModuleId = NAME_None;
 	bool bCatalogOpen = false;

@@ -6,6 +6,24 @@
 
 namespace ShipBuilderDomainGluePrivate
 {
+	enum class ESocketDirection : uint8
+	{
+		Unknown,
+		Front,
+		Back,
+		Left,
+		Right,
+		Top,
+		Bottom
+	};
+
+	struct FEffectiveSocket
+	{
+		FName SocketName = NAME_None;
+		EShipModuleSocketType SocketType = EShipModuleSocketType::Horizontal;
+		ESocketDirection Direction = ESocketDirection::Unknown;
+	};
+
 	static bool AreSocketTypesCompatible(const EShipModuleSocketType A, const EShipModuleSocketType B)
 	{
 		return A == EShipModuleSocketType::Universal
@@ -25,9 +43,89 @@ namespace ShipBuilderDomainGluePrivate
 		return IsTypeAllowedBySource(A, B.ModuleType) && IsTypeAllowedBySource(B, A.ModuleType);
 	}
 
+	static ESocketDirection OppositeDirection(const ESocketDirection Direction)
+	{
+		switch (Direction)
+		{
+		case ESocketDirection::Front: return ESocketDirection::Back;
+		case ESocketDirection::Back: return ESocketDirection::Front;
+		case ESocketDirection::Left: return ESocketDirection::Right;
+		case ESocketDirection::Right: return ESocketDirection::Left;
+		case ESocketDirection::Top: return ESocketDirection::Bottom;
+		case ESocketDirection::Bottom: return ESocketDirection::Top;
+		default: return ESocketDirection::Unknown;
+		}
+	}
+
+	static ESocketDirection GuessDirection(const FShipModuleContactPoint& CP)
+	{
+		const FString SocketLower = CP.SocketName.ToString().ToLower();
+		if (SocketLower.Contains(TEXT("front"))) return ESocketDirection::Front;
+		if (SocketLower.Contains(TEXT("back")) || SocketLower.Contains(TEXT("rear"))) return ESocketDirection::Back;
+		if (SocketLower.Contains(TEXT("left"))) return ESocketDirection::Left;
+		if (SocketLower.Contains(TEXT("right"))) return ESocketDirection::Right;
+		if (SocketLower.Contains(TEXT("top")) || SocketLower.Contains(TEXT("up"))) return ESocketDirection::Top;
+		if (SocketLower.Contains(TEXT("bottom")) || SocketLower.Contains(TEXT("down"))) return ESocketDirection::Bottom;
+
+		const FVector Abs = CP.RelativeLocation.GetAbs();
+		if (Abs.X >= Abs.Y && Abs.X >= Abs.Z) return CP.RelativeLocation.X >= 0.0f ? ESocketDirection::Front : ESocketDirection::Back;
+		if (Abs.Y >= Abs.X && Abs.Y >= Abs.Z) return CP.RelativeLocation.Y >= 0.0f ? ESocketDirection::Right : ESocketDirection::Left;
+		if (Abs.Z >= Abs.X && Abs.Z >= Abs.Y) return CP.RelativeLocation.Z >= 0.0f ? ESocketDirection::Top : ESocketDirection::Bottom;
+		return ESocketDirection::Unknown;
+	}
+
+	static void BuildDefaultSockets(const UShipModuleDefinition& Def, TArray<FEffectiveSocket>& Out)
+	{
+		Out.Reset();
+		Out.Reserve(6);
+		Out.Add({ TEXT("Front"), EShipModuleSocketType::Horizontal, ESocketDirection::Front });
+		Out.Add({ TEXT("Back"), EShipModuleSocketType::Horizontal, ESocketDirection::Back });
+		Out.Add({ TEXT("Left"), EShipModuleSocketType::Horizontal, ESocketDirection::Left });
+		Out.Add({ TEXT("Right"), EShipModuleSocketType::Horizontal, ESocketDirection::Right });
+		Out.Add({ TEXT("Top"), EShipModuleSocketType::Vertical, ESocketDirection::Top });
+		Out.Add({ TEXT("Bottom"), EShipModuleSocketType::Vertical, ESocketDirection::Bottom });
+	}
+
+	static void GetEffectiveSockets(const UShipModuleDefinition& Def, TArray<FEffectiveSocket>& Out)
+	{
+		const TArray<FShipModuleContactPoint>& Resolved = Def.GetResolvedContactPoints();
+		if (Resolved.Num() == 0)
+		{
+			BuildDefaultSockets(Def, Out);
+			return;
+		}
+
+		Out.Reset();
+		Out.Reserve(Resolved.Num());
+		for (const FShipModuleContactPoint& CP : Resolved)
+		{
+			if (CP.SocketName.IsNone())
+			{
+				continue;
+			}
+			Out.Add({ CP.SocketName, CP.SocketType, GuessDirection(CP) });
+		}
+	}
+
+	static bool IsPairDirectionValid(const ESocketDirection ExistingDir, const ESocketDirection NewDir)
+	{
+		if (ExistingDir == ESocketDirection::Unknown || NewDir == ESocketDirection::Unknown)
+		{
+			return true;
+		}
+		return OppositeDirection(ExistingDir) == NewDir;
+	}
+
+	static int32 NormalizeYawStep(const int32 YawStep)
+	{
+		return ((YawStep % 4) + 4) % 4;
+	}
+
 	static bool TryFindCompatibleSocketPair(
 		const UShipModuleDefinition& ExistingDef,
 		const UShipModuleDefinition& NewDef,
+		const FIntVector ExistingGridPos,
+		const FIntVector NewGridPos,
 		const TSet<FName>& UsedExistingSockets,
 		FName& OutExistingSocket,
 		FName& OutNewSocket)
@@ -37,21 +135,46 @@ namespace ShipBuilderDomainGluePrivate
 			return false;
 		}
 
-		for (const FShipModuleContactPoint& ExistingCP : ExistingDef.GetResolvedContactPoints())
+		TArray<FEffectiveSocket> ExistingSockets;
+		TArray<FEffectiveSocket> NewSockets;
+		GetEffectiveSockets(ExistingDef, ExistingSockets);
+		GetEffectiveSockets(NewDef, NewSockets);
+		const bool bVerticalAttach = ExistingGridPos.Z != NewGridPos.Z;
+
+		for (const FEffectiveSocket& ExistingCP : ExistingSockets)
 		{
 			if (ExistingCP.SocketName.IsNone() || UsedExistingSockets.Contains(ExistingCP.SocketName))
 			{
 				continue;
 			}
 
-			for (const FShipModuleContactPoint& NewCP : NewDef.GetResolvedContactPoints())
+			for (const FEffectiveSocket& NewCP : NewSockets)
 			{
 				if (NewCP.SocketName.IsNone())
 				{
 					continue;
 				}
 
-				if (AreSocketTypesCompatible(ExistingCP.SocketType, NewCP.SocketType))
+				if (!AreSocketTypesCompatible(ExistingCP.SocketType, NewCP.SocketType))
+				{
+					continue;
+				}
+
+				const bool bVerticalPair = ExistingCP.Direction == ESocketDirection::Top
+					|| ExistingCP.Direction == ESocketDirection::Bottom
+					|| NewCP.Direction == ESocketDirection::Top
+					|| NewCP.Direction == ESocketDirection::Bottom;
+
+				if (bVerticalAttach && !bVerticalPair)
+				{
+					continue;
+				}
+				if (!bVerticalAttach && bVerticalPair)
+				{
+					continue;
+				}
+
+				if (IsPairDirectionValid(ExistingCP.Direction, NewCP.Direction))
 				{
 					OutExistingSocket = ExistingCP.SocketName;
 					OutNewSocket = NewCP.SocketName;
@@ -70,6 +193,41 @@ bool SpaceshipCrew_BuildDomainFromDraftChain(
 	FShipBuildDomainModel& OutModel,
 	FString& OutError)
 {
+	if (Draft.PlacedModules.Num() > 0)
+	{
+		for (const FShipBuilderDraftConfig::FPlacedModule& Placed : Draft.PlacedModules)
+		{
+			if (Placed.InstanceId.IsNone() || Placed.ModuleId.IsNone())
+			{
+				OutError = TEXT("PlacedModules содержит пустой InstanceId или ModuleId.");
+				return false;
+			}
+			if (ShipBuilderDomainGluePrivate::NormalizeYawStep(Placed.YawStep) != Placed.YawStep)
+			{
+				OutError = FString::Printf(TEXT("YawStep для '%s' должен быть в диапазоне 0..3."), *Placed.InstanceId.ToString());
+				return false;
+			}
+			if (!OutModel.AddRootModule(Placed.InstanceId, Placed.ModuleId, &OutError))
+			{
+				return false;
+			}
+		}
+
+		for (const FShipBuilderDraftConfig::FConnection& Connection : Draft.Connections)
+		{
+			if (!OutModel.AddConnectionBetweenExisting(
+				Connection.ModuleAInstanceId,
+				Connection.ModuleASocketName,
+				Connection.ModuleBInstanceId,
+				Connection.ModuleBSocketName,
+				&OutError))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	if (Draft.ModuleIds.Num() == 0)
 	{
 		return true;
@@ -112,7 +270,9 @@ bool SpaceshipCrew_BuildDomainFromDraftChain(
 		FName PrevSocket = NAME_None;
 		FName NewSocket = NAME_None;
 		const TSet<FName>& UsedPrevSockets = UsedSocketsByInstance.FindOrAdd(PrevInstance);
-		if (!ShipBuilderDomainGluePrivate::TryFindCompatibleSocketPair(*PrevDef, *NewDef, UsedPrevSockets, PrevSocket, NewSocket))
+		const FIntVector PrevGridPos = FIntVector(Index - 1, 0, 0);
+		const FIntVector NewGridPos = FIntVector(Index, 0, 0);
+		if (!ShipBuilderDomainGluePrivate::TryFindCompatibleSocketPair(*PrevDef, *NewDef, PrevGridPos, NewGridPos, UsedPrevSockets, PrevSocket, NewSocket))
 		{
 			OutError = FString::Printf(
 				TEXT("Не найден свободный совместимый сокет для стыковки '%s' -> '%s'. Проверьте контактные точки и CompatibleModuleTypes."),

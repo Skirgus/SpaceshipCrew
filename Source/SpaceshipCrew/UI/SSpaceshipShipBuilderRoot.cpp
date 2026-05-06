@@ -255,7 +255,7 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 						.Justification(ETextJustify::Right)
 						.Text(LOCTEXT(
 							"HintsRow",
-							"[CTRL] НАСТРОЙКИ   [M3] КАМЕРА   [G] ДОБАВИТЬ   [C] ЧЕК-ЛИСТ   [TAB] ВЫХОД"))
+							"[CTRL] НАСТРОЙКИ   [M3] КАМЕРА   [G] ДОБАВИТЬ   [R/E] ПОВОРОТ   [PgUp/PgDn] УРОВЕНЬ   [C] ЧЕК-ЛИСТ   [TAB] ВЫХОД"))
 					]
 				]
 			+ SScrollBox::Slot()
@@ -425,7 +425,9 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 							}
 							return FText::Format(
 								LOCTEXT("DraftTiny", "Черновик: {0} мод."),
-								FText::AsNumber(OwnerPC->AccessDraft().ModuleIds.Num()));
+								FText::AsNumber(OwnerPC->AccessDraft().PlacedModules.Num() > 0
+									? OwnerPC->AccessDraft().PlacedModules.Num()
+									: OwnerPC->AccessDraft().ModuleIds.Num()));
 						})
 					]
 				]

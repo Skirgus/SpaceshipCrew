@@ -110,4 +110,90 @@ bool FShipBuildDomainCompatibilityTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipBuildDomainDefaultSocketsTest,
+	"SpaceshipCrew.ShipBuild.DefaultSocketsFallback",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+
+bool FShipBuildDomainDefaultSocketsTest::RunTest(const FString& Parameters)
+{
+	using namespace ShipBuildDomainCompatibilityTestPrivate;
+
+	FTestResolver Resolver;
+	UShipModuleDefinition* A = NewObject<UShipModuleDefinition>();
+	A->ModuleId = TEXT("DefaultA");
+	A->ModuleType = EShipModuleType::Bridge;
+	A->DisplayName = FText::FromString(TEXT("DefaultA"));
+	A->Mass = 100.0f;
+	A->Size = FVector(300.0, 300.0, 300.0);
+	A->CompatibleModuleTypes = { EShipModuleType::Corridor };
+	A->ContactPoints.Reset();
+
+	UShipModuleDefinition* B = NewObject<UShipModuleDefinition>();
+	B->ModuleId = TEXT("DefaultB");
+	B->ModuleType = EShipModuleType::Corridor;
+	B->DisplayName = FText::FromString(TEXT("DefaultB"));
+	B->Mass = 100.0f;
+	B->Size = FVector(300.0, 300.0, 300.0);
+	B->CompatibleModuleTypes = { EShipModuleType::Bridge };
+	B->ContactPoints.Reset();
+
+	Resolver.Add(A);
+	Resolver.Add(B);
+
+	FShipBuildDomainModel BuildModel(Resolver);
+	FString Error;
+	TestTrue(TEXT("AddRoot_DefaultA"), BuildModel.AddRootModule(TEXT("A"), A->ModuleId, &Error));
+	TestTrue(TEXT("AddRoot_DefaultB"), BuildModel.AddRootModule(TEXT("B"), B->ModuleId, &Error));
+	TestTrue(TEXT("AddConnection_DefaultFrontBack"), BuildModel.AddConnectionBetweenExisting(TEXT("A"), TEXT("Front"), TEXT("B"), TEXT("Back"), &Error));
+
+	const FShipBuildValidationResult Validation = BuildModel.Validate();
+	TestTrue(TEXT("DefaultSocketsFallback_Valid"), Validation.bIsValid);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipBuildDomainVerticalDirectionTest,
+	"SpaceshipCrew.ShipBuild.VerticalDirection",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+
+bool FShipBuildDomainVerticalDirectionTest::RunTest(const FString& Parameters)
+{
+	using namespace ShipBuildDomainCompatibilityTestPrivate;
+
+	FTestResolver Resolver;
+	UShipModuleDefinition* Lower = MakeDefinition(
+		TEXT("Lower"),
+		EShipModuleType::Corridor,
+		EShipModuleSocketType::Vertical,
+		{ EShipModuleType::Corridor });
+	Lower->ContactPoints[0].SocketName = TEXT("Top");
+	Lower->ContactPoints[0].RelativeLocation = FVector(0.0f, 0.0f, 150.0f);
+
+	UShipModuleDefinition* Upper = MakeDefinition(
+		TEXT("Upper"),
+		EShipModuleType::Corridor,
+		EShipModuleSocketType::Vertical,
+		{ EShipModuleType::Corridor });
+	Upper->ContactPoints[0].SocketName = TEXT("Bottom");
+	Upper->ContactPoints[0].RelativeLocation = FVector(0.0f, 0.0f, -150.0f);
+
+	Resolver.Add(Lower);
+	Resolver.Add(Upper);
+
+	FShipBuildDomainModel BuildModel(Resolver);
+	FString Error;
+	TestTrue(TEXT("AddRoot_Lower"), BuildModel.AddRootModule(TEXT("Lower"), Lower->ModuleId, &Error));
+	TestTrue(TEXT("AddRoot_Upper"), BuildModel.AddRootModule(TEXT("Upper"), Upper->ModuleId, &Error));
+	TestTrue(TEXT("AddConnection_ValidTopBottom"), BuildModel.AddConnectionBetweenExisting(TEXT("Lower"), TEXT("Top"), TEXT("Upper"), TEXT("Bottom"), &Error));
+	TestTrue(TEXT("TopBottom_Valid"), BuildModel.Validate().bIsValid);
+
+	FShipBuildDomainModel InvalidModel(Resolver);
+	TestTrue(TEXT("AddRoot_Lower_Invalid"), InvalidModel.AddRootModule(TEXT("Lower"), Lower->ModuleId, &Error));
+	TestTrue(TEXT("AddRoot_Upper_Invalid"), InvalidModel.AddRootModule(TEXT("Upper"), Upper->ModuleId, &Error));
+	TestTrue(TEXT("AddConnection_InvalidTopTop"), InvalidModel.AddConnectionBetweenExisting(TEXT("Lower"), TEXT("Top"), TEXT("Upper"), TEXT("Top"), &Error));
+	TestFalse(TEXT("TopTop_Invalid"), InvalidModel.Validate().bIsValid);
+	return true;
+}
+
 #endif

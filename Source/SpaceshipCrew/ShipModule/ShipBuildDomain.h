@@ -95,6 +95,14 @@ public:
 		FName ExistingModuleSocketName,
 		FString* OutError = nullptr);
 
+	/** Добавляет связь между уже существующими модулями. */
+	bool AddConnectionBetweenExisting(
+		FName ModuleAInstanceId,
+		FName ModuleASocketName,
+		FName ModuleBInstanceId,
+		FName ModuleBSocketName,
+		FString* OutError = nullptr);
+
 	/** Удаляет модуль и все его соединения. */
 	bool RemoveModule(FName InstanceId, FString* OutError = nullptr);
 

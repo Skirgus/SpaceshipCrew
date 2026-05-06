@@ -7,6 +7,7 @@
 #include "ShipBuilderModulePreviewActor.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UMaterialInterface;
 class USceneComponent;
 class UStaticMesh;
 class UShipModuleCatalog;
@@ -35,6 +36,14 @@ public:
 	 * @param Catalog Каталог определений модулей.
 	 */
 	void RebuildFromDraft(const FShipBuilderDraftConfig& Draft, const UShipModuleCatalog& Catalog);
+	void SetSelectedModuleInstanceId(FName InstanceId) { SelectedModuleInstanceId = InstanceId; }
+	void SetHoveredModuleInstanceId(FName InstanceId) { HoveredModuleInstanceId = InstanceId; }
+	void SetDragGhostTarget(bool bEnabled, FName InstanceId, FIntVector GridPos)
+	{
+		bShowDragGhost = bEnabled;
+		DragGhostInstanceId = InstanceId;
+		DragGhostGridPos = GridPos;
+	}
 
 	/** Включает/выключает демонстрационный режим повреждённых панелей. */
 	void SetPreviewDamageEnabled(bool bEnabled) { bPreviewDamage = bEnabled; }
@@ -58,6 +67,8 @@ protected:
 
 	/** Пулы инстансов по мешам для ручных override-элементов. */
 	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> OverrideMeshPools;
+	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> SelectionMeshPools;
+	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> SocketMarkerPools;
 
 	/** Зазор между модулями в линейной цепочке (см). */
 	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview", meta = (ClampMin = "0.0"))
@@ -83,6 +94,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview")
 	TObjectPtr<UStaticMesh> SolidModuleMesh;
 
+	/** Материал socket-маркеров (используется для явного зеленого цвета). */
+	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Selection")
+	TObjectPtr<UMaterialInterface> SocketMarkerBaseMaterial;
+
 	/** Опциональные переопределения меша панелей по типу модуля. */
 	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview")
 	TMap<EShipModuleType, TObjectPtr<UStaticMesh>> ModuleTypePanelMeshOverrides;
@@ -98,6 +113,26 @@ protected:
 	/** Каждая N-я панель отображается в повреждённом состоянии. */
 	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Damage", meta = (ClampMin = "2"))
 	int32 DamageEveryNthPanel = 6;
+
+	/** Толщина рамки выделения модуля (см). */
+	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Selection", meta = (ClampMin = "1.0"))
+	float SelectionOutlineThickness = 8.0f;
+
+	/** Зазор рамки выделения от габарита модуля (см). */
+	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Selection", meta = (ClampMin = "0.0"))
+	float SelectionOutlinePadding = 12.0f;
+
+	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Selection")
+	FLinearColor SelectionColor = FLinearColor(1.0f, 0.86f, 0.15f, 1.0f);
+
+	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Selection")
+	FLinearColor SocketMarkerColor = FLinearColor(0.0f, 1.0f, 0.2f, 1.0f);
+
+	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Selection", meta = (ClampMin = "5.0"))
+	float SocketMarkerSize = 36.0f;
+
+	UPROPERTY(EditAnywhere, Category = "ShipBuilder|Preview|Selection", meta = (ClampMin = "0.0"))
+	float SocketMarkerOffset = 12.0f;
 
 private:
 	void AddTransformInstance(UInstancedStaticMeshComponent& Component, const FTransform& Transform) const;
@@ -130,5 +165,13 @@ private:
 		EShipModuleType ModuleType);
 
 	void ClearPools(TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pools);
+	void ConfigureSelectionComponent(UInstancedStaticMeshComponent& Component) const;
+	void ConfigureSocketMarkerComponent(UInstancedStaticMeshComponent& Component) const;
+
+	FName SelectedModuleInstanceId = NAME_None;
+	FName HoveredModuleInstanceId = NAME_None;
+	bool bShowDragGhost = false;
+	FName DragGhostInstanceId = NAME_None;
+	FIntVector DragGhostGridPos = FIntVector::ZeroValue;
 };
 
