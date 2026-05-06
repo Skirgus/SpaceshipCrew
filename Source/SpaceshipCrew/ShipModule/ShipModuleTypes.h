@@ -59,6 +59,20 @@ enum class EShipModuleSocketType : uint8
 };
 
 /**
+ * Сторона модуля для принудительного размещения проёма.
+ * Используется, например, у Airlock для выхода "наружу" даже без стыковки.
+ */
+UENUM(BlueprintType)
+enum class EShipModuleOpeningSide : uint8
+{
+	None,
+	Front,
+	Back,
+	Left,
+	Right
+};
+
+/**
  * Контактная точка (стыковочный узел) модуля корабля.
  * Определяет место и тип возможного соединения с другим модулем.
  */

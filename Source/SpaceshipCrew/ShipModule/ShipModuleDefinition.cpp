@@ -1,4 +1,5 @@
 #include "ShipModuleDefinition.h"
+#include "ShipModuleVisualOverride.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -27,6 +28,23 @@ int32 UShipModuleDefinition::GetEffectiveCreditCost() const
 		return CreditCost;
 	}
 	return FMath::Max(1, FMath::RoundToInt(Mass));
+}
+
+const UShipModuleVisualOverride* UShipModuleDefinition::GetVisualOverride() const
+{
+	return VisualOverride.IsNull() ? nullptr : VisualOverride.LoadSynchronous();
+}
+
+const TArray<FShipModuleContactPoint>& UShipModuleDefinition::GetResolvedContactPoints() const
+{
+	if (const UShipModuleVisualOverride* Override = GetVisualOverride())
+	{
+		if (Override->bOverrideContactPoints && Override->ContactPointsOverride.Num() > 0)
+		{
+			return Override->ContactPointsOverride;
+		}
+	}
+	return ContactPoints;
 }
 
 // ----------------------------------------------------------------------------
@@ -60,16 +78,17 @@ bool UShipModuleDefinition::Validate(TArray<FText>& OutErrors) const
 				Size.X, Size.Y, Size.Z)));
 	}
 
-	if (ContactPoints.Num() == 0)
+	const TArray<FShipModuleContactPoint>& ResolvedContactPoints = GetResolvedContactPoints();
+	if (ResolvedContactPoints.Num() == 0)
 	{
 		OutErrors.Add(FText::FromString(TEXT("Нужна хотя бы одна контактная точка (ContactPoints).")));
 	}
 	else
 	{
 		TSet<FName> SeenNames;
-		for (int32 i = 0; i < ContactPoints.Num(); ++i)
+		for (int32 i = 0; i < ResolvedContactPoints.Num(); ++i)
 		{
-			const FShipModuleContactPoint& CP = ContactPoints[i];
+			const FShipModuleContactPoint& CP = ResolvedContactPoints[i];
 
 			if (CP.SocketName.IsNone())
 			{

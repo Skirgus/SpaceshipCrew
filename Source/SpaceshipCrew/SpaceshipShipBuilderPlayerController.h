@@ -10,6 +10,7 @@
 
 class SSpaceshipShipBuilderRoot;
 class UShipModuleCatalog;
+class AShipBuilderModulePreviewActor;
 
 /**
  * Конструктор корабля: ввод, черновик модулей, расчёт параметров и валидация T02b по автоматической цепочке.
@@ -64,6 +65,8 @@ private:
 	void CatalogCycleNext();
 
 	void EnsureCatalogCategoryIndexValid();
+	void EnsurePreviewActor();
+	void RefreshPreviewFromDraft();
 
 	FShipBuilderDraftConfig Draft;
 
@@ -73,6 +76,9 @@ private:
 
 	/** Индекс в GetCatalogModuleTypesSorted() для фильтра списка каталога. */
 	int32 CatalogCategoryIndex = 0;
+
+	UPROPERTY()
+	TObjectPtr<AShipBuilderModulePreviewActor> PreviewActor;
 
 	TSharedPtr<SSpaceshipShipBuilderRoot> ShipBuilderSlate;
 };

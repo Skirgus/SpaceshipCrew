@@ -10,7 +10,7 @@
  * Фабрика для создания ассетов UShipModuleDefinition через Content Browser.
  * Добавляет пункт «Ship Module Definition» в меню Create Advanced Asset → Miscellaneous.
  * Создаёт ассет с разумными дефолтами: масса 100 кг, габариты 400x400x300 см,
- * одна контактная точка «Front» горизонтального типа.
+ * две контактные точки «Front/Back» горизонтального типа.
  */
 UCLASS()
 class UShipModuleDefinitionFactory : public UFactory
