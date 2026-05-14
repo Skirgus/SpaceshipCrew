@@ -54,29 +54,7 @@ namespace ShipBuildDomainPrivate
 
 	static void GetEffectiveContactPoints(const UShipModuleDefinition& ModuleDefinition, TArray<FShipModuleContactPoint>& OutPoints)
 	{
-		const TArray<FShipModuleContactPoint>& Resolved = ModuleDefinition.GetResolvedContactPoints();
-		if (Resolved.Num() > 0)
-		{
-			OutPoints = Resolved;
-			return;
-		}
-
-		OutPoints.Reset();
-		const FVector Half = ModuleDefinition.Size * 0.5f;
-		auto AddPoint = [&OutPoints](const TCHAR* Name, const FVector& Loc, const EShipModuleSocketType Type)
-		{
-			FShipModuleContactPoint CP;
-			CP.SocketName = Name;
-			CP.RelativeLocation = Loc;
-			CP.SocketType = Type;
-			OutPoints.Add(CP);
-		};
-		AddPoint(TEXT("Front"), FVector(Half.X, 0.0f, 0.0f), EShipModuleSocketType::Horizontal);
-		AddPoint(TEXT("Back"), FVector(-Half.X, 0.0f, 0.0f), EShipModuleSocketType::Horizontal);
-		AddPoint(TEXT("Left"), FVector(0.0f, -Half.Y, 0.0f), EShipModuleSocketType::Horizontal);
-		AddPoint(TEXT("Right"), FVector(0.0f, Half.Y, 0.0f), EShipModuleSocketType::Horizontal);
-		AddPoint(TEXT("Top"), FVector(0.0f, 0.0f, Half.Z), EShipModuleSocketType::Vertical);
-		AddPoint(TEXT("Bottom"), FVector(0.0f, 0.0f, -Half.Z), EShipModuleSocketType::Vertical);
+		ModuleDefinition.GatherEffectiveContactPoints(OutPoints);
 	}
 
 	static void SetError(FString* OutError, const FString& ErrorText)
@@ -127,13 +105,23 @@ namespace ShipBuildDomainPrivate
 	{
 		for (const UShipModuleDefinition* Definition : Definitions)
 		{
-			if (Definition && Definition->GetResolvedContactPoints().Num() > 0)
+			if (!Definition)
+			{
+				continue;
+			}
+			TArray<FShipModuleContactPoint> Effective;
+			Definition->GatherEffectiveContactPoints(Effective);
+			if (Effective.Num() > 0)
 			{
 				return Definition;
 			}
 		}
 		return nullptr;
 	}
+
+	/** Устойчивые адреса для возврата из TryFindCompatiblePair (имена сокетов читают после выхода из вложенных циклов). */
+	static FShipModuleContactPoint GCompatiblePairSocketA;
+	static FShipModuleContactPoint GCompatiblePairSocketB;
 
 	static bool TryFindCompatiblePair(
 		const TArray<UShipModuleDefinition*>& Definitions,
@@ -149,6 +137,9 @@ namespace ShipBuildDomainPrivate
 				continue;
 			}
 
+			TArray<FShipModuleContactPoint> SocketsA;
+			CandidateA->GatherEffectiveContactPoints(SocketsA);
+
 			for (const UShipModuleDefinition* CandidateB : Definitions)
 			{
 				if (!CandidateB)
@@ -156,19 +147,24 @@ namespace ShipBuildDomainPrivate
 					continue;
 				}
 
-				for (const FShipModuleContactPoint& SocketA : CandidateA->GetResolvedContactPoints())
+				TArray<FShipModuleContactPoint> SocketsB;
+				CandidateB->GatherEffectiveContactPoints(SocketsB);
+
+				for (const FShipModuleContactPoint& SocketA : SocketsA)
 				{
-					for (const FShipModuleContactPoint& SocketB : CandidateB->GetResolvedContactPoints())
+					for (const FShipModuleContactPoint& SocketB : SocketsB)
 					{
 						const bool bSocketCompatible = AreSocketTypesCompatible(SocketA.SocketType, SocketB.SocketType);
 						const bool bTypeCompatibleAB = IsTypeAllowedBySource(*CandidateA, CandidateB->ModuleType);
 						const bool bTypeCompatibleBA = IsTypeAllowedBySource(*CandidateB, CandidateA->ModuleType);
 						if (bSocketCompatible && bTypeCompatibleAB && bTypeCompatibleBA)
 						{
+							GCompatiblePairSocketA = SocketA;
+							GCompatiblePairSocketB = SocketB;
 							OutA = CandidateA;
-							OutSocketA = &SocketA;
+							OutSocketA = &GCompatiblePairSocketA;
 							OutB = CandidateB;
-							OutSocketB = &SocketB;
+							OutSocketB = &GCompatiblePairSocketB;
 							return true;
 						}
 					}
@@ -650,12 +646,18 @@ static void RunShipBuildDebugScenario(const TArray<FString>& Args, UWorld* World
 			return;
 		}
 
-		const TArray<FShipModuleContactPoint>& ThirdSockets = ThirdDefinition->GetResolvedContactPoints();
+		TArray<FShipModuleContactPoint> ThirdEffective;
+		ThirdDefinition->GatherEffectiveContactPoints(ThirdEffective);
+		if (ThirdEffective.Num() == 0)
+		{
+			UE_LOG(LogShipBuildDomain, Warning, TEXT("ShipBuild.DebugScenario: у третьего модуля нет эффективных сокетов."));
+			return;
+		}
 		BuildModel.AddAttachedModule(
 			TEXT("InvalidAttach"),
 			ThirdDefinition->ModuleId,
 			TEXT("Root"),
-			ThirdSockets[0].SocketName,
+			ThirdEffective[0].SocketName,
 			FirstSocket->SocketName,
 			nullptr);
 	}

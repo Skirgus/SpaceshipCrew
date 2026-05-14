@@ -47,6 +47,65 @@ const TArray<FShipModuleContactPoint>& UShipModuleDefinition::GetResolvedContact
 	return ContactPoints;
 }
 
+void UShipModuleDefinition::GatherEffectiveContactPoints(TArray<FShipModuleContactPoint>& OutPoints) const
+{
+	OutPoints = GetResolvedContactPoints();
+}
+
+void UShipModuleDefinition::EnsureContactPointsPopulatedIfNoAuthoringOverride()
+{
+	if (const UShipModuleVisualOverride* Vo = GetVisualOverride())
+	{
+		if (Vo->bOverrideContactPoints && Vo->ContactPointsOverride.Num() > 0)
+		{
+			return;
+		}
+	}
+	if (ContactPoints.Num() > 0)
+	{
+		return;
+	}
+	if (Size.X <= 0.0f || Size.Y <= 0.0f || Size.Z <= 0.0f)
+	{
+		return;
+	}
+#if !WITH_EDITOR
+	return;
+#else
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		return;
+	}
+	Modify();
+	TArray<FShipModuleContactPoint> Defaults;
+	AppendDefaultContactPointsForSize(Size, Defaults);
+	ContactPoints = MoveTemp(Defaults);
+	MarkPackageDirty();
+#endif
+}
+
+void UShipModuleDefinition::AppendDefaultContactPointsForSize(
+	const FVector& ModuleSize,
+	TArray<FShipModuleContactPoint>& OutPoints)
+{
+	OutPoints.Reset();
+	const FVector Half = ModuleSize * 0.5f;
+	auto AddPoint = [&OutPoints](const TCHAR* Name, const FVector& Loc, const EShipModuleSocketType Type)
+	{
+		FShipModuleContactPoint CP;
+		CP.SocketName = Name;
+		CP.RelativeLocation = Loc;
+		CP.SocketType = Type;
+		OutPoints.Add(CP);
+	};
+	AddPoint(TEXT("Front"), FVector(Half.X, 0.0f, 0.0f), EShipModuleSocketType::Horizontal);
+	AddPoint(TEXT("Back"), FVector(-Half.X, 0.0f, 0.0f), EShipModuleSocketType::Horizontal);
+	AddPoint(TEXT("Left"), FVector(0.0f, -Half.Y, 0.0f), EShipModuleSocketType::Horizontal);
+	AddPoint(TEXT("Right"), FVector(0.0f, Half.Y, 0.0f), EShipModuleSocketType::Horizontal);
+	AddPoint(TEXT("Top"), FVector(0.0f, 0.0f, Half.Z), EShipModuleSocketType::Vertical);
+	AddPoint(TEXT("Bottom"), FVector(0.0f, 0.0f, -Half.Z), EShipModuleSocketType::Vertical);
+}
+
 // ----------------------------------------------------------------------------
 // Валидация (доступна и в рантайме, и в редакторе)
 // ----------------------------------------------------------------------------
@@ -78,17 +137,18 @@ bool UShipModuleDefinition::Validate(TArray<FText>& OutErrors) const
 				Size.X, Size.Y, Size.Z)));
 	}
 
-	const TArray<FShipModuleContactPoint>& ResolvedContactPoints = GetResolvedContactPoints();
-	if (ResolvedContactPoints.Num() == 0)
+	TArray<FShipModuleContactPoint> EffectiveContactPoints;
+	GatherEffectiveContactPoints(EffectiveContactPoints);
+	if (EffectiveContactPoints.Num() == 0)
 	{
-		OutErrors.Add(FText::FromString(TEXT("Нужна хотя бы одна контактная точка (ContactPoints).")));
+		OutErrors.Add(FText::FromString(TEXT("Нужна хотя бы одна контактная точка: задайте ContactPoints на определении или ContactPointsOverride в VisualOverride (bOverrideContactPoints).")));
 	}
 	else
 	{
 		TSet<FName> SeenNames;
-		for (int32 i = 0; i < ResolvedContactPoints.Num(); ++i)
+		for (int32 i = 0; i < EffectiveContactPoints.Num(); ++i)
 		{
-			const FShipModuleContactPoint& CP = ResolvedContactPoints[i];
+			const FShipModuleContactPoint& CP = EffectiveContactPoints[i];
 
 			if (CP.SocketName.IsNone())
 			{
@@ -147,6 +207,12 @@ void UShipModuleDefinition::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		}
 		MessageLog.Open(EMessageSeverity::Warning);
 	}
+}
+
+void UShipModuleDefinition::PostLoad()
+{
+	Super::PostLoad();
+	EnsureContactPointsPopulatedIfNoAuthoringOverride();
 }
 
 /** При дублировании сбрасываем ModuleId, чтобы пользователь задал уникальный. */

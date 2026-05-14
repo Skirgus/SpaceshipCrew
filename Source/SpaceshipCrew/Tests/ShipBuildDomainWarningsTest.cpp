@@ -46,11 +46,7 @@ namespace ShipBuildDomainWarningsTestPrivate
 		Definition->Mass = 100.0f;
 		Definition->Size = FVector(300.0, 300.0, 300.0);
 		Definition->CompatibleModuleTypes = CompatibleTypes;
-
-		FShipModuleContactPoint ContactPoint;
-		ContactPoint.SocketName = TEXT("Main");
-		ContactPoint.SocketType = SocketType;
-		Definition->ContactPoints.Add(ContactPoint);
+		Definition->EnsureContactPointsPopulatedIfNoAuthoringOverride();
 		return Definition;
 	}
 }
@@ -84,7 +80,7 @@ bool FShipBuildDomainWarningsTest::RunTest(const FString& Parameters)
 	FString Error;
 	TestTrue(TEXT("AddRoot_A"), BuildModel.AddRootModule(TEXT("A"), ModuleA->ModuleId, &Error));
 	TestTrue(TEXT("AddAttached_B"), BuildModel.AddAttachedModule(
-		TEXT("B"), ModuleB->ModuleId, TEXT("A"), TEXT("Main"), TEXT("Main"), &Error));
+		TEXT("B"), ModuleB->ModuleId, TEXT("A"), TEXT("Front"), TEXT("Front"), &Error));
 
 	const FShipBuildValidationResult Result = BuildModel.Validate();
 	TestTrue(TEXT("ValidGraph"), Result.bIsValid);

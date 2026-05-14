@@ -47,11 +47,7 @@ namespace ShipBuildDomainCompatibilityTestPrivate
 		Definition->Mass = 100.0f;
 		Definition->Size = FVector(300.0, 300.0, 300.0);
 		Definition->CompatibleModuleTypes = CompatibleTypes;
-
-		FShipModuleContactPoint ContactPoint;
-		ContactPoint.SocketName = TEXT("Main");
-		ContactPoint.SocketType = SocketType;
-		Definition->ContactPoints.Add(ContactPoint);
+		Definition->EnsureContactPointsPopulatedIfNoAuthoringOverride();
 		return Definition;
 	}
 }
@@ -95,7 +91,7 @@ bool FShipBuildDomainCompatibilityTest::RunTest(const FString& Parameters)
 	FString Error;
 	TestTrue(TEXT("AddRoot_A"), BuildModel.AddRootModule(TEXT("A"), ModuleA->ModuleId, &Error));
 	TestTrue(TEXT("AddAttached_B"), BuildModel.AddAttachedModule(
-		TEXT("B"), ModuleB->ModuleId, TEXT("A"), TEXT("Main"), TEXT("Main"), &Error));
+		TEXT("B"), ModuleB->ModuleId, TEXT("A"), TEXT("Front"), TEXT("Front"), &Error));
 
 	const FShipBuildValidationResult ValidResult = BuildModel.Validate();
 	TestTrue(TEXT("AB_ShouldBeValid"), ValidResult.bIsValid);
@@ -138,6 +134,9 @@ bool FShipBuildDomainDefaultSocketsTest::RunTest(const FString& Parameters)
 	B->CompatibleModuleTypes = { EShipModuleType::Bridge };
 	B->ContactPoints.Reset();
 
+	A->EnsureContactPointsPopulatedIfNoAuthoringOverride();
+	B->EnsureContactPointsPopulatedIfNoAuthoringOverride();
+
 	Resolver.Add(A);
 	Resolver.Add(B);
 
@@ -167,16 +166,12 @@ bool FShipBuildDomainVerticalDirectionTest::RunTest(const FString& Parameters)
 		EShipModuleType::Corridor,
 		EShipModuleSocketType::Vertical,
 		{ EShipModuleType::Corridor });
-	Lower->ContactPoints[0].SocketName = TEXT("Top");
-	Lower->ContactPoints[0].RelativeLocation = FVector(0.0f, 0.0f, 150.0f);
 
 	UShipModuleDefinition* Upper = MakeDefinition(
 		TEXT("Upper"),
 		EShipModuleType::Corridor,
 		EShipModuleSocketType::Vertical,
 		{ EShipModuleType::Corridor });
-	Upper->ContactPoints[0].SocketName = TEXT("Bottom");
-	Upper->ContactPoints[0].RelativeLocation = FVector(0.0f, 0.0f, -150.0f);
 
 	Resolver.Add(Lower);
 	Resolver.Add(Upper);

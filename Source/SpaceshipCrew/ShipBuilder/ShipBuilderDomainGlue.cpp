@@ -74,30 +74,13 @@ namespace ShipBuilderDomainGluePrivate
 		return ESocketDirection::Unknown;
 	}
 
-	static void BuildDefaultSockets(const UShipModuleDefinition& Def, TArray<FEffectiveSocket>& Out)
-	{
-		Out.Reset();
-		Out.Reserve(6);
-		Out.Add({ TEXT("Front"), EShipModuleSocketType::Horizontal, ESocketDirection::Front });
-		Out.Add({ TEXT("Back"), EShipModuleSocketType::Horizontal, ESocketDirection::Back });
-		Out.Add({ TEXT("Left"), EShipModuleSocketType::Horizontal, ESocketDirection::Left });
-		Out.Add({ TEXT("Right"), EShipModuleSocketType::Horizontal, ESocketDirection::Right });
-		Out.Add({ TEXT("Top"), EShipModuleSocketType::Vertical, ESocketDirection::Top });
-		Out.Add({ TEXT("Bottom"), EShipModuleSocketType::Vertical, ESocketDirection::Bottom });
-	}
-
 	static void GetEffectiveSockets(const UShipModuleDefinition& Def, TArray<FEffectiveSocket>& Out)
 	{
-		const TArray<FShipModuleContactPoint>& Resolved = Def.GetResolvedContactPoints();
-		if (Resolved.Num() == 0)
-		{
-			BuildDefaultSockets(Def, Out);
-			return;
-		}
-
+		TArray<FShipModuleContactPoint> Effective;
+		Def.GatherEffectiveContactPoints(Effective);
 		Out.Reset();
-		Out.Reserve(Resolved.Num());
-		for (const FShipModuleContactPoint& CP : Resolved)
+		Out.Reserve(Effective.Num());
+		for (const FShipModuleContactPoint& CP : Effective)
 		{
 			if (CP.SocketName.IsNone())
 			{

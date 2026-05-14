@@ -217,7 +217,7 @@ public:
 		ComponentToPartIndex.Reset();
 		PartIndexToComponent.Reset();
 
-		if (!ToolAsset.IsValid() || !CubeMesh)
+		if (!IsValid(ToolAsset.Get()) || !CubeMesh)
 		{
 			return;
 		}
@@ -441,7 +441,7 @@ public:
 	bool HasSelectedPart() const
 	{
 		return SelectedPartIndex != INDEX_NONE
-			&& ToolAsset.IsValid()
+			&& IsValid(ToolAsset.Get())
 			&& ToolAsset->TargetVisualOverride
 			&& ToolAsset->TargetVisualOverride->VisualParts.IsValidIndex(SelectedPartIndex)
 			&& PartIndexToComponent.Contains(SelectedPartIndex);
@@ -529,14 +529,14 @@ public:
 
 	bool HasSelectedSocket() const
 	{
-		return ToolAsset.IsValid()
+		return IsValid(ToolAsset.Get())
 			&& ToolAsset->TargetVisualOverride
 			&& ToolAsset->TargetVisualOverride->ContactPointsOverride.IsValidIndex(SelectedSocketIndex);
 	}
 
 	void DrawSocketMarkers(FPrimitiveDrawInterface* PDI) const
 	{
-		if (!PDI || !ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride)
+		if (!PDI || !IsValid(ToolAsset.Get()) || !ToolAsset->TargetVisualOverride)
 		{
 			return;
 		}
@@ -554,7 +554,7 @@ public:
 
 	void DrawSocketOpeningGhosts(FPrimitiveDrawInterface* PDI) const
 	{
-		if (!PDI || !ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride || !ToolAsset->TargetModuleDefinition || !ToolAsset->TargetModuleDefinition->bHasInterior)
+		if (!PDI || !IsValid(ToolAsset.Get()) || !ToolAsset->TargetVisualOverride || !ToolAsset->TargetModuleDefinition || !ToolAsset->TargetModuleDefinition->bHasInterior)
 		{
 			return;
 		}
@@ -584,7 +584,7 @@ public:
 
 	void DrawSocketLabels(FSceneView& View, FCanvas& Canvas) const
 	{
-		if (!ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride)
+		if (!IsValid(ToolAsset.Get()) || !ToolAsset->TargetVisualOverride)
 		{
 			return;
 		}
@@ -680,7 +680,7 @@ public:
 
 	void SnapSocketToSurface(FShipModuleContactPoint& InOutSocket) const
 	{
-		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition)
+		if (!IsValid(ToolAsset.Get()) || !ToolAsset->TargetModuleDefinition)
 		{
 			return;
 		}
@@ -781,7 +781,7 @@ public:
 
 	bool TryBuildSocketOpeningGhost(const FShipModuleContactPoint& Socket, FVector& OutCenter, FVector& OutSize) const
 	{
-		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition)
+		if (!IsValid(ToolAsset.Get()) || !ToolAsset->TargetModuleDefinition)
 		{
 			return false;
 		}
@@ -823,7 +823,7 @@ public:
 
 	bool TryBuildSocketRampGhost(const FShipModuleContactPoint& Socket, FVector& OutCenter, FVector& OutSize) const
 	{
-		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition || Socket.SocketType == EShipModuleSocketType::Horizontal)
+		if (!IsValid(ToolAsset.Get()) || !ToolAsset->TargetModuleDefinition || Socket.SocketType == EShipModuleSocketType::Horizontal)
 		{
 			return false;
 		}
@@ -853,7 +853,7 @@ public:
 
 	bool CanPlaceOpeningForSocket(const FShipModuleContactPoint& Socket) const
 	{
-		if (!ToolAsset.IsValid() || !ToolAsset->TargetModuleDefinition || !ToolAsset->TargetModuleDefinition->bHasInterior)
+		if (!IsValid(ToolAsset.Get()) || !ToolAsset->TargetModuleDefinition || !ToolAsset->TargetModuleDefinition->bHasInterior)
 		{
 			return true;
 		}
@@ -992,7 +992,7 @@ public:
 
 	bool HandleViewportSocketSelectionByScreen(const int32 MouseX, const int32 MouseY, const FSceneView* OptionalSceneView)
 	{
-		if (!ViewportClient.IsValid() || !ToolAsset.IsValid() || !ToolAsset->TargetVisualOverride)
+		if (!ViewportClient.IsValid() || !IsValid(ToolAsset.Get()) || !ToolAsset->TargetVisualOverride)
 		{
 			return false;
 		}
@@ -2393,6 +2393,10 @@ void FShipModuleEditorToolAssetEditor::ToggleSocketEditMode()
 
 void FShipModuleEditorToolAssetEditor::OnRefreshPreview()
 {
+	if (IsValid(ToolAsset.Get()))
+	{
+		ToolAsset->SeedDefaultContactPointsOverrideIfNeeded();
+	}
 	if (ViewportWidget.IsValid())
 	{
 		ViewportWidget->RebuildPreview();

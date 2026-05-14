@@ -137,6 +137,13 @@ protected:
 private:
 	void AddTransformInstance(UInstancedStaticMeshComponent& Component, const FTransform& Transform) const;
 	void AddBoxInstance(UInstancedStaticMeshComponent& Component, const FVector& Center, const FVector& Size) const;
+	/** Инстансы маркеров сокетов; при пустом GatherEffective подставляет шесть граней по Size только для отрисовки. */
+	void AddEffectiveSocketMarkerInstances(
+		const UShipModuleDefinition& Def,
+		const FTransform& ModuleTransform,
+		UInstancedStaticMeshComponent& SocketPool,
+		float MarkerSize,
+		float InSocketMarkerOffset) const;
 	void AddShellPanel(
 		UInstancedStaticMeshComponent& NormalComponent,
 		UInstancedStaticMeshComponent* DamagedComponent,

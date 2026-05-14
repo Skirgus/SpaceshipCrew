@@ -151,6 +151,28 @@ void AShipBuilderModulePreviewActor::AddBoxInstance(
 	AddTransformInstance(Component, Transform);
 }
 
+void AShipBuilderModulePreviewActor::AddEffectiveSocketMarkerInstances(
+	const UShipModuleDefinition& Def,
+	const FTransform& ModuleTransform,
+	UInstancedStaticMeshComponent& SocketPool,
+	const float MarkerSize,
+	const float InSocketMarkerOffset) const
+{
+	TArray<FShipModuleContactPoint> Effective;
+	Def.GatherEffectiveContactPoints(Effective);
+	// Только превью: если в ассете ещё не записаны точки, показываем шесть граней по Size (домен/валидация не меняются).
+	if (Effective.Num() == 0 && Def.Size.X > 0.0f && Def.Size.Y > 0.0f && Def.Size.Z > 0.0f)
+	{
+		UShipModuleDefinition::AppendDefaultContactPointsForSize(Def.Size, Effective);
+	}
+	for (const FShipModuleContactPoint& CP : Effective)
+	{
+		const FVector N = CP.RelativeLocation.GetSafeNormal();
+		const FVector Pos = ModuleTransform.TransformPosition(CP.RelativeLocation + N * InSocketMarkerOffset);
+		AddBoxInstance(SocketPool, Pos, FVector(MarkerSize, MarkerSize, MarkerSize));
+	}
+}
+
 void AShipBuilderModulePreviewActor::AddTransformInstance(
 	UInstancedStaticMeshComponent& Component,
 	const FTransform& Transform) const
@@ -268,7 +290,6 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 	ClearPools(SolidMeshPools);
 	ClearPools(OverrideMeshPools);
 	ClearPools(SelectionMeshPools);
-	ClearPools(SocketMarkerPools);
 	ClearPools(SocketMarkerPools);
 
 	if (Draft.ModuleIds.Num() == 0)
@@ -412,29 +433,15 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 						AddBoxInstance(SelectionPoolOverride, FVector(GhostCenter.X + OuterX * 0.5f - Thickness * 0.5f, GhostCenter.Y, GhostTopZ), FVector(Thickness, OuterY, Thickness));
 					}
 
-					if (bIsHovered)
+					if (bIsHovered || bIsSelected)
 					{
 						const float Marker = FMath::Clamp(SocketMarkerSize, 8.0f, 64.0f);
-						const TArray<FShipModuleContactPoint>& Sockets = Def->GetResolvedContactPoints();
-						if (Sockets.Num() > 0)
-						{
-							for (const FShipModuleContactPoint& CP : Sockets)
-							{
-								const FVector N = CP.RelativeLocation.GetSafeNormal();
-								const FVector Pos = ModuleTransform.TransformPosition(CP.RelativeLocation + N * SocketMarkerOffset);
-								AddBoxInstance(SocketPoolOverride, Pos, FVector(Marker, Marker, Marker));
-							}
-						}
-						else
-						{
-							const FVector Half = Size * 0.5f;
-							AddBoxInstance(SocketPoolOverride, ModuleTransform.TransformPosition(FVector(Half.X, 0.0f, 0.0f)), FVector(Marker, Marker, Marker));
-							AddBoxInstance(SocketPoolOverride, ModuleTransform.TransformPosition(FVector(-Half.X, 0.0f, 0.0f)), FVector(Marker, Marker, Marker));
-							AddBoxInstance(SocketPoolOverride, ModuleTransform.TransformPosition(FVector(0.0f, Half.Y, 0.0f)), FVector(Marker, Marker, Marker));
-							AddBoxInstance(SocketPoolOverride, ModuleTransform.TransformPosition(FVector(0.0f, -Half.Y, 0.0f)), FVector(Marker, Marker, Marker));
-							AddBoxInstance(SocketPoolOverride, ModuleTransform.TransformPosition(FVector(0.0f, 0.0f, Half.Z)), FVector(Marker, Marker, Marker));
-							AddBoxInstance(SocketPoolOverride, ModuleTransform.TransformPosition(FVector(0.0f, 0.0f, -Half.Z)), FVector(Marker, Marker, Marker));
-						}
+						AddEffectiveSocketMarkerInstances(
+							*Def,
+							ModuleTransform,
+							SocketPoolOverride,
+							Marker,
+							SocketMarkerOffset);
 					}
 				}
 				continue;
@@ -452,6 +459,69 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 				UInstancedStaticMeshComponent& SolidPool = GetOrCreatePool(SolidMeshPools, SolidMesh, TEXT("Solid"));
 				AddTransformInstance(SolidPool, FTransform(ModuleYaw, Center, Size / 100.0f));
 			}
+
+			if (bIsSelected || bIsHovered || (bShowDragGhost && DragGhostInstanceId == Resolved[Index].InstanceId))
+			{
+				UInstancedStaticMeshComponent& SelectionPoolSolid = GetOrCreatePool(SelectionMeshPools, PanelMesh, TEXT("SelectionSolid"));
+				UInstancedStaticMeshComponent& SocketPoolSolid = GetOrCreatePool(SocketMarkerPools, PanelMesh, TEXT("SocketMarkerSolid"));
+				if (bIsSelected || bIsHovered)
+				{
+					ConfigureSelectionComponent(SelectionPoolSolid);
+					ConfigureSocketMarkerComponent(SocketPoolSolid);
+					const float Pad = FMath::Max(0.0f, bIsHovered ? SelectionOutlinePadding * 0.6f : SelectionOutlinePadding);
+					const float Thickness = FMath::Clamp(SelectionOutlineThickness, 1.0f, 40.0f);
+					const float OutlineTopZ = Center.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
+					const float OuterX = Size.X + 2.0f * Pad;
+					const float OuterY = Size.Y + 2.0f * Pad;
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(Center.X, Center.Y - OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ),
+						FVector(OuterX, Thickness, Thickness));
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(Center.X, Center.Y + OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ),
+						FVector(OuterX, Thickness, Thickness));
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(Center.X - OuterX * 0.5f + Thickness * 0.5f, Center.Y, OutlineTopZ),
+						FVector(Thickness, OuterY, Thickness));
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(Center.X + OuterX * 0.5f - Thickness * 0.5f, Center.Y, OutlineTopZ),
+						FVector(Thickness, OuterY, Thickness));
+					const float Marker = FMath::Clamp(SocketMarkerSize, 8.0f, 64.0f);
+					AddEffectiveSocketMarkerInstances(*Def, ModuleTransform, SocketPoolSolid, Marker, SocketMarkerOffset);
+				}
+				if (bShowDragGhost && DragGhostInstanceId == Resolved[Index].InstanceId)
+				{
+					ConfigureSelectionComponent(SelectionPoolSolid);
+					const float Pad = FMath::Max(0.0f, SelectionOutlinePadding);
+					const float Thickness = FMath::Clamp(SelectionOutlineThickness, 1.0f, 40.0f);
+					const FVector GhostCenter(
+						static_cast<float>(DragGhostGridPos.X) * ShipBuilderPreviewActorPrivate::GridStepXY,
+						static_cast<float>(DragGhostGridPos.Y) * ShipBuilderPreviewActorPrivate::GridStepXY,
+						static_cast<float>(DragGhostGridPos.Z) * ShipBuilderPreviewActorPrivate::GridStepZ + Size.Z * 0.5f);
+					const float OutlineTopZ = GhostCenter.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
+					const float OuterX = Size.X + 2.0f * Pad;
+					const float OuterY = Size.Y + 2.0f * Pad;
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(GhostCenter.X, GhostCenter.Y - OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ),
+						FVector(OuterX, Thickness, Thickness));
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(GhostCenter.X, GhostCenter.Y + OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ),
+						FVector(OuterX, Thickness, Thickness));
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(GhostCenter.X - OuterX * 0.5f + Thickness * 0.5f, GhostCenter.Y, OutlineTopZ),
+						FVector(Thickness, OuterY, Thickness));
+					AddBoxInstance(
+						SelectionPoolSolid,
+						FVector(GhostCenter.X + OuterX * 0.5f - Thickness * 0.5f, GhostCenter.Y, OutlineTopZ),
+						FVector(Thickness, OuterY, Thickness));
+				}
+			}
 			continue;
 		}
 
@@ -463,9 +533,11 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 		bool bHasVerticalConnection = false;
 		if (bHasDomainChain)
 		{
-			auto IsDoorwaySocket = [Def](const FName SocketName) -> bool
+			TArray<FShipModuleContactPoint> CurrentEffectiveSockets;
+			Def->GatherEffectiveContactPoints(CurrentEffectiveSockets);
+			auto IsDoorwaySocket = [&CurrentEffectiveSockets](const FName SocketName) -> bool
 			{
-				for (const FShipModuleContactPoint& CP : Def->GetResolvedContactPoints())
+				for (const FShipModuleContactPoint& CP : CurrentEffectiveSockets)
 				{
 					if (CP.SocketName == SocketName)
 					{
@@ -507,7 +579,9 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 				const bool bDoorwayPair = IsDoorwaySocket(CurrentSocketName)
 					&& [OtherDef, OtherSocketName]()
 					{
-						for (const FShipModuleContactPoint& CP : OtherDef->GetResolvedContactPoints())
+						TArray<FShipModuleContactPoint> OtherEffective;
+						OtherDef->GatherEffectiveContactPoints(OtherEffective);
+						for (const FShipModuleContactPoint& CP : OtherEffective)
 						{
 							if (CP.SocketName == OtherSocketName)
 							{
@@ -633,30 +707,16 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 				FVector(Thickness, OuterY, Thickness));
 		}
 
-		if (bIsHovered)
+		if (bIsHovered || bIsSelected)
 		{
 			ConfigureSocketMarkerComponent(SocketPool);
 			const float Marker = FMath::Clamp(SocketMarkerSize, 8.0f, 64.0f);
-			const TArray<FShipModuleContactPoint>& Sockets = Def->GetResolvedContactPoints();
-			if (Sockets.Num() > 0)
-			{
-				for (const FShipModuleContactPoint& CP : Sockets)
-				{
-					const FVector N = CP.RelativeLocation.GetSafeNormal();
-					const FVector Pos = ModuleTransform.TransformPosition(CP.RelativeLocation + N * SocketMarkerOffset);
-					AddBoxInstance(SocketPool, Pos, FVector(Marker, Marker, Marker));
-				}
-			}
-			else
-			{
-				const FVector Half = Size * 0.5f;
-				AddBoxInstance(SocketPool, ModuleTransform.TransformPosition(FVector(Half.X, 0.0f, 0.0f)), FVector(Marker, Marker, Marker));
-				AddBoxInstance(SocketPool, ModuleTransform.TransformPosition(FVector(-Half.X, 0.0f, 0.0f)), FVector(Marker, Marker, Marker));
-				AddBoxInstance(SocketPool, ModuleTransform.TransformPosition(FVector(0.0f, Half.Y, 0.0f)), FVector(Marker, Marker, Marker));
-				AddBoxInstance(SocketPool, ModuleTransform.TransformPosition(FVector(0.0f, -Half.Y, 0.0f)), FVector(Marker, Marker, Marker));
-				AddBoxInstance(SocketPool, ModuleTransform.TransformPosition(FVector(0.0f, 0.0f, Half.Z)), FVector(Marker, Marker, Marker));
-				AddBoxInstance(SocketPool, ModuleTransform.TransformPosition(FVector(0.0f, 0.0f, -Half.Z)), FVector(Marker, Marker, Marker));
-			}
+			AddEffectiveSocketMarkerInstances(
+				*Def,
+				ModuleTransform,
+				SocketPool,
+				Marker,
+				SocketMarkerOffset);
 		}
 
 		if (bShowDragGhost && DragGhostInstanceId == Resolved[Index].InstanceId)
@@ -688,41 +748,6 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 				SelectionPool,
 				FVector(GhostCenter.X + OuterX * 0.5f - Thickness * 0.5f, GhostCenter.Y, OutlineTopZ),
 				FVector(Thickness, OuterY, Thickness));
-		}
-
-		if (bIsHovered)
-		{
-			TArray<FShipModuleContactPoint> HoverSockets;
-			const TArray<FShipModuleContactPoint>& ResolvedSockets = Def->GetResolvedContactPoints();
-			if (ResolvedSockets.Num() > 0)
-			{
-				HoverSockets = ResolvedSockets;
-			}
-			else
-			{
-				const FVector Half = Size * 0.5f;
-				auto AddDefaultSocket = [&HoverSockets](const TCHAR* Name, const FVector& Loc, const EShipModuleSocketType Type)
-				{
-					FShipModuleContactPoint CP;
-					CP.SocketName = Name;
-					CP.RelativeLocation = Loc;
-					CP.SocketType = Type;
-					HoverSockets.Add(CP);
-				};
-				AddDefaultSocket(TEXT("Front"), FVector(Half.X, 0.0f, 0.0f), EShipModuleSocketType::Horizontal);
-				AddDefaultSocket(TEXT("Back"), FVector(-Half.X, 0.0f, 0.0f), EShipModuleSocketType::Horizontal);
-				AddDefaultSocket(TEXT("Left"), FVector(0.0f, -Half.Y, 0.0f), EShipModuleSocketType::Horizontal);
-				AddDefaultSocket(TEXT("Right"), FVector(0.0f, Half.Y, 0.0f), EShipModuleSocketType::Horizontal);
-				AddDefaultSocket(TEXT("Top"), FVector(0.0f, 0.0f, Half.Z), EShipModuleSocketType::Vertical);
-				AddDefaultSocket(TEXT("Bottom"), FVector(0.0f, 0.0f, -Half.Z), EShipModuleSocketType::Vertical);
-			}
-			ConfigureSelectionComponent(SocketPool);
-			const float Marker = FMath::Clamp(SocketMarkerSize, 8.0f, 64.0f);
-			for (const FShipModuleContactPoint& CP : HoverSockets)
-			{
-				const FVector WorldPos = ModuleTransform.TransformPosition(CP.RelativeLocation);
-				AddBoxInstance(SocketPool, WorldPos, FVector(Marker, Marker, Marker));
-			}
 		}
 
 		auto AddOrientedShellPanel = [&](const FVector& LocalCenter, const FVector& PanelSize)

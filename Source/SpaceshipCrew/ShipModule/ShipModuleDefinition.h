@@ -63,7 +63,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interior")
 	EShipModuleOpeningSide ForcedOpeningSide = EShipModuleOpeningSide::None;
 
-	/** Контактные точки (стыковочные узлы). Минимум одна, имена (SocketName) уникальны. */
+	/**
+	 * Контактные точки стыковки (данные). Маркеры «сокетов» в билдере и сторителе рисуются только по этому списку,
+	 * пока в VisualOverride не включён отдельный список ContactPointsOverride (bOverrideContactPoints).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
 	TArray<FShipModuleContactPoint> ContactPoints;
 
@@ -81,8 +84,25 @@ public:
 	/** Эффективная стоимость для суммы в конструкторе (CreditCost или оценка по массе). */
 	int32 GetEffectiveCreditCost() const;
 
-	/** Контактные точки, учитывающие optional override из VisualOverride. */
+	/** Резолв: ContactPointsOverride при bOverrideContactPoints и непустом списке, иначе ContactPoints на определении. */
 	const TArray<FShipModuleContactPoint>& GetResolvedContactPoints() const;
+
+	/**
+	 * Шесть стыковочных точек на гранях bbox (см). Записывает в OutPoints (с Reset).
+	 * Используется фабрикой, сидированием и EnsureContactPointsPopulatedIfNoAuthoringOverride.
+	 */
+	static void AppendDefaultContactPointsForSize(const FVector& ModuleSize, TArray<FShipModuleContactPoint>& OutPoints);
+
+	/**
+	 * Эффективные контактные точки для домена/превью: копия GetResolvedContactPoints (без «виртуальных» сокетов).
+	 */
+	void GatherEffectiveContactPoints(TArray<FShipModuleContactPoint>& OutPoints) const;
+
+	/**
+	 * Если нет authoring-сокетов в VisualOverride и ContactPoints пуст — добавить шесть граней по Size (только редактор).
+	 * Вызывается из PostLoad и может вызываться из инструментов/тестов.
+	 */
+	void EnsureContactPointsPopulatedIfNoAuthoringOverride();
 
 	/** Загруженный visual override (если задан). */
 	const class UShipModuleVisualOverride* GetVisualOverride() const;
@@ -102,6 +122,7 @@ public:
 
 #if WITH_EDITOR
 	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+	virtual void PostLoad() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 #endif

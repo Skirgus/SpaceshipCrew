@@ -26,9 +26,15 @@ public:
 	UFUNCTION(CallInEditor, Category = "ShipBuilder|Editor Tool")
 	void GenerateOrUpdateVisualOverride();
 
-	/** Скопировать контактные точки ModuleDefinition в override и включить их использование. */
+	/** Скопировать эффективные контактные точки (определение / грани по Size) в override. */
 	UFUNCTION(CallInEditor, Category = "ShipBuilder|Editor Tool")
 	void CopyContactPointsToOverride();
+
+	/**
+	 * Если у текущего VisualOverride список сокетов пуст — заполнить его GatherEffectiveContactPoints
+	 * с TargetModuleDefinition (без создания нового ассета).
+	 */
+	void SeedDefaultContactPointsOverrideIfNeeded();
 
 	/** Добавить новую контактную точку в override (для authoring сокетов в editor tool). */
 	UFUNCTION(CallInEditor, Category = "ShipBuilder|Editor Tool")

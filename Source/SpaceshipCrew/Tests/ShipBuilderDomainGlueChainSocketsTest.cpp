@@ -40,7 +40,6 @@ namespace ShipBuilderDomainGlueChainSocketsTestPrivate
 	static UShipModuleDefinition* MakeDefinition(
 		const FName ModuleId,
 		const EShipModuleType ModuleType,
-		const TArray<FName>& SocketNames,
 		const TArray<EShipModuleType>& CompatibleTypes)
 	{
 		UShipModuleDefinition* Definition = NewObject<UShipModuleDefinition>();
@@ -51,15 +50,7 @@ namespace ShipBuilderDomainGlueChainSocketsTestPrivate
 		Definition->Size = FVector(400.0, 400.0, 300.0);
 		Definition->CompatibleModuleTypes = CompatibleTypes;
 
-		for (int32 Index = 0; Index < SocketNames.Num(); ++Index)
-		{
-			FShipModuleContactPoint CP;
-			CP.SocketName = SocketNames[Index];
-			CP.SocketType = EShipModuleSocketType::Horizontal;
-			CP.RelativeLocation = FVector(Index * 10.0f, 0.0f, 0.0f);
-			Definition->ContactPoints.Add(CP);
-		}
-
+		Definition->EnsureContactPointsPopulatedIfNoAuthoringOverride();
 		return Definition;
 	}
 }
@@ -79,21 +70,18 @@ bool FShipBuilderDomainGlueChainSocketsTest::RunTest(const FString& Parameters)
 	UShipModuleDefinition* Root = MakeDefinition(
 		TEXT("RootBridge"),
 		EShipModuleType::Bridge,
-		{ TEXT("Back") },
 		{ EShipModuleType::Corridor });
 
 	// Middle: два сокета; первый будет занят первой связью, второй нужен для следующего модуля.
 	UShipModuleDefinition* Middle = MakeDefinition(
 		TEXT("MidCorridor"),
 		EShipModuleType::Corridor,
-		{ TEXT("A"), TEXT("B") },
 		{ EShipModuleType::Bridge, EShipModuleType::Corridor, EShipModuleType::Airlock });
 
 	// Tail: односторонний "уличный" модуль (шлюз) с одним сокетом.
 	UShipModuleDefinition* Tail = MakeDefinition(
 		TEXT("AirlockTail"),
 		EShipModuleType::Airlock,
-		{ TEXT("In") },
 		{ EShipModuleType::Corridor });
 
 	Resolver.Add(Root);
@@ -148,13 +136,11 @@ bool FShipBuilderDomainGlueChainResolvesOverrideSocketsTest::RunTest(const FStri
 	UShipModuleDefinition* Root = MakeDefinition(
 		TEXT("RootBridgeOverride"),
 		EShipModuleType::Bridge,
-		{ TEXT("Front") },
 		{ EShipModuleType::Corridor });
 
 	UShipModuleDefinition* Middle = MakeDefinition(
 		TEXT("MidCorridorOverride"),
 		EShipModuleType::Corridor,
-		{ TEXT("A"), TEXT("B") },
 		{ EShipModuleType::Bridge, EShipModuleType::Corridor });
 
 	UShipModuleVisualOverride* MiddleOverride = NewObject<UShipModuleVisualOverride>();
@@ -169,7 +155,6 @@ bool FShipBuilderDomainGlueChainResolvesOverrideSocketsTest::RunTest(const FStri
 	UShipModuleDefinition* Tail = MakeDefinition(
 		TEXT("TailCorridorOverride"),
 		EShipModuleType::Corridor,
-		{ TEXT("Rear") },
 		{ EShipModuleType::Corridor });
 
 	Resolver.Add(Root);
@@ -219,16 +204,12 @@ bool FShipBuilderDomainGluePlacedModulesTest::RunTest(const FString& Parameters)
 	UShipModuleDefinition* Lower = MakeDefinition(
 		TEXT("PlacedLower"),
 		EShipModuleType::Corridor,
-		{ TEXT("Top") },
 		{ EShipModuleType::Corridor });
-	Lower->ContactPoints[0].SocketType = EShipModuleSocketType::Vertical;
 
 	UShipModuleDefinition* Upper = MakeDefinition(
 		TEXT("PlacedUpper"),
 		EShipModuleType::Corridor,
-		{ TEXT("Bottom") },
 		{ EShipModuleType::Corridor });
-	Upper->ContactPoints[0].SocketType = EShipModuleSocketType::Vertical;
 
 	Resolver.Add(Lower);
 	Resolver.Add(Upper);

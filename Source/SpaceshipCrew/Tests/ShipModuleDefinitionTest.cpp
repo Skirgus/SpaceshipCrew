@@ -29,12 +29,7 @@ bool FShipModuleRequiredFieldsTest::RunTest(const FString& Parameters)
 	Def->DisplayName = FText::FromString(TEXT("Тестовый мостик"));
 	Def->Mass = 500.0f;
 	Def->Size = FVector(800.0, 600.0, 400.0);
-
-	FShipModuleContactPoint CP;
-	CP.SocketName = FName(TEXT("Front"));
-	CP.RelativeLocation = FVector(400.0, 0.0, 0.0);
-	CP.SocketType = EShipModuleSocketType::Horizontal;
-	Def->ContactPoints.Add(CP);
+	Def->EnsureContactPointsPopulatedIfNoAuthoringOverride();
 
 	{
 		TArray<FText> Errors;
