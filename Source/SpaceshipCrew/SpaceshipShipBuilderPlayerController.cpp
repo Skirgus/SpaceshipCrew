@@ -10,6 +10,11 @@
 #include "ShipModuleTypes.h"
 #include "UI/SSpaceshipShipBuilderRoot.h"
 #include "Menu/SpaceshipCrewLevelTravel.h"
+#include "ShipBuilder/ShipBlueprintNaming.h"
+#include "ShipBuilder/ShipBlueprintRegistry.h"
+#include "ShipBuilder/ShipBlueprintSessionSubsystem.h"
+#include "ShipBuilder/ShipBlueprintTypes.h"
+#include "Misc/MessageDialog.h"
 
 namespace SpaceshipShipBuilderInputPrivate
 {
@@ -26,6 +31,8 @@ void ASpaceshipShipBuilderPlayerController::BeginPlay()
 	{
 		return;
 	}
+
+	ApplyLoadedDocumentToDraft();
 
 	bShowMouseCursor = true;
 	FInputModeGameAndUI Mode;
@@ -242,11 +249,204 @@ void ASpaceshipShipBuilderPlayerController::AppendModuleToDraft(const FName Modu
 	RebuildConnectionsFromAdjacency();
 
 	SyncLegacyModuleIds();
+	NotifyDraftChanged();
 	RefreshPreviewFromDraft();
 	RefreshShipBuilderUi();
 }
 
+UShipBlueprintSessionSubsystem* ASpaceshipShipBuilderPlayerController::GetBlueprintSession() const
+{
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		return GI->GetSubsystem<UShipBlueprintSessionSubsystem>();
+	}
+	return nullptr;
+}
+
+void ASpaceshipShipBuilderPlayerController::ApplyLoadedDocumentToDraft()
+{
+	if (UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		Session->ApplyPendingToDraft(Draft);
+		SyncLegacyModuleIds();
+
+		// Шаблоны/старые JSON без Connections: восстановить стыковки по соседству на сетке.
+		if (Draft.Connections.Num() == 0 && Draft.PlacedModules.Num() >= 2)
+		{
+			RebuildConnectionsFromAdjacency();
+			SyncLegacyModuleIds();
+		}
+
+		SyncSessionFromDraft();
+	}
+}
+
+void ASpaceshipShipBuilderPlayerController::SyncSessionFromDraft()
+{
+	if (UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		Session->UpdatePendingLayout(Draft, GetDraftTotalCreditCost());
+	}
+}
+
+void ASpaceshipShipBuilderPlayerController::NotifyDraftChanged()
+{
+	if (UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		Session->UpdatePendingLayout(Draft, GetDraftTotalCreditCost());
+		Session->MarkDirty();
+	}
+}
+
+bool ASpaceshipShipBuilderPlayerController::IsNewShipEditSession() const
+{
+	if (const UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		return Session->GetSessionConst().EditSource == EShipBlueprintEditSource::New;
+	}
+	return false;
+}
+
+FText ASpaceshipShipBuilderPlayerController::GetShipSessionTitle() const
+{
+	if (const UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		const FShipBlueprintSession& S = Session->GetSessionConst();
+		if (!S.DisplayName.IsEmpty())
+		{
+			return S.DisplayName;
+		}
+		if (!S.SourceShipId.IsNone())
+		{
+			return FText::FromName(S.SourceShipId);
+		}
+	}
+	return NSLOCTEXT("SpaceshipCrew", "NewShipTitle", "Новый корабль");
+}
+
+bool ASpaceshipShipBuilderPlayerController::CanSaveShipInPlace() const
+{
+	if (const UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		return Session->CanSaveInPlace();
+	}
+	return false;
+}
+
+bool ASpaceshipShipBuilderPlayerController::RequiresSaveShipAs() const
+{
+	if (const UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		return Session->RequiresSaveAs();
+	}
+	return true;
+}
+
+bool ASpaceshipShipBuilderPlayerController::IsShipSessionDirty() const
+{
+	if (const UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		return Session->GetSessionConst().bDirty;
+	}
+	return false;
+}
+
+bool ASpaceshipShipBuilderPlayerController::TrySaveShip(FString& OutError)
+{
+	if (UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		SyncSessionFromDraft();
+		if (Session->RequiresSaveAs())
+		{
+			OutError = TEXT("Используйте «Сохранить как…».");
+			return false;
+		}
+		return Session->SaveCurrent(OutError);
+	}
+	OutError = TEXT("Сессия недоступна.");
+	return false;
+}
+
+bool ASpaceshipShipBuilderPlayerController::TrySaveShipAs(const FString& DisplayName, FString& OutError)
+{
+	if (DisplayName.IsEmpty())
+	{
+		OutError = TEXT("Введите имя корабля.");
+		return false;
+	}
+
+	UShipBlueprintRegistry* Registry = nullptr;
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		Registry = GI->GetSubsystem<UShipBlueprintRegistry>();
+	}
+
+	const FName CandidateId = ShipBlueprintNaming::MakeShipIdFromDisplayName(DisplayName);
+	FName SaveId = CandidateId;
+
+	if (Registry && Registry->DoesPlayerBlueprintExist(CandidateId))
+	{
+		const FText Prompt = FText::Format(
+			NSLOCTEXT(
+				"SpaceshipCrew",
+				"SaveAsOverwritePrompt",
+				"Корабль с идентификатором «{0}» уже существует.\n\nДа — перезаписать.\nНет — сохранить как новый файл (с суффиксом)."),
+			FText::FromName(CandidateId));
+
+		const EAppReturnType::Type Choice = FMessageDialog::Open(EAppMsgType::YesNo, Prompt);
+		if (Choice == EAppReturnType::Yes)
+		{
+			SaveId = CandidateId;
+		}
+		else
+		{
+			int32 Suffix = 1;
+			while (Registry->DoesPlayerBlueprintExist(
+				ShipBlueprintNaming::MakeUniquePlayerShipId(DisplayName, Suffix)))
+			{
+				++Suffix;
+			}
+			SaveId = ShipBlueprintNaming::MakeUniquePlayerShipId(DisplayName, Suffix);
+		}
+	}
+
+	if (UShipBlueprintSessionSubsystem* Session = GetBlueprintSession())
+	{
+		SyncSessionFromDraft();
+		return Session->SaveAs(SaveId, FText::FromString(DisplayName), OutError);
+	}
+	OutError = TEXT("Сессия недоступна.");
+	return false;
+}
+
+bool ASpaceshipShipBuilderPlayerController::ConfirmDiscardDirtyAndContinue(TFunctionRef<void()> OnConfirmed)
+{
+	if (!IsShipSessionDirty())
+	{
+		OnConfirmed();
+		return true;
+	}
+
+	const EAppReturnType::Type Result = FMessageDialog::Open(
+		EAppMsgType::YesNo,
+		NSLOCTEXT("SpaceshipCrew", "DiscardShipChanges", "Есть несохранённые изменения. Выйти без сохранения?"));
+	if (Result == EAppReturnType::Yes)
+	{
+		OnConfirmed();
+		return true;
+	}
+	return false;
+}
+
 void ASpaceshipShipBuilderPlayerController::RequestExitToMainMenu()
+{
+	ConfirmDiscardDirtyAndContinue([this]()
+	{
+		RequestExitToMainMenuForce();
+	});
+}
+
+void ASpaceshipShipBuilderPlayerController::RequestExitToMainMenuForce()
 {
 	if (UWorld* World = GetWorld())
 	{
@@ -309,6 +509,7 @@ void ASpaceshipShipBuilderPlayerController::RotatePlacementLeft()
 	{
 		FShipBuilderDraftConfig::FPlacedModule& Selected = Draft.PlacedModules[SelectedIndex];
 		Selected.YawStep = (Selected.YawStep + 3) % 4;
+		NotifyDraftChanged();
 		RefreshPreviewFromDraft();
 		RefreshShipBuilderUi();
 		return;
@@ -324,6 +525,7 @@ void ASpaceshipShipBuilderPlayerController::RotatePlacementRight()
 	{
 		FShipBuilderDraftConfig::FPlacedModule& Selected = Draft.PlacedModules[SelectedIndex];
 		Selected.YawStep = (Selected.YawStep + 1) % 4;
+		NotifyDraftChanged();
 		RefreshPreviewFromDraft();
 		RefreshShipBuilderUi();
 		return;
@@ -339,6 +541,7 @@ void ASpaceshipShipBuilderPlayerController::MovePlacementUp()
 	{
 		++Draft.PlacedModules[SelectedIndex].GridPos.Z;
 		RebuildConnectionsFromAdjacency();
+		NotifyDraftChanged();
 		RefreshPreviewFromDraft();
 		RefreshShipBuilderUi();
 		return;
@@ -354,6 +557,7 @@ void ASpaceshipShipBuilderPlayerController::MovePlacementDown()
 	{
 		--Draft.PlacedModules[SelectedIndex].GridPos.Z;
 		RebuildConnectionsFromAdjacency();
+		NotifyDraftChanged();
 		RefreshPreviewFromDraft();
 		RefreshShipBuilderUi();
 		return;
@@ -431,6 +635,7 @@ void ASpaceshipShipBuilderPlayerController::OnEndDragReleased()
 		{
 			Draft.PlacedModules[ModuleIndex].GridPos = DragTargetCell;
 			RebuildConnectionsFromAdjacency();
+			NotifyDraftChanged();
 			RefreshPreviewFromDraft();
 			RefreshShipBuilderUi();
 		}

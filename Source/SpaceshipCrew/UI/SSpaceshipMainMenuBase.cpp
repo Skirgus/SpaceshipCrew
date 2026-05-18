@@ -3,6 +3,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Menu/SpaceshipCrewLevelTravel.h"
+#include "SSpaceshipBlueprintPicker.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -51,6 +52,13 @@ void SSpaceshipMainMenuBase::Construct(const FArguments& InArgs)
 					+ SWidgetSwitcher::Slot()
 					[
 						BuildPlaceholderSlot()
+					]
+					+ SWidgetSwitcher::Slot()
+					[
+						SAssignNew(BlueprintPicker, SSpaceshipBlueprintPicker)
+						.WorldContext(World)
+						.OwnerPC(OwnerPC)
+						.OnBack(this, &SSpaceshipMainMenuBase::OnBlueprintPickerBack)
 					]
 				]
 			]
@@ -120,21 +128,14 @@ FReply SSpaceshipMainMenuBase::OnRouteClicked(ESpaceshipMenuRoute Route)
 
 	if (Route == ESpaceshipMenuRoute::Constructor)
 	{
-		if (UWorld* W = World.Get())
-		{
-			UGameplayStatics::OpenLevel(
-				W,
-				FName(SpaceshipCrewLevelTravel::GetPlayMapPackagePath()),
-				false,
-				SpaceshipCrewLevelTravel::GetShipBuilderGameOptions());
-		}
+		ShowBlueprintPicker();
 		return FReply::Handled();
 	}
 
 	PlaceholderTitle = GetDisplayName(Route);
 	if (MenuSwitcher.IsValid())
 	{
-		MenuSwitcher->SetActiveWidgetIndex(1);
+		MenuSwitcher->SetActiveWidgetIndex(PlaceholderSlotIndex);
 	}
 
 	return FReply::Handled();
@@ -142,11 +143,33 @@ FReply SSpaceshipMainMenuBase::OnRouteClicked(ESpaceshipMenuRoute Route)
 
 FReply SSpaceshipMainMenuBase::OnBackClicked()
 {
+	ShowMainMenu();
+	return FReply::Handled();
+}
+
+void SSpaceshipMainMenuBase::OnBlueprintPickerBack()
+{
+	ShowMainMenu();
+}
+
+void SSpaceshipMainMenuBase::ShowBlueprintPicker()
+{
+	if (BlueprintPicker.IsValid())
+	{
+		BlueprintPicker->RefreshLists();
+	}
 	if (MenuSwitcher.IsValid())
 	{
-		MenuSwitcher->SetActiveWidgetIndex(0);
+		MenuSwitcher->SetActiveWidgetIndex(BlueprintPickerSlotIndex);
 	}
-	return FReply::Handled();
+}
+
+void SSpaceshipMainMenuBase::ShowMainMenu()
+{
+	if (MenuSwitcher.IsValid())
+	{
+		MenuSwitcher->SetActiveWidgetIndex(MainMenuSlotIndex);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

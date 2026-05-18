@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "ShipBuilder/ShipBuilderDraftTypes.h"
+#include "ShipBuilder/ShipBlueprintTypes.h"
 #include "ShipModule/ShipBuildDomain.h"
 #include "ShipModuleTypes.h"
 #include "SpaceshipCrew.h"
@@ -10,6 +11,7 @@
 
 class SSpaceshipShipBuilderRoot;
 class UShipModuleCatalog;
+class UShipBlueprintSessionSubsystem;
 class AShipBuilderModulePreviewActor;
 
 /**
@@ -44,6 +46,22 @@ public:
 
 	void AppendModuleToDraft(FName ModuleId);
 	void RequestExitToMainMenu();
+	void RequestExitToMainMenuForce();
+
+	UShipBlueprintSessionSubsystem* GetBlueprintSession() const;
+
+	FText GetShipSessionTitle() const;
+	bool CanSaveShipInPlace() const;
+	bool RequiresSaveShipAs() const;
+	bool IsShipSessionDirty() const;
+
+	/** Сохранить (перезапись player) или ошибка, если нужен Save As. */
+	bool TrySaveShip(FString& OutError);
+	bool TrySaveShipAs(const FString& DisplayName, FString& OutError);
+
+	void ApplyLoadedDocumentToDraft();
+	bool IsNewShipEditSession() const;
+	void NotifyDraftChanged();
 
 	/** Сумма эффективной стоимости модулей в черновике (CreditCost или масса). */
 	int32 GetDraftTotalCreditCost() const;
@@ -86,7 +104,9 @@ private:
 	void EnsurePreviewActor();
 	void RefreshPreviewFromDraft();
 	void SyncLegacyModuleIds();
+	void SyncSessionFromDraft();
 	FName MakeNextDraftInstanceId() const;
+	bool ConfirmDiscardDirtyAndContinue(TFunctionRef<void()> OnConfirmed);
 
 	FShipBuilderDraftConfig Draft;
 	int32 PendingPlacementYawStep = 0;

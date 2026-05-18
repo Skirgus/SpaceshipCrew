@@ -5,6 +5,10 @@
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SWindow.h"
+#include "Misc/MessageDialog.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -314,6 +318,95 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 			[
 				BuildFooterStatsRow()
 			]
+			]
+		]
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Top)
+		.Padding(FMargin(0.0f, 24.0f, 0.0f, 0.0f))
+		[
+			SNew(SBorder)
+			.BorderImage(SpaceshipShipBuilderUiPrivate::PanelTintBrush())
+			.BorderBackgroundColor(SpaceshipShipBuilderUiPrivate::PanelBg())
+			.Padding(FMargin(16.0f, 10.0f, 16.0f, 10.0f))
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(SpaceshipShipBuilderUiPrivate::CapsFont(16))
+					.ColorAndOpacity(SpaceshipShipBuilderUiPrivate::TextHi())
+					.Text_Lambda([this]()
+					{
+						return OwnerPC.IsValid() ? OwnerPC->GetShipSessionTitle() : FText::GetEmpty();
+					})
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(FMargin(0.0f, 6.0f, 0.0f, 0.0f))
+				.HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(SpaceshipShipBuilderUiPrivate::BodyFont(10))
+					.ColorAndOpacity(SpaceshipShipBuilderUiPrivate::TextMutedHi())
+					.Text_Lambda([this]()
+					{
+						if (!OwnerPC.IsValid())
+						{
+							return FText::GetEmpty();
+						}
+						if (OwnerPC->RequiresSaveShipAs())
+						{
+							return LOCTEXT("TplBadge", "Шаблон проекта — сохранение только как новый корабль");
+						}
+						if (OwnerPC->IsShipSessionDirty())
+						{
+							return LOCTEXT("DirtyBadge", "Есть несохранённые изменения");
+						}
+						return LOCTEXT("SavedBadge", "Мой корабль");
+					})
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(FMargin(0.0f, 8.0f, 0.0f, 0.0f))
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(FMargin(0.0f, 0.0f, 8.0f, 0.0f))
+					[
+						SNew(SButton)
+						.IsEnabled_Lambda([this]()
+						{
+							return OwnerPC.IsValid() && OwnerPC->CanSaveShipInPlace();
+						})
+						.OnClicked_Lambda([this]()
+						{
+							OnSaveClicked();
+							return FReply::Handled();
+						})
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("SaveBtn", "Сохранить"))
+						]
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SButton)
+						.OnClicked_Lambda([this]()
+						{
+							OnSaveAsClicked();
+							return FReply::Handled();
+						})
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("SaveAsBtn", "Сохранить как…"))
+						]
+					]
+				]
 			]
 		]
 		+ SOverlay::Slot()
@@ -1099,6 +1192,134 @@ void SSpaceshipShipBuilderRoot::RebuildCatalogList()
 			]
 		];
 	}
+}
+
+void SSpaceshipShipBuilderRoot::OnSaveClicked()
+{
+	if (!OwnerPC.IsValid())
+	{
+		return;
+	}
+
+	FString Error;
+	if (OwnerPC->TrySaveShip(Error))
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("SaveOk", "Корабль сохранён."));
+		RequestRefresh();
+		return;
+	}
+
+	if (OwnerPC->RequiresSaveShipAs())
+	{
+		ShowSaveAsDialog();
+		return;
+	}
+
+	FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(Error));
+}
+
+void SSpaceshipShipBuilderRoot::OnSaveAsClicked()
+{
+	ShowSaveAsDialog();
+}
+
+void SSpaceshipShipBuilderRoot::ShowSaveAsDialog()
+{
+	if (!OwnerPC.IsValid())
+	{
+		return;
+	}
+
+	FString DefaultName;
+	if (OwnerPC->IsNewShipEditSession())
+	{
+		DefaultName = LOCTEXT("DefaultNewShipSaveName", "Мой корабль").ToString();
+	}
+	else
+	{
+		DefaultName = OwnerPC->GetShipSessionTitle().ToString();
+	}
+
+	SaveAsNameBox = SNew(SEditableTextBox)
+		.Text(FText::FromString(DefaultName))
+		.HintText(LOCTEXT("NameHint", "Имя корабля"));
+
+	const TWeakPtr<SSpaceshipShipBuilderRoot> WeakSelf = SharedThis(this);
+
+	SaveAsWindow = SNew(SWindow)
+		.Title(LOCTEXT("SaveAsTitle", "Сохранить корабль как"))
+		.ClientSize(FVector2D(420.0f, 120.0f))
+		.SupportsMaximize(false)
+		.SupportsMinimize(false)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(8.0f)
+			[
+				SaveAsNameBox.ToSharedRef()
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(8.0f)
+			.HAlign(HAlign_Right)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(FMargin(0.0f, 0.0f, 8.0f, 0.0f))
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("Ok", "OK"))
+					.OnClicked_Lambda([WeakSelf]()
+					{
+						if (const TSharedPtr<SSpaceshipShipBuilderRoot> Self = WeakSelf.Pin())
+						{
+							if (Self->OwnerPC.IsValid() && Self->SaveAsNameBox.IsValid())
+							{
+								const FString Name = Self->SaveAsNameBox->GetText().ToString();
+								FString Error;
+								if (Self->OwnerPC->TrySaveShipAs(Name, Error))
+								{
+									FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("SaveAsOk", "Корабль сохранён."));
+									Self->RequestRefresh();
+								}
+								else
+								{
+									FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(Error));
+								}
+							}
+							if (Self->SaveAsWindow.IsValid())
+							{
+								FSlateApplication::Get().RequestDestroyWindow(Self->SaveAsWindow.ToSharedRef());
+								Self->SaveAsWindow.Reset();
+							}
+						}
+						return FReply::Handled();
+					})
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("Cancel", "Отмена"))
+					.OnClicked_Lambda([WeakSelf]()
+					{
+						if (const TSharedPtr<SSpaceshipShipBuilderRoot> Self = WeakSelf.Pin())
+						{
+							if (Self->SaveAsWindow.IsValid())
+							{
+								FSlateApplication::Get().RequestDestroyWindow(Self->SaveAsWindow.ToSharedRef());
+								Self->SaveAsWindow.Reset();
+							}
+						}
+						return FReply::Handled();
+					})
+				]
+			]
+		];
+
+	FSlateApplication::Get().AddWindow(SaveAsWindow.ToSharedRef());
 }
 
 #undef LOCTEXT_NAMESPACE

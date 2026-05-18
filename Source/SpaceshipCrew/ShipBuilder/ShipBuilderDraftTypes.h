@@ -1,31 +1,71 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ShipBuilderDraftTypes.generated.h"
 
 /**
- * Черновик конфигурации конструктора без интерактивной стыковки (T02c-1).
- * Порядок модулей задаёт автоматическую цепочку для вызова T02b (см. ShipBuilderDomainGlue).
+ * Размещённый модуль в черновике конструктора.
  */
-struct FShipBuilderDraftConfig
+USTRUCT(BlueprintType)
+struct SPACESHIPCREW_API FShipBuilderPlacedModule
 {
-	struct FPlacedModule
-	{
-		FName InstanceId = NAME_None;
-		FName ModuleId = NAME_None;
-		FIntVector GridPos = FIntVector::ZeroValue;
-		int32 YawStep = 0; // 0..3, where step*90 is final yaw.
-	};
+	GENERATED_BODY()
 
-	struct FConnection
-	{
-		FName ModuleAInstanceId = NAME_None;
-		FName ModuleASocketName = NAME_None;
-		FName ModuleBInstanceId = NAME_None;
-		FName ModuleBSocketName = NAME_None;
-	};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	FName InstanceId = NAME_None;
 
-	// Legacy order kept for compatibility with older UI/evaluators.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	FName ModuleId = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	FIntVector GridPos = FIntVector::ZeroValue;
+
+	/** 0..3, итоговый yaw = YawStep * 90°. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	int32 YawStep = 0;
+};
+
+/**
+ * Стыковка двух модулей в черновике.
+ */
+USTRUCT(BlueprintType)
+struct SPACESHIPCREW_API FShipBuilderDraftConnection
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	FName ModuleAInstanceId = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	FName ModuleASocketName = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	FName ModuleBInstanceId = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	FName ModuleBSocketName = NAME_None;
+};
+
+/**
+ * Черновик конфигурации конструктора (T02c).
+ * Порядок ModuleIds — legacy; для T02b предпочтительны PlacedModules и Connections.
+ */
+USTRUCT(BlueprintType)
+struct SPACESHIPCREW_API FShipBuilderDraftConfig
+{
+	GENERATED_BODY()
+
+	/** Legacy-порядок для совместимости с UI и оценщиками. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
 	TArray<FName> ModuleIds;
-	TArray<FPlacedModule> PlacedModules;
-	TArray<FConnection> Connections;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	TArray<FShipBuilderPlacedModule> PlacedModules;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
+	TArray<FShipBuilderDraftConnection> Connections;
+
+	/** Совместимость со старым вложенным именованием. */
+	using FPlacedModule = FShipBuilderPlacedModule;
+	using FConnection = FShipBuilderDraftConnection;
 };

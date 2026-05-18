@@ -185,3 +185,15 @@ int32 UShipModuleCatalog::GetModuleCount() const
 {
 	return LoadedModules.Num();
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+void UShipModuleCatalog::RegisterDefinitionForAutomation(UShipModuleDefinition* Definition)
+{
+	if (Definition)
+	{
+		LoadedModules.Add(Definition);
+	}
+}
+
+#endif

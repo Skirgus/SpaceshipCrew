@@ -27,7 +27,9 @@ public class SpaceshipCrew : ModuleRules
 			"Slate",
 			"SlateCore",
 			"ApplicationCore",
-			"AssetRegistry"
+			"AssetRegistry",
+			"Json",
+			"JsonUtilities"
 		});
 
 		if (Target.Type == TargetType.Editor)
@@ -47,5 +49,8 @@ public class SpaceshipCrew : ModuleRules
 		{
 			PrivateDependencyModuleNames.Add("AutomationTest");
 		}
+
+		// JSON-шаблоны кораблей (Content/Data/Ships): стейджинг только через
+		// Config/DefaultGame.ini → DirectoriesToAlwaysStageAsNonUFS.
 	}
 }

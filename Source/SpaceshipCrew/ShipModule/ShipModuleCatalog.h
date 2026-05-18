@@ -34,6 +34,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ShipModule")
 	int32 GetModuleCount() const;
 
+#if WITH_DEV_AUTOMATION_TESTS
+	/** Регистрация модуля для автотестов (без Asset Registry). */
+	void RegisterDefinitionForAutomation(UShipModuleDefinition* Definition);
+#endif
+
 private:
 	void ScanAndLoadModules();
 	void OnAssetManagerScanComplete();
