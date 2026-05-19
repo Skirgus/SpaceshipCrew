@@ -1,4 +1,4 @@
-// Автотест: предупреждения T02b не блокируют bIsValid при отсутствии ошибок стыковки.
+// Автотест: отсутствие обязательных модулей не ломает bIsValid, но блокирует bIsPlayReady.
 
 #include "Misc/AutomationTest.h"
 
@@ -85,7 +85,8 @@ bool FShipBuildDomainWarningsTest::RunTest(const FString& Parameters)
 	const FShipBuildValidationResult Result = BuildModel.Validate();
 	TestTrue(TEXT("ValidGraph"), Result.bIsValid);
 	TestEqual(TEXT("NoErrors"), Result.Errors.Num(), 0);
-	TestTrue(TEXT("HasWarnings"), Result.Warnings.Num() > 0);
+	TestFalse(TEXT("NotPlayReady"), Result.bIsPlayReady);
+	TestTrue(TEXT("HasPlayBlockers"), Result.PlayBlockers.Num() > 0);
 
 	return true;
 }

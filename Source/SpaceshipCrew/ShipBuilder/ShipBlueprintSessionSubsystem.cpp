@@ -157,7 +157,7 @@ bool UShipBlueprintSessionSubsystem::SaveCurrent(FString& OutError)
 	Session.SourceShipId = Doc.ShipId;
 	Session.bRequiresSaveAsOnWrite = false;
 	Session.bDirty = false;
-	SelectedForNewGame = Doc;
+	UpdateSelectedForNewGameIfPlayReady(Doc);
 	return true;
 }
 
@@ -191,6 +191,36 @@ bool UShipBlueprintSessionSubsystem::SaveAs(const FName NewShipId, const FText& 
 	Session.bRequiresSaveAsOnWrite = false;
 	Session.bDirty = false;
 	Session.PendingDocument = Doc;
-	SelectedForNewGame = Doc;
+	UpdateSelectedForNewGameIfPlayReady(Doc);
 	return true;
+}
+
+bool UShipBlueprintSessionSubsystem::TrySetSelectedShipForNewGame(
+	const FShipBlueprintDocument& Document,
+	FString& OutError)
+{
+	UShipModuleCatalog* Catalog = GetGameInstance()->GetSubsystem<UShipModuleCatalog>();
+	if (!Catalog)
+	{
+		OutError = TEXT("Каталог модулей недоступен.");
+		return false;
+	}
+
+	TArray<FString> PlayBlockers;
+	if (!FShipBlueprintSerializer::ValidateDocumentForPlay(Document, *Catalog, PlayBlockers))
+	{
+		OutError = PlayBlockers.Num() > 0
+			? FString::Join(PlayBlockers, TEXT("\n"))
+			: TEXT("Корабль не готов к полёту.");
+		return false;
+	}
+
+	SelectedForNewGame = Document;
+	return true;
+}
+
+void UShipBlueprintSessionSubsystem::UpdateSelectedForNewGameIfPlayReady(const FShipBlueprintDocument& Document)
+{
+	FString Error;
+	TrySetSelectedShipForNewGame(Document, Error);
 }

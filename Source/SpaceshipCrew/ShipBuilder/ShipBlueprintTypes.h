@@ -84,6 +84,10 @@ struct SPACESHIPCREW_API FShipBlueprintListEntry
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBlueprint")
 	FText DisplayName;
+
+	/** true: чертёж проходит ValidateDocumentForPlay (готов к новой игре). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBlueprint")
+	bool bPlayReady = false;
 };
 
 /** Состояние текущей сессии конструктора (хранится в подсистеме GameInstance). */

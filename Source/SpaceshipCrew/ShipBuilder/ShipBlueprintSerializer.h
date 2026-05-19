@@ -25,4 +25,10 @@ public:
 		const FShipBlueprintDocument& Document,
 		const UShipModuleCatalog& Catalog,
 		FString& OutError);
+
+	/** Готовность к старту игры: целостная сборка + обязательные типы модулей. */
+	static bool ValidateDocumentForPlay(
+		const FShipBlueprintDocument& Document,
+		const UShipModuleCatalog& Catalog,
+		TArray<FString>& OutPlayBlockers);
 };

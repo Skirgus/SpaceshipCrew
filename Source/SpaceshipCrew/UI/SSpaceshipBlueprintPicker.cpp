@@ -158,7 +158,9 @@ void SSpaceshipBlueprintPicker::BuildEntryList(
 	{
 		const FName ShipId = Entry.ShipId;
 		const EShipBlueprintSource Source = Entry.Source;
-		const FText Label = Entry.DisplayName;
+		const FText Label = Entry.bPlayReady
+			? Entry.DisplayName
+			: FText::Format(LOCTEXT("DraftLabel", "{0} (черновик)"), Entry.DisplayName);
 
 		TargetBox->AddSlot()
 		.AutoHeight()

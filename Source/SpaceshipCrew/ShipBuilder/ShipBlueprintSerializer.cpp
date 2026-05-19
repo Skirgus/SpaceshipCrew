@@ -1,5 +1,7 @@
 #include "ShipBlueprintSerializer.h"
 
+#include "ShipBuilder/ShipBuilderDomainGlue.h"
+#include "ShipBuildDomain.h"
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "JsonObjectConverter.h"
@@ -110,4 +112,35 @@ bool FShipBlueprintSerializer::ValidateDocumentForSave(
 	}
 
 	return true;
+}
+
+bool FShipBlueprintSerializer::ValidateDocumentForPlay(
+	const FShipBlueprintDocument& Document,
+	const UShipModuleCatalog& Catalog,
+	TArray<FString>& OutPlayBlockers)
+{
+	OutPlayBlockers.Reset();
+
+	TArray<FString> ModuleErrors;
+	if (!ValidateModuleReferences(Document, Catalog, ModuleErrors))
+	{
+		OutPlayBlockers.Append(ModuleErrors);
+		return false;
+	}
+
+	FCatalogShipBuildModuleResolver Resolver(Catalog);
+	FShipBuildDomainModel Model(Resolver);
+	FString BuildError;
+	if (!SpaceshipCrew_BuildDomainFromDraftChain(Document.ModuleLayout, Resolver, Model, BuildError))
+	{
+		if (!BuildError.IsEmpty())
+		{
+			OutPlayBlockers.Add(BuildError);
+		}
+		return false;
+	}
+
+	const FShipBuildValidationResult Result = Model.Validate();
+	OutPlayBlockers = Result.PlayBlockers;
+	return Result.bIsPlayReady;
 }

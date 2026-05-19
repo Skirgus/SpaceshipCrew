@@ -13,6 +13,29 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogShipBlueprintRegistry, Log, All);
 
+namespace ShipBlueprintRegistryPrivate
+{
+	static void ApplyPlayReadyToEntry(
+		FShipBlueprintListEntry& Entry,
+		const FShipBlueprintDocument& Document,
+		UShipBlueprintRegistry* Registry)
+	{
+		Entry.bPlayReady = false;
+		if (!Registry)
+		{
+			return;
+		}
+		UGameInstance* GI = Registry->GetGameInstance();
+		UShipModuleCatalog* Catalog = GI ? GI->GetSubsystem<UShipModuleCatalog>() : nullptr;
+		if (!Catalog)
+		{
+			return;
+		}
+		TArray<FString> PlayBlockers;
+		Entry.bPlayReady = FShipBlueprintSerializer::ValidateDocumentForPlay(Document, *Catalog, PlayBlockers);
+	}
+}
+
 FString UShipBlueprintRegistry::GetPlayerBlueprintsDirectory()
 {
 	return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ShipBlueprints"));
@@ -131,6 +154,7 @@ void UShipBlueprintRegistry::ScanProjectAssets()
 		Entry.Source = EShipBlueprintSource::Project;
 		Entry.ShipId = Def->ShipId;
 		Entry.DisplayName = Def->DisplayName.IsEmpty() ? FText::FromName(Def->ShipId) : Def->DisplayName;
+		ShipBlueprintRegistryPrivate::ApplyPlayReadyToEntry(Entry, Def->BuildDocument(), this);
 		ProjectEntries.Add(Entry);
 	}
 
@@ -184,6 +208,7 @@ void UShipBlueprintRegistry::ScanBundledProjectJson()
 		Entry.Source = EShipBlueprintSource::Project;
 		Entry.ShipId = Doc.ShipId;
 		Entry.DisplayName = Doc.DisplayName.IsEmpty() ? FText::FromName(Doc.ShipId) : Doc.DisplayName;
+		ShipBlueprintRegistryPrivate::ApplyPlayReadyToEntry(Entry, Doc, this);
 		ProjectEntries.Add(Entry);
 	}
 
@@ -223,6 +248,7 @@ void UShipBlueprintRegistry::ScanPlayerJson()
 		Entry.Source = EShipBlueprintSource::Player;
 		Entry.ShipId = Doc.ShipId;
 		Entry.DisplayName = Doc.DisplayName.IsEmpty() ? FText::FromName(Doc.ShipId) : Doc.DisplayName;
+		ShipBlueprintRegistryPrivate::ApplyPlayReadyToEntry(Entry, Doc, this);
 		PlayerEntries.Add(Entry);
 	}
 

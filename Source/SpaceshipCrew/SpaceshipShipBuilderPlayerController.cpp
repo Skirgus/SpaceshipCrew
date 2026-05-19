@@ -184,7 +184,9 @@ FShipBuildValidationResult ASpaceshipShipBuilderPlayerController::ComputeValidat
 	if (!Catalog)
 	{
 		Result.bIsValid = false;
+		Result.bIsPlayReady = false;
 		Result.Errors.Add(TEXT("Каталог модулей недоступен."));
+		Result.PlayBlockers = Result.Errors;
 		return Result;
 	}
 
@@ -194,7 +196,12 @@ FShipBuildValidationResult ASpaceshipShipBuilderPlayerController::ComputeValidat
 	if (!SpaceshipCrew_BuildDomainFromDraftChain(Draft, Resolver, Model, Error))
 	{
 		Result.bIsValid = false;
-		Result.Errors.Add(Error);
+		Result.bIsPlayReady = false;
+		if (!Error.IsEmpty())
+		{
+			Result.Errors.Add(Error);
+		}
+		Result.PlayBlockers = Result.Errors;
 		return Result;
 	}
 	return Model.Validate();

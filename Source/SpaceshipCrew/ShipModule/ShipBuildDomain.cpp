@@ -2,6 +2,7 @@
 
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
+#include "ShipPlayRequirements.h"
 #include "ShipModuleTypes.h"
 
 #include "Algo/Sort.h"
@@ -476,70 +477,12 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 
 	Result.bIsValid = Result.Errors.Num() == 0;
 
-	// Неблокирующие предупреждения по составу модулей (заглушки; баланс настраивается позже).
-	if (DefinitionByInstance.Num() > 0)
-	{
-		bool bHasReactor = false;
-		bool bHasBridge = false;
-		bool bHasAirlock = false;
-		bool bHasFuelTank = false;
-		bool bHasOxygenTank = false;
-		int32 EngineCount = 0;
-		for (const TPair<FName, const UShipModuleDefinition*>& Pair : DefinitionByInstance)
-		{
-			if (!Pair.Value)
-			{
-				continue;
-			}
-			switch (Pair.Value->ModuleType)
-			{
-			case EShipModuleType::Reactor:
-				bHasReactor = true;
-				break;
-			case EShipModuleType::Bridge:
-				bHasBridge = true;
-				break;
-			case EShipModuleType::Airlock:
-				bHasAirlock = true;
-				break;
-			case EShipModuleType::FuelTank:
-				bHasFuelTank = true;
-				break;
-			case EShipModuleType::OxygenTank:
-				bHasOxygenTank = true;
-				break;
-			case EShipModuleType::Engine:
-				++EngineCount;
-				break;
-			default:
-				break;
-			}
-		}
-		if (!bHasReactor)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет реактора: энергобаланс не задан (предупреждение)."));
-		}
-		if (!bHasBridge)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет мостика: нет явного модуля управления (предупреждение)."));
-		}
-		if (!bHasAirlock)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет шлюза (Airlock): нет явной точки выхода наружу (предупреждение)."));
-		}
-		if (!bHasFuelTank)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет топливных баков (предупреждение)."));
-		}
-		if (!bHasOxygenTank)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет кислородных баков (предупреждение)."));
-		}
-		if (Result.TotalMass > 500.0f && EngineCount == 0)
-		{
-			AddWarning(Result.Warnings, TEXT("Высокая масса при отсутствии двигателей: возможна низкая мобильность (предупреждение)."));
-		}
-	}
+	Result.PlayBlockers = Result.Errors;
+	FShipPlayRequirements::AppendMissingMandatoryModuleMessages(DefinitionByInstance, Result.PlayBlockers);
+
+	const bool bHasMandatory = DefinitionByInstance.Num() > 0
+		&& FShipPlayRequirements::HasAllMandatoryModules(DefinitionByInstance);
+	Result.bIsPlayReady = Result.bIsValid && bHasMandatory;
 
 	return Result;
 }

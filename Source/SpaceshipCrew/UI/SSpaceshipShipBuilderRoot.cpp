@@ -279,11 +279,11 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 							return FText::GetEmpty();
 						}
 						const FShipBuildValidationResult V = OwnerPC->ComputeValidation();
-						if (V.bIsValid && V.Errors.Num() == 0 && V.Warnings.Num() == 0)
+						if (V.bIsPlayReady)
 						{
-							return LOCTEXT("Nominal", "ВСЕ СИСТЕМЫ В НОРМЕ");
+							return LOCTEXT("PlayReady", "ГОТОВ К ПОЛЁТУ");
 						}
-						return LOCTEXT("NotNominal", "ТРЕБУЕТСЯ ВНИМАНИЕ");
+						return LOCTEXT("Draft", "ЧЕРНОВИК");
 					})
 				]
 			]
@@ -306,10 +306,10 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 						}
 						const FShipBuildValidationResult V = OwnerPC->ComputeValidation();
 						return FText::Format(
-							LOCTEXT("ValTiny", "T02b: {0}  ·  ошибок: {1}  ·  предупреждений: {2}"),
+							LOCTEXT("ValTiny", "Сборка: {0}  ·  ошибок: {1}  ·  не готов к полёту: {2}"),
 							V.bIsValid ? LOCTEXT("Ok2", "OK") : LOCTEXT("Err2", "ОШИБКИ"),
 							FText::AsNumber(V.Errors.Num()),
-							FText::AsNumber(V.Warnings.Num()));
+							FText::AsNumber(V.PlayBlockers.Num()));
 					})
 				]
 			]
@@ -638,11 +638,48 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 							})
 						]
 						+ SScrollBox::Slot()
+						.Padding(FMargin(0.0f, 4.0f, 0.0f, 0.0f))
+						[
+							SNew(STextBlock)
+							.Font(SpaceshipShipBuilderUiPrivate::CapsFont(14))
+							.ColorAndOpacity(FLinearColor(1.0f, 0.55f, 0.25f))
+							.Text(LOCTEXT("PlayHdr", "НЕ ГОТОВ К ПОЛЁТУ"))
+						]
+						+ SScrollBox::Slot()
+						.Padding(FMargin(0.0f, 6.0f, 0.0f, 12.0f))
+						[
+							SNew(STextBlock)
+							.WrapTextAt(400.0f)
+							.Font(SpaceshipShipBuilderUiPrivate::BodyFont(11))
+							.ColorAndOpacity(SpaceshipShipBuilderUiPrivate::TextHi())
+							.Text_Lambda([this]()
+							{
+								if (!OwnerPC.IsValid())
+								{
+									return FText::GetEmpty();
+								}
+								const FShipBuildValidationResult V = OwnerPC->ComputeValidation();
+								TArray<FString> PlayOnly;
+								for (const FString& Msg : V.PlayBlockers)
+								{
+									if (!V.Errors.Contains(Msg))
+									{
+										PlayOnly.Add(Msg);
+									}
+								}
+								if (PlayOnly.Num() == 0)
+								{
+									return LOCTEXT("PlayOk", "—");
+								}
+								return FText::FromString(FString::Join(PlayOnly, TEXT("\n")));
+							})
+						]
+						+ SScrollBox::Slot()
 						[
 							SNew(STextBlock)
 							.Font(SpaceshipShipBuilderUiPrivate::CapsFont(14))
 							.ColorAndOpacity(FLinearColor(1.0f, 0.85f, 0.35f))
-							.Text(LOCTEXT("WarnHdr", "ПРЕДУПРЕЖДЕНИЯ"))
+							.Text(LOCTEXT("WarnHdr", "СОВЕТЫ"))
 						]
 						+ SScrollBox::Slot()
 						.Padding(FMargin(0.0f, 6.0f, 0.0f, 0.0f))
@@ -657,7 +694,12 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 								{
 									return FText::GetEmpty();
 								}
-								return FText::FromString(FString::Join(OwnerPC->ComputeValidation().Warnings, TEXT("\n")));
+								const TArray<FString>& Tips = OwnerPC->ComputeValidation().Warnings;
+								if (Tips.Num() == 0)
+								{
+									return LOCTEXT("TipsOk", "—");
+								}
+								return FText::FromString(FString::Join(Tips, TEXT("\n")));
 							})
 						]
 					]

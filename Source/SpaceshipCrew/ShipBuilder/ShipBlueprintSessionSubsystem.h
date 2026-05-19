@@ -53,7 +53,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ShipBlueprint")
 	void SetSelectedShipForNewGame(const FShipBlueprintDocument& Document) { SelectedForNewGame = Document; }
 
+	/** Устанавливает корабль для новой игры только при успешной ValidateDocumentForPlay. */
+	bool TrySetSelectedShipForNewGame(const FShipBlueprintDocument& Document, FString& OutError);
+
 private:
+	void UpdateSelectedForNewGameIfPlayReady(const FShipBlueprintDocument& Document);
+
 	UPROPERTY()
 	FShipBlueprintSession Session;
 
