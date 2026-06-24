@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "ShipBuilder/ShipBuilderModulePreviewActor.h"
 #include "ShipBuilder/ShipBuilderDomainGlue.h"
+#include "ShipBuilder/ShipBuilderGridConstants.h"
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "ShipModuleTypes.h"
@@ -245,12 +246,19 @@ void ASpaceshipShipBuilderPlayerController::AppendModuleToDraft(const FName Modu
 		return;
 	}
 
+	const UShipModuleCatalog* Catalog = GetModuleCatalog();
+
 	const FName NewInstanceId = MakeNextDraftInstanceId();
 	FShipBuilderDraftConfig::FPlacedModule NewModule;
 	NewModule.InstanceId = NewInstanceId;
 	NewModule.ModuleId = ModuleId;
 	NewModule.YawStep = ((PendingPlacementYawStep % 4) + 4) % 4;
-	NewModule.GridPos = FIntVector(Draft.PlacedModules.Num(), 0, PendingPlacementZ);
+	NewModule.GridPos = Catalog
+		? SpaceshipCrew_ComputeNextDraftAppendCornerCell(
+			Draft,
+			[Catalog](const FName Id) { return Catalog->FindModuleById(Id); },
+			PendingPlacementZ)
+		: FIntVector(Draft.PlacedModules.Num(), 0, PendingPlacementZ);
 	Draft.PlacedModules.Add(NewModule);
 
 	RebuildConnectionsFromAdjacency();
@@ -276,6 +284,19 @@ void ASpaceshipShipBuilderPlayerController::ApplyLoadedDocumentToDraft()
 	{
 		Session->ApplyPendingToDraft(Draft);
 		SyncLegacyModuleIds();
+
+		if (Draft.PlacedModules.Num() > 0
+			&& Session->GetSessionConst().PendingDocument.SchemaVersion < FShipBlueprintDocument::CurrentSchemaVersion)
+		{
+			if (UShipModuleCatalog* Catalog = GetModuleCatalog())
+			{
+				SpaceshipCrew_MigrateDraftGridPosCenterToCorner(
+					Draft,
+					[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); });
+				Session->GetSession().PendingDocument.SchemaVersion = FShipBlueprintDocument::CurrentSchemaVersion;
+				Session->MarkDirty();
+			}
+		}
 
 		// Шаблоны/старые JSON без Connections: восстановить стыковки по соседству на сетке.
 		if (Draft.Connections.Num() == 0 && Draft.PlacedModules.Num() >= 2)
@@ -502,8 +523,27 @@ void ASpaceshipShipBuilderPlayerController::RefreshPreviewFromDraft()
 	{
 		PreviewActor->SetSelectedModuleInstanceId(SelectedModuleInstanceId);
 		PreviewActor->SetHoveredModuleInstanceId(HoveredModuleInstanceId);
-		PreviewActor->SetDragGhostTarget(bHasDragTargetCell, SelectedModuleInstanceId, DragTargetCell);
-		PreviewActor->RebuildFromDraft(Draft, *Catalog);
+		PreviewActor->SetDragGhostTarget(
+			bHasDragTargetCell,
+			bDraggingModule ? DraggedModuleInstanceId : SelectedModuleInstanceId,
+			DragTargetCell);
+
+		FShipBuilderDraftConfig PreviewDraft = Draft;
+		if (bDraggingModule && bHasDragTargetCell && !DraggedModuleInstanceId.IsNone())
+		{
+			const int32 DragIndex = FindDraftModuleIndexByInstanceId(DraggedModuleInstanceId);
+			if (PreviewDraft.PlacedModules.IsValidIndex(DragIndex))
+			{
+				PreviewDraft.PlacedModules[DragIndex].GridPos = DragTargetCell;
+				SpaceshipCrew_RebuildDraftConnectionsFromAdjacency(
+					PreviewDraft,
+					[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); },
+					SpaceshipShipBuilderInputPrivate::DragGridStepXY,
+					SpaceshipShipBuilderInputPrivate::DragGridStepZ);
+			}
+		}
+
+		PreviewActor->RebuildFromDraft(PreviewDraft, *Catalog);
 		const FShipBuildValidationResult Validation = ComputeValidation();
 		PreviewActor->SetPreviewDamageEnabled(!Validation.bIsValid);
 	}
@@ -516,6 +556,7 @@ void ASpaceshipShipBuilderPlayerController::RotatePlacementLeft()
 	{
 		FShipBuilderDraftConfig::FPlacedModule& Selected = Draft.PlacedModules[SelectedIndex];
 		Selected.YawStep = (Selected.YawStep + 3) % 4;
+		RebuildConnectionsFromAdjacency();
 		NotifyDraftChanged();
 		RefreshPreviewFromDraft();
 		RefreshShipBuilderUi();
@@ -532,6 +573,7 @@ void ASpaceshipShipBuilderPlayerController::RotatePlacementRight()
 	{
 		FShipBuilderDraftConfig::FPlacedModule& Selected = Draft.PlacedModules[SelectedIndex];
 		Selected.YawStep = (Selected.YawStep + 1) % 4;
+		RebuildConnectionsFromAdjacency();
 		NotifyDraftChanged();
 		RefreshPreviewFromDraft();
 		RefreshShipBuilderUi();
@@ -636,15 +678,40 @@ void ASpaceshipShipBuilderPlayerController::OnEndDragReleased()
 	if (bDraggingModule && bHasDragTargetCell)
 	{
 		const int32 ModuleIndex = FindDraftModuleIndexByInstanceId(DraggedModuleInstanceId);
-		if (Draft.PlacedModules.IsValidIndex(ModuleIndex)
-			&& Draft.PlacedModules[ModuleIndex].GridPos != DragTargetCell
-			&& !IsGridCellOccupied(DragTargetCell, DraggedModuleInstanceId))
+		if (Draft.PlacedModules.IsValidIndex(ModuleIndex))
 		{
-			Draft.PlacedModules[ModuleIndex].GridPos = DragTargetCell;
-			RebuildConnectionsFromAdjacency();
-			NotifyDraftChanged();
-			RefreshPreviewFromDraft();
-			RefreshShipBuilderUi();
+			const UShipModuleCatalog* Catalog = GetModuleCatalog();
+			const UShipModuleDefinition* MovingDef = Catalog
+				? Catalog->FindModuleById(Draft.PlacedModules[ModuleIndex].ModuleId)
+				: nullptr;
+			if (MovingDef)
+			{
+				FShipBuilderPlacedModule CandidateModule = Draft.PlacedModules[ModuleIndex];
+				CandidateModule.GridPos = DragTargetCell;
+
+				const bool bPlacementChanged = CandidateModule.GridPos != Draft.PlacedModules[ModuleIndex].GridPos
+					|| CandidateModule.YawStep != Draft.PlacedModules[ModuleIndex].YawStep;
+				if (bPlacementChanged
+					&& !IsFootprintOccupied(
+						DragTargetCell,
+						MovingDef->GetEffectiveCellSize(),
+						DraggedModuleInstanceId)
+					&& !SpaceshipCrew_WouldModulePlacementOverlap(
+						Draft,
+						DraggedModuleInstanceId,
+						CandidateModule,
+						*MovingDef,
+						[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); },
+						SpaceshipShipBuilderInputPrivate::DragGridStepXY,
+						SpaceshipShipBuilderInputPrivate::DragGridStepZ))
+				{
+					Draft.PlacedModules[ModuleIndex].GridPos = CandidateModule.GridPos;
+					RebuildConnectionsFromAdjacency();
+					NotifyDraftChanged();
+					RefreshPreviewFromDraft();
+					RefreshShipBuilderUi();
+				}
+			}
 		}
 	}
 	bDraggingModule = false;
@@ -681,7 +748,14 @@ void ASpaceshipShipBuilderPlayerController::UpdateModuleDrag()
 	}
 
 	const FIntVector& CurrentPos = Draft.PlacedModules[ModuleIndex].GridPos;
-	const float DragPlaneZ = static_cast<float>(CurrentPos.Z) * SpaceshipShipBuilderInputPrivate::DragGridStepZ;
+	const UShipModuleDefinition* MovingDef = Catalog->FindModuleById(Draft.PlacedModules[ModuleIndex].ModuleId);
+	if (!MovingDef)
+	{
+		return;
+	}
+
+	const float ModuleHalfZ = MovingDef->Size.Z * 0.5f;
+	const float DragPlaneZ = static_cast<float>(CurrentPos.Z) * SpaceshipShipBuilderInputPrivate::DragGridStepZ + ModuleHalfZ;
 	const float Den = WorldDirection.Z;
 	if (FMath::IsNearlyZero(Den))
 	{
@@ -694,15 +768,19 @@ void ASpaceshipShipBuilderPlayerController::UpdateModuleDrag()
 	}
 
 	const FVector HitPoint = WorldOrigin + WorldDirection * T;
-	const int32 NewGridX = FMath::RoundToInt(HitPoint.X / SpaceshipShipBuilderInputPrivate::DragGridStepXY);
-	const int32 NewGridY = FMath::RoundToInt(HitPoint.Y / SpaceshipShipBuilderInputPrivate::DragGridStepXY);
-	const FIntVector RawCell(NewGridX, NewGridY, Draft.PlacedModules[ModuleIndex].GridPos.Z);
-	const FIntVector CandidateCell = FindBestSnappedCell(RawCell, DraggedModuleInstanceId);
-	if (Draft.PlacedModules[ModuleIndex].GridPos == CandidateCell)
-	{
-		return;
-	}
-	if (IsGridCellOccupied(CandidateCell, DraggedModuleInstanceId))
+	const FIntVector MovingCells = MovingDef->GetEffectiveCellSize();
+	const FVector DesiredCenter(
+		HitPoint.X,
+		HitPoint.Y,
+		static_cast<float>(CurrentPos.Z) * SpaceshipShipBuilderInputPrivate::DragGridStepZ + MovingDef->Size.Z * 0.5f);
+	const FIntVector RawCorner = ShipBuilderGrid::WorldCenterToGridCorner(
+		DesiredCenter,
+		MovingCells,
+		SpaceshipShipBuilderInputPrivate::DragGridStepXY,
+		SpaceshipShipBuilderInputPrivate::DragGridStepZ);
+	const FIntVector PreviousCell = DragTargetCell;
+	const FIntVector CandidateCell = FindBestSnappedCell(RawCorner, DraggedModuleInstanceId);
+	if (bHasDragTargetCell && CandidateCell == PreviousCell)
 	{
 		return;
 	}
@@ -735,10 +813,11 @@ void ASpaceshipShipBuilderPlayerController::UpdateHoveredModuleUnderCursor()
 		{
 			continue;
 		}
-		const FVector Center(
-			static_cast<float>(Placed.GridPos.X) * SpaceshipShipBuilderInputPrivate::DragGridStepXY,
-			static_cast<float>(Placed.GridPos.Y) * SpaceshipShipBuilderInputPrivate::DragGridStepXY,
-			static_cast<float>(Placed.GridPos.Z) * SpaceshipShipBuilderInputPrivate::DragGridStepZ + Def->Size.Z * 0.5f);
+		const FVector Center = SpaceshipCrew_ComputeModuleWorldCenter(
+			Placed,
+			*Def,
+			SpaceshipShipBuilderInputPrivate::DragGridStepXY,
+			SpaceshipShipBuilderInputPrivate::DragGridStepZ);
 		FVector2D ScreenPos;
 		if (!ProjectWorldLocationToScreen(Center, ScreenPos))
 		{
@@ -790,10 +869,11 @@ bool ASpaceshipShipBuilderPlayerController::TrySelectModuleUnderCursor()
 		{
 			continue;
 		}
-		const FVector Center(
-			static_cast<float>(Placed.GridPos.X) * SpaceshipShipBuilderInputPrivate::DragGridStepXY,
-			static_cast<float>(Placed.GridPos.Y) * SpaceshipShipBuilderInputPrivate::DragGridStepXY,
-			static_cast<float>(Placed.GridPos.Z) * SpaceshipShipBuilderInputPrivate::DragGridStepZ + Def->Size.Z * 0.5f);
+		const FVector Center = SpaceshipCrew_ComputeModuleWorldCenter(
+			Placed,
+			*Def,
+			SpaceshipShipBuilderInputPrivate::DragGridStepXY,
+			SpaceshipShipBuilderInputPrivate::DragGridStepZ);
 		FVector2D ScreenPos;
 		if (!ProjectWorldLocationToScreen(Center, ScreenPos))
 		{
@@ -873,96 +953,50 @@ void ASpaceshipShipBuilderPlayerController::RecomputeDraftConnectionSockets()
 			continue;
 		}
 
-		const int32 DeltaX = A->GridPos.X - B->GridPos.X;
-		const int32 DeltaY = A->GridPos.Y - B->GridPos.Y;
-		if (FMath::Abs(DeltaY) > FMath::Abs(DeltaX))
-		{
-			Link.ModuleASocketName = DeltaY > 0 ? FName(TEXT("Left")) : FName(TEXT("Right"));
-			Link.ModuleBSocketName = DeltaY > 0 ? FName(TEXT("Right")) : FName(TEXT("Left"));
-		}
-		else
-		{
-			Link.ModuleASocketName = DeltaX > 0 ? FName(TEXT("Back")) : FName(TEXT("Front"));
-			Link.ModuleBSocketName = DeltaX > 0 ? FName(TEXT("Front")) : FName(TEXT("Back"));
-		}
+		const FIntVector Delta = A->GridPos - B->GridPos;
+		const FIntVector DeltaFromAToB(-Delta.X, -Delta.Y, -Delta.Z);
+		Link.ModuleASocketName = SpaceshipCrew_LocalSocketForGridDelta(DeltaFromAToB, A->YawStep);
+		Link.ModuleBSocketName = SpaceshipCrew_LocalSocketForGridDelta(Delta, B->YawStep);
 	}
 }
 
 void ASpaceshipShipBuilderPlayerController::RebuildConnectionsFromAdjacency()
 {
 	const UShipModuleCatalog* Catalog = GetModuleCatalog();
-	Draft.Connections.Reset();
-	TSet<FString> SeenPairs;
-	for (int32 i = 0; i < Draft.PlacedModules.Num(); ++i)
+	if (!Catalog)
 	{
-		for (int32 j = i + 1; j < Draft.PlacedModules.Num(); ++j)
-		{
-			const FShipBuilderDraftConfig::FPlacedModule& A = Draft.PlacedModules[i];
-			const FShipBuilderDraftConfig::FPlacedModule& B = Draft.PlacedModules[j];
-			const FIntVector D = B.GridPos - A.GridPos;
-			const UShipModuleDefinition* DefA = Catalog ? Catalog->FindModuleById(A.ModuleId) : nullptr;
-			const UShipModuleDefinition* DefB = Catalog ? Catalog->FindModuleById(B.ModuleId) : nullptr;
-			const float AX = DefA ? DefA->Size.X : 400.0f;
-			const float AY = DefA ? DefA->Size.Y : 400.0f;
-			const float AZ = DefA ? DefA->Size.Z : 300.0f;
-			const float BX = DefB ? DefB->Size.X : 400.0f;
-			const float BY = DefB ? DefB->Size.Y : 400.0f;
-			const float BZ = DefB ? DefB->Size.Z : 300.0f;
-			const int32 NeedStepX = FMath::Max(1, FMath::RoundToInt((AX * 0.5f + BX * 0.5f) / SpaceshipShipBuilderInputPrivate::DragGridStepXY));
-			const int32 NeedStepY = FMath::Max(1, FMath::RoundToInt((AY * 0.5f + BY * 0.5f) / SpaceshipShipBuilderInputPrivate::DragGridStepXY));
-			const int32 NeedStepZ = FMath::Max(1, FMath::RoundToInt((AZ * 0.5f + BZ * 0.5f) / SpaceshipShipBuilderInputPrivate::DragGridStepZ));
-
-			const bool bAdjacentX = FMath::Abs(D.X) == NeedStepX && D.Y == 0 && D.Z == 0;
-			const bool bAdjacentY = FMath::Abs(D.Y) == NeedStepY && D.X == 0 && D.Z == 0;
-			const bool bAdjacentZ = FMath::Abs(D.Z) == NeedStepZ && D.X == 0 && D.Y == 0;
-			if (!bAdjacentX && !bAdjacentY && !bAdjacentZ)
-			{
-				continue;
-			}
-
-			FShipBuilderDraftConfig::FConnection Link;
-			Link.ModuleAInstanceId = A.InstanceId;
-			Link.ModuleBInstanceId = B.InstanceId;
-
-			if (bAdjacentZ)
-			{
-				Link.ModuleASocketName = D.Z > 0 ? FName(TEXT("Top")) : FName(TEXT("Bottom"));
-				Link.ModuleBSocketName = D.Z > 0 ? FName(TEXT("Bottom")) : FName(TEXT("Top"));
-			}
-			else if (bAdjacentY)
-			{
-				Link.ModuleASocketName = D.Y > 0 ? FName(TEXT("Right")) : FName(TEXT("Left"));
-				Link.ModuleBSocketName = D.Y > 0 ? FName(TEXT("Left")) : FName(TEXT("Right"));
-			}
-			else
-			{
-				Link.ModuleASocketName = D.X > 0 ? FName(TEXT("Front")) : FName(TEXT("Back"));
-				Link.ModuleBSocketName = D.X > 0 ? FName(TEXT("Back")) : FName(TEXT("Front"));
-			}
-
-			const FString PairKey = FString::Printf(TEXT("%s|%s|%s|%s"),
-				*A.InstanceId.ToString(),
-				*B.InstanceId.ToString(),
-				*Link.ModuleASocketName.ToString(),
-				*Link.ModuleBSocketName.ToString());
-			if (!SeenPairs.Contains(PairKey))
-			{
-				SeenPairs.Add(PairKey);
-				Draft.Connections.Add(Link);
-			}
-		}
+		return;
 	}
+
+	SpaceshipCrew_RebuildDraftConnectionsFromAdjacency(
+		Draft,
+		[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); },
+		SpaceshipShipBuilderInputPrivate::DragGridStepXY,
+		SpaceshipShipBuilderInputPrivate::DragGridStepZ);
 }
 
-bool ASpaceshipShipBuilderPlayerController::IsGridCellOccupied(const FIntVector& Cell, const FName IgnoreInstanceId) const
+bool ASpaceshipShipBuilderPlayerController::IsFootprintOccupied(
+	const FIntVector& CornerCell,
+	const FIntVector& CellSize,
+	const FName IgnoreInstanceId) const
 {
+	const UShipModuleCatalog* Catalog = GetModuleCatalog();
 	for (const FShipBuilderDraftConfig::FPlacedModule& Placed : Draft.PlacedModules)
 	{
 		if (!IgnoreInstanceId.IsNone() && Placed.InstanceId == IgnoreInstanceId)
 		{
 			continue;
 		}
-		if (Placed.GridPos == Cell)
+		const UShipModuleDefinition* OtherDef = Catalog ? Catalog->FindModuleById(Placed.ModuleId) : nullptr;
+		if (!OtherDef)
+		{
+			continue;
+		}
+		if (ShipBuilderGrid::DoFootprintsOverlap(
+			CornerCell,
+			CellSize,
+			Placed.GridPos,
+			OtherDef->GetEffectiveCellSize()))
 		{
 			return true;
 		}
@@ -970,31 +1004,42 @@ bool ASpaceshipShipBuilderPlayerController::IsGridCellOccupied(const FIntVector&
 	return false;
 }
 
-FIntVector ASpaceshipShipBuilderPlayerController::FindBestSnappedCell(const FIntVector& RawCell, const FName MovingInstanceId) const
+FIntVector ASpaceshipShipBuilderPlayerController::FindBestSnappedCell(
+	const FIntVector& RawCornerCell,
+	const FName MovingInstanceId) const
 {
-	// No adjacency restriction: place directly to hovered grid cell.
-	if (!IsGridCellOccupied(RawCell, MovingInstanceId))
+	const int32 MovingIndex = FindDraftModuleIndexByInstanceId(MovingInstanceId);
+	if (!Draft.PlacedModules.IsValidIndex(MovingIndex))
 	{
-		return RawCell;
+		return RawCornerCell;
 	}
 
-	// If occupied, find nearest free cell around raw target.
-	for (int32 Radius = 1; Radius <= 8; ++Radius)
+	const UShipModuleCatalog* Catalog = GetModuleCatalog();
+	if (!Catalog)
 	{
-		for (int32 dx = -Radius; dx <= Radius; ++dx)
-		{
-			for (int32 dy = -Radius; dy <= Radius; ++dy)
-			{
-				const FIntVector Candidate(RawCell.X + dx, RawCell.Y + dy, RawCell.Z);
-				if (!IsGridCellOccupied(Candidate, MovingInstanceId))
-				{
-					return Candidate;
-				}
-			}
-		}
+		return RawCornerCell;
 	}
 
-	return RawCell;
+	const FShipBuilderDraftConfig::FPlacedModule& MovingModule = Draft.PlacedModules[MovingIndex];
+	const UShipModuleDefinition* MovingDef = Catalog->FindModuleById(MovingModule.ModuleId);
+	if (!MovingDef)
+	{
+		return RawCornerCell;
+	}
+
+	FIntVector BestCell = RawCornerCell;
+	SpaceshipCrew_TryFindBestSocketSnapCell(
+		Draft,
+		MovingModule,
+		*MovingDef,
+		RawCornerCell,
+		MovingInstanceId,
+		[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); },
+		BestCell,
+		SpaceshipShipBuilderInputPrivate::DragGridStepXY,
+		SpaceshipShipBuilderInputPrivate::DragGridStepZ,
+		900.0f);
+	return BestCell;
 }
 
 void ASpaceshipShipBuilderPlayerController::ToggleCatalog()

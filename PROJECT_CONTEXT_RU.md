@@ -34,7 +34,7 @@
 
 ## Ограничения контента
 
-Команды художников нет: примитивы UE, greybox, бесплатные ассеты с фиксацией в `Content/THIRD_PARTY_ASSETS.md` при использовании.
+Команды художников нет: примитивы UE, greybox, бесплатные ассеты с фиксацией в `Content/THIRD_PARTY_ASSETS.md` при использовании. Сборка модулей на Big Modular SciFi — `docs/SHIP_MODULE_BIG_MODULAR_GUIDE_RU.md`. Сетка и размещение в конструкторе — `docs/SHIP_BUILDER_GRID_RU.md`.
 
 ## UI (подход к реализации)
 

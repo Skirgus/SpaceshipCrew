@@ -47,9 +47,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Economy", meta = (ClampMin = "0"))
 	int32 CreditCost = 0;
 
-	/** Габариты модуля в см (все компоненты обязательно > 0). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics")
+	/** Габариты модуля в см (производное от CellSize, синхронизируется автоматически). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Physics")
 	FVector Size = FVector(400.0, 400.0, 300.0);
+
+	/**
+	 * Размер модуля в панелях сетки (1 панель = 400×400×300 см).
+	 * Модуль 2×1×2 = две панели по X, одна по Y, два этажа по Z.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics", meta = (ClampMin = "1"))
+	FIntVector CellSize = FIntVector(1, 1, 1);
 
 	/** Есть ли внутренний объём, по которому может перемещаться экипаж. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interior")
@@ -84,19 +91,43 @@ public:
 	/** Эффективная стоимость для суммы в конструкторе (CreditCost или оценка по массе). */
 	int32 GetEffectiveCreditCost() const;
 
+	/** Эффективный размер в панелях (минимум 1 по каждой оси). */
+	FIntVector GetEffectiveCellSize() const;
+
+	/** Пересчитывает Size из CellSize (CellSize — источник истины в редакторе). */
+	void SyncCellSizeAndSizeFromLegacy();
+
+#if WITH_EDITOR
+	/** PostLoad: если CellSize ещё 1×1×1, а Size задан legacy-габаритом — вывести CellSize из Size. */
+	void MigrateLegacySizeToCellSizeIfNeeded();
+
+	/** Заменяет ContactPoints на panel-сокеты текущего CellSize (если нет override в VisualOverride). */
+	void RegenerateDefaultContactPointsFromCellSize();
+#endif
+
 	/** Резолв: ContactPointsOverride при bOverrideContactPoints и непустом списке, иначе ContactPoints на определении. */
 	const TArray<FShipModuleContactPoint>& GetResolvedContactPoints() const;
 
 	/**
-	 * Шесть стыковочных точек на гранях bbox (см). Записывает в OutPoints (с Reset).
-	 * Используется фабрикой, сидированием и EnsureContactPointsPopulatedIfNoAuthoringOverride.
+	 * Шесть стыковочных точек на гранях bbox (см). Устаревший fallback для 1×1×1.
 	 */
 	static void AppendDefaultContactPointsForSize(const FVector& ModuleSize, TArray<FShipModuleContactPoint>& OutPoints);
+
+	/** Сокеты по центру каждой внешней панели грани (CellSize панелей). */
+	static void AppendDefaultPanelContactPointsForCellSize(
+		const FIntVector& InCellSize,
+		TArray<FShipModuleContactPoint>& OutPoints);
 
 	/**
 	 * Эффективные контактные точки для домена/превью: копия GetResolvedContactPoints (без «виртуальных» сокетов).
 	 */
 	void GatherEffectiveContactPoints(TArray<FShipModuleContactPoint>& OutPoints) const;
+
+	/**
+	 * Сокеты для стыковки и превью: authored-точки + недостающие грани bbox по Size.
+	 * Частичный override в VisualOverride не блокирует стыковку по незаданным граням.
+	 */
+	void GatherContactPointsForPlacement(TArray<FShipModuleContactPoint>& OutPoints) const;
 
 	/**
 	 * Если нет authoring-сокетов в VisualOverride и ContactPoints пуст — добавить шесть граней по Size (только редактор).

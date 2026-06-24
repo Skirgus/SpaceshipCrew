@@ -97,8 +97,11 @@ private:
 	int32 FindDraftModuleIndexByInstanceId(FName InstanceId) const;
 	void RecomputeDraftConnectionSockets();
 	void RebuildConnectionsFromAdjacency();
-	bool IsGridCellOccupied(const FIntVector& Cell, FName IgnoreInstanceId = NAME_None) const;
-	FIntVector FindBestSnappedCell(const FIntVector& RawCell, FName MovingInstanceId) const;
+	bool IsFootprintOccupied(
+		const FIntVector& CornerCell,
+		const FIntVector& CellSize,
+		FName IgnoreInstanceId = NAME_None) const;
+	FIntVector FindBestSnappedCell(const FIntVector& RawCornerCell, FName MovingInstanceId) const;
 
 	void EnsureCatalogCategoryIndexValid();
 	void EnsurePreviewActor();

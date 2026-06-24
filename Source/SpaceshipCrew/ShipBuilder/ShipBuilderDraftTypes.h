@@ -17,6 +17,7 @@ struct SPACESHIPCREW_API FShipBuilderPlacedModule
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
 	FName ModuleId = NAME_None;
 
+	/** GridPos — угол footprint (min X, min Y, min Z) в ячейках панелей. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBuilder")
 	FIntVector GridPos = FIntVector::ZeroValue;
 

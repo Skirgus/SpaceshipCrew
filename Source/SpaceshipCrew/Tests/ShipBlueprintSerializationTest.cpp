@@ -8,7 +8,9 @@
 #include "ShipBuilder/ShipBlueprintSerializer.h"
 #include "ShipBuilder/ShipBlueprintSessionSubsystem.h"
 #include "ShipBuilder/ShipBlueprintTypes.h"
+#include "ShipBuilder/ShipBuilderDomainGlue.h"
 #include "ShipModule/ShipModuleCatalog.h"
+#include "ShipModule/ShipModuleDefinition.h"
 #include "ShipModule/ShipModuleDefinition.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -142,6 +144,84 @@ bool FShipBlueprintNamingCyrillicTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("ValidIdSanitized"), ShipBlueprintNaming::TrySanitizeShipIdForFilename(IdA, SafeName));
 	TestFalse(TEXT("PathTraversalRejected"), ShipBlueprintNaming::TrySanitizeShipIdForFilename(FName(TEXT("../evil")), SafeName));
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipBlueprintGridPosMigrationTest,
+	"SpaceshipCrew.ShipBlueprint.GridPosCenterToCornerMigration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FShipBlueprintGridPosMigrationTest::RunTest(const FString& Parameters)
+{
+	UShipModuleCatalog* Catalog = NewObject<UShipModuleCatalog>();
+	UShipModuleDefinition* Wide = NewObject<UShipModuleDefinition>();
+	Wide->ModuleId = FName(TEXT("WideModule"));
+	Wide->DisplayName = FText::FromString(TEXT("Wide"));
+	Wide->Mass = 100.0f;
+	Wide->CellSize = FIntVector(2, 1, 1);
+	Wide->SyncCellSizeAndSizeFromLegacy();
+	Catalog->RegisterDefinitionForAutomation(Wide);
+
+	FShipBuilderDraftConfig Draft;
+	FShipBuilderPlacedModule Placed;
+	Placed.InstanceId = FName(TEXT("Inst0"));
+	Placed.ModuleId = Wide->ModuleId;
+	Placed.GridPos = FIntVector(1, 0, 0);
+	Draft.PlacedModules.Add(Placed);
+
+	SpaceshipCrew_MigrateDraftGridPosCenterToCorner(
+		Draft,
+		[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); });
+
+	TestEqual(TEXT("CornerX"), Draft.PlacedModules[0].GridPos.X, 0);
+	TestEqual(TEXT("ConnectionsCleared"), Draft.Connections.Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipBlueprintComputeAppendCornerTest,
+	"SpaceshipCrew.ShipBlueprint.ComputeNextAppendCorner",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FShipBlueprintComputeAppendCornerTest::RunTest(const FString& Parameters)
+{
+	UShipModuleCatalog* Catalog = NewObject<UShipModuleCatalog>();
+	UShipModuleDefinition* Wide = NewObject<UShipModuleDefinition>();
+	Wide->ModuleId = FName(TEXT("WideModule"));
+	Wide->DisplayName = FText::FromString(TEXT("Wide"));
+	Wide->Mass = 100.0f;
+	Wide->CellSize = FIntVector(2, 1, 1);
+	Wide->SyncCellSizeAndSizeFromLegacy();
+	Catalog->RegisterDefinitionForAutomation(Wide);
+
+	UShipModuleDefinition* Narrow = NewObject<UShipModuleDefinition>();
+	Narrow->ModuleId = FName(TEXT("NarrowModule"));
+	Narrow->DisplayName = FText::FromString(TEXT("Narrow"));
+	Narrow->Mass = 100.0f;
+	Narrow->CellSize = FIntVector(1, 1, 1);
+	Narrow->SyncCellSizeAndSizeFromLegacy();
+	Catalog->RegisterDefinitionForAutomation(Narrow);
+
+	FShipBuilderDraftConfig Draft;
+	FShipBuilderPlacedModule First;
+	First.InstanceId = FName(TEXT("First"));
+	First.ModuleId = Wide->ModuleId;
+	First.GridPos = FIntVector(0, 0, 0);
+	Draft.PlacedModules.Add(First);
+
+	const FIntVector NextCorner = SpaceshipCrew_ComputeNextDraftAppendCornerCell(
+		Draft,
+		[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); },
+		0);
+	TestEqual(TEXT("AfterTwoCellWide"), NextCorner.X, 2);
+
+	FShipBuilderDraftConfig EmptyDraft;
+	const FIntVector EmptyCorner = SpaceshipCrew_ComputeNextDraftAppendCornerCell(
+		EmptyDraft,
+		[Catalog](const FName ModuleId) { return Catalog->FindModuleById(ModuleId); },
+		1);
+	TestEqual(TEXT("EmptyDraftZ"), EmptyCorner.Z, 1);
 	return true;
 }
 

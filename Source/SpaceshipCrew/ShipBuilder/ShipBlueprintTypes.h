@@ -47,7 +47,8 @@ struct SPACESHIPCREW_API FShipBlueprintDocument
 {
 	GENERATED_BODY()
 
-	static constexpr int32 CurrentSchemaVersion = 1;
+	/** v1: GridPos = центр модуля в ячейках; v2: GridPos = min-угол footprint. */
+	static constexpr int32 CurrentSchemaVersion = 2;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipBlueprint")
 	int32 SchemaVersion = CurrentSchemaVersion;

@@ -1,5 +1,6 @@
 #include "ShipBuilderParameterEvaluator.h"
 
+#include "ShipBuilder/ShipBuilderDomainGlue.h"
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "ShipModuleTypes.h"
@@ -129,7 +130,10 @@ void FShipBuilderParameterEvaluator::ComputeSnapshotWithPreviewAppend(
 			FShipBuilderDraftConfig::FPlacedModule Placed;
 			Placed.InstanceId = *FString::Printf(TEXT("Preview%d"), Temp.PlacedModules.Num());
 			Placed.ModuleId = PreviewModuleId;
-			Placed.GridPos = FIntVector(Temp.PlacedModules.Num(), 0, 0);
+			Placed.GridPos = SpaceshipCrew_ComputeNextDraftAppendCornerCell(
+				Temp,
+				[&Catalog](const FName ModuleId) { return Catalog.FindModuleById(ModuleId); },
+				0);
 			Temp.PlacedModules.Add(Placed);
 		}
 		else

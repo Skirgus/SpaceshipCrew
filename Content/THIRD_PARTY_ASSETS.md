@@ -60,7 +60,9 @@ git lfs pull
 ### Использование в конструкторе
 
 - Меши из пака → `UShipModuleVisualOverride.VisualParts` (поля `Mesh`, `RelativeTransform`).
-- Стыковочные точки → `ContactPoints` / `ContactPointsOverride` в том же override или в `UShipModuleDefinition`.
+- Стыковочные точки → panel-sockets (`Front_X0_Y0_Z0`, …) в `ContactPoints` / `ContactPointsOverride`.
+- Размер модуля → **`CellSize`** на Definition (см. [docs/SHIP_BUILDER_GRID_RU.md](../docs/SHIP_BUILDER_GRID_RU.md)).
+- **Пошаговое руководство:** [docs/SHIP_MODULE_BIG_MODULAR_GUIDE_RU.md](../docs/SHIP_MODULE_BIG_MODULAR_GUIDE_RU.md)
 - Лицензия: только для сборки **вашей** игры; не публиковать сырые `.uasset` пака в открытом репозитории.
 
 ### При добавлении нового пака

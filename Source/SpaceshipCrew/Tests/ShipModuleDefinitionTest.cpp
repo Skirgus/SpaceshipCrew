@@ -85,4 +85,28 @@ bool FShipModuleRequiredFieldsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipModuleCellSizeSyncTest,
+	"SpaceshipCrew.ShipModule.CellSizeSync",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+
+bool FShipModuleCellSizeSyncTest::RunTest(const FString& Parameters)
+{
+	UShipModuleDefinition* Def = NewObject<UShipModuleDefinition>();
+	Def->CellSize = FIntVector(1, 1, 1);
+	Def->Size = FVector(400.0f, 400.0f, 300.0f);
+	UShipModuleDefinition::AppendDefaultPanelContactPointsForCellSize(Def->CellSize, Def->ContactPoints);
+	TestEqual(TEXT("OneByOnePanelCount"), Def->ContactPoints.Num(), 6);
+
+	Def->CellSize = FIntVector(1, 3, 1);
+	Def->SyncCellSizeAndSizeFromLegacy();
+	TestEqual(TEXT("OneByThreeSizeY"), static_cast<float>(Def->Size.Y), 1200.0f);
+	TestEqual(TEXT("OneByThreeSizeX"), static_cast<float>(Def->Size.X), 400.0f);
+
+	Def->RegenerateDefaultContactPointsFromCellSize();
+	TestEqual(TEXT("OneByThreePanelCount"), Def->ContactPoints.Num(), 14);
+
+	return true;
+}
+
 #endif

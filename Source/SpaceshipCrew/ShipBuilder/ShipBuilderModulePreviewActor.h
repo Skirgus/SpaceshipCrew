@@ -38,11 +38,11 @@ public:
 	void RebuildFromDraft(const FShipBuilderDraftConfig& Draft, const UShipModuleCatalog& Catalog);
 	void SetSelectedModuleInstanceId(FName InstanceId) { SelectedModuleInstanceId = InstanceId; }
 	void SetHoveredModuleInstanceId(FName InstanceId) { HoveredModuleInstanceId = InstanceId; }
-	void SetDragGhostTarget(bool bEnabled, FName InstanceId, FIntVector GridPos)
+	void SetDragGhostTarget(bool bEnabled, FName InstanceId, FIntVector GridCorner)
 	{
 		bShowDragGhost = bEnabled;
 		DragGhostInstanceId = InstanceId;
-		DragGhostGridPos = GridPos;
+		DragGhostGridPos = GridCorner;
 	}
 
 	/** Включает/выключает демонстрационный режим повреждённых панелей. */
@@ -153,11 +153,30 @@ private:
 
 	void AddDoorOpeningFrame(
 		UInstancedStaticMeshComponent& FrameComponent,
-		const FVector& WallCenter,
+		const FRotator& ModuleYaw,
+		const FVector& ModuleCenter,
+		const FVector& LocalWallCenter,
 		float WallThickness,
 		float WallSpan,
 		float WallHeight,
 		bool bNormalAlongX) const;
+
+	/** Рамка люка в горизонтальной панели пола/потолка (нормаль по Z). */
+	void AddPanelHatchFrame(
+		UInstancedStaticMeshComponent& FrameComponent,
+		const FRotator& ModuleYaw,
+		const FVector& ModuleCenter,
+		const FVector& LocalPanelCenter,
+		float Thickness,
+		float HatchSpan) const;
+
+	void AddRotatedSelectionOutline(
+		UInstancedStaticMeshComponent& SelectionPool,
+		const FRotator& ModuleYaw,
+		const FVector& Center,
+		const FVector& Size,
+		float Pad,
+		float Thickness) const;
 
 	static bool ShouldForceOpeningForSide(const UShipModuleDefinition& Definition, EShipModuleOpeningSide Side);
 
@@ -174,6 +193,7 @@ private:
 	void ClearPools(TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pools);
 	void ConfigureSelectionComponent(UInstancedStaticMeshComponent& Component) const;
 	void ConfigureSocketMarkerComponent(UInstancedStaticMeshComponent& Component) const;
+	FVector GetDragGhostWorldCenter(const FVector& ModuleSize) const;
 
 	FName SelectedModuleInstanceId = NAME_None;
 	FName HoveredModuleInstanceId = NAME_None;

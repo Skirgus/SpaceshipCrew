@@ -4,6 +4,7 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "ShipBuilder/ShipBuilderDomainGlue.h"
+#include "ShipBuilder/ShipBuilderGridConstants.h"
 #include "ShipModule/ShipBuildDomain.h"
 #include "ShipModule/ShipModuleCatalog.h"
 #include "ShipModule/ShipModuleDefinition.h"
@@ -16,33 +17,104 @@ namespace ShipBuilderPreviewActorPrivate
 	static constexpr float GridStepXY = 400.0f;
 	static constexpr float GridStepZ = 300.0f;
 
-	static void RotateHorizontalOpeningsByYaw(
-		const int32 YawStep,
-		const bool bFrontIn,
-		const bool bBackIn,
-		const bool bLeftIn,
-		const bool bRightIn,
-		bool& bFrontOut,
-		bool& bBackOut,
-		bool& bLeftOut,
-		bool& bRightOut)
+	static bool IsHorizontalDoorwaySocket(const UShipModuleDefinition& Def, const FName SocketName)
 	{
-		const int32 Step = ((YawStep % 4) + 4) % 4;
-		bFrontOut = bFrontIn;
-		bBackOut = bBackIn;
-		bLeftOut = bLeftIn;
-		bRightOut = bRightIn;
-		for (int32 i = 0; i < Step; ++i)
+		TArray<FShipModuleContactPoint> PlacementSockets;
+		Def.GatherContactPointsForPlacement(PlacementSockets);
+		for (const FShipModuleContactPoint& CP : PlacementSockets)
 		{
-			const bool PrevFront = bFrontOut;
-			const bool PrevBack = bBackOut;
-			const bool PrevLeft = bLeftOut;
-			const bool PrevRight = bRightOut;
-			// +90 yaw: front->right, right->back, back->left, left->front
-			bFrontOut = PrevLeft;
-			bRightOut = PrevFront;
-			bBackOut = PrevRight;
-			bLeftOut = PrevBack;
+			if (CP.SocketName == SocketName)
+			{
+				return CP.SocketType == EShipModuleSocketType::Horizontal
+					|| CP.SocketType == EShipModuleSocketType::Universal;
+			}
+		}
+
+		const FString Socket = SocketName.ToString().ToLower();
+		return Socket.Contains(TEXT("front"))
+			|| Socket.Contains(TEXT("back"))
+			|| Socket.Contains(TEXT("rear"))
+			|| Socket.Contains(TEXT("left"))
+			|| Socket.Contains(TEXT("right"));
+	}
+
+	static bool IsVerticalDoorwaySocket(const UShipModuleDefinition& Def, const FName SocketName)
+	{
+		TArray<FShipModuleContactPoint> PlacementSockets;
+		Def.GatherContactPointsForPlacement(PlacementSockets);
+		for (const FShipModuleContactPoint& CP : PlacementSockets)
+		{
+			if (CP.SocketName == SocketName)
+			{
+				return CP.SocketType == EShipModuleSocketType::Vertical
+					|| CP.SocketType == EShipModuleSocketType::Universal;
+			}
+		}
+
+		const FString Socket = SocketName.ToString().ToLower();
+		return Socket.Contains(TEXT("top")) || Socket.Contains(TEXT("bottom"));
+	}
+
+	static bool FindSocketRelativeLocation(const UShipModuleDefinition& Def, const FName SocketName, FVector& OutLocation)
+	{
+		TArray<FShipModuleContactPoint> PlacementSockets;
+		Def.GatherContactPointsForPlacement(PlacementSockets);
+		for (const FShipModuleContactPoint& CP : PlacementSockets)
+		{
+			if (CP.SocketName == SocketName)
+			{
+				OutLocation = CP.RelativeLocation;
+				return true;
+			}
+		}
+
+		for (const FShipModuleContactPoint& CP : PlacementSockets)
+		{
+			if (SpaceshipCrew_DoPanelSocketsMatch(SocketName, CP.SocketName))
+			{
+				OutLocation = CP.RelativeLocation;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	static FVector DoorFrameCenterOnWallPlane(const FVector& SocketLocation, const FVector& Half, const float T)
+	{
+		if (FMath::IsNearlyEqual(FMath::Abs(SocketLocation.X), Half.X, 1.0f))
+		{
+			return FVector(FMath::Sign(SocketLocation.X) * (Half.X - T * 0.5f), SocketLocation.Y, SocketLocation.Z);
+		}
+		if (FMath::IsNearlyEqual(FMath::Abs(SocketLocation.Y), Half.Y, 1.0f))
+		{
+			return FVector(SocketLocation.X, FMath::Sign(SocketLocation.Y) * (Half.Y - T * 0.5f), SocketLocation.Z);
+		}
+		return SocketLocation;
+	}
+
+	static FName MakePanelSocketName(const TCHAR* FacePrefix, const int32 IX, const int32 IY, const int32 IZ)
+	{
+		return FName(*FString::Printf(TEXT("%s_X%d_Y%d_Z%d"), FacePrefix, IX, IY, IZ));
+	}
+
+	static FName ForcedOpeningSocketForSide(const FIntVector& Cells, const EShipModuleOpeningSide Side)
+	{
+		const int32 MidY = FMath::Max(0, (Cells.Y - 1) / 2);
+		const int32 MidZ = FMath::Max(0, (Cells.Z - 1) / 2);
+		const int32 MidX = FMath::Max(0, (Cells.X - 1) / 2);
+		switch (Side)
+		{
+		case EShipModuleOpeningSide::Front:
+			return MakePanelSocketName(TEXT("Front"), Cells.X - 1, MidY, MidZ);
+		case EShipModuleOpeningSide::Back:
+			return MakePanelSocketName(TEXT("Back"), 0, MidY, MidZ);
+		case EShipModuleOpeningSide::Left:
+			return MakePanelSocketName(TEXT("Left"), MidX, 0, MidZ);
+		case EShipModuleOpeningSide::Right:
+			return MakePanelSocketName(TEXT("Right"), MidX, Cells.Y - 1, MidZ);
+		default:
+			return NAME_None;
 		}
 	}
 }
@@ -141,6 +213,15 @@ void AShipBuilderModulePreviewActor::ConfigureSocketMarkerComponent(UInstancedSt
 	}
 }
 
+FVector AShipBuilderModulePreviewActor::GetDragGhostWorldCenter(const FVector& ModuleSize) const
+{
+	const FVector CornerWorld(
+		static_cast<float>(DragGhostGridPos.X) * ShipBuilderGrid::PanelUnitXY,
+		static_cast<float>(DragGhostGridPos.Y) * ShipBuilderGrid::PanelUnitXY,
+		static_cast<float>(DragGhostGridPos.Z) * ShipBuilderGrid::PanelUnitZ);
+	return CornerWorld + ModuleSize * 0.5f;
+}
+
 void AShipBuilderModulePreviewActor::AddBoxInstance(
 	UInstancedStaticMeshComponent& Component,
 	const FVector& Center,
@@ -159,12 +240,7 @@ void AShipBuilderModulePreviewActor::AddEffectiveSocketMarkerInstances(
 	const float InSocketMarkerOffset) const
 {
 	TArray<FShipModuleContactPoint> Effective;
-	Def.GatherEffectiveContactPoints(Effective);
-	// Только превью: если в ассете ещё не записаны точки, показываем шесть граней по Size (домен/валидация не меняются).
-	if (Effective.Num() == 0 && Def.Size.X > 0.0f && Def.Size.Y > 0.0f && Def.Size.Z > 0.0f)
-	{
-		UShipModuleDefinition::AppendDefaultContactPointsForSize(Def.Size, Effective);
-	}
+	Def.GatherContactPointsForPlacement(Effective);
 	for (const FShipModuleContactPoint& CP : Effective)
 	{
 		const FVector N = CP.RelativeLocation.GetSafeNormal();
@@ -196,9 +272,38 @@ void AShipBuilderModulePreviewActor::AddShellPanel(
 	++InOutPanelOrdinal;
 }
 
+void AShipBuilderModulePreviewActor::AddRotatedSelectionOutline(
+	UInstancedStaticMeshComponent& SelectionPool,
+	const FRotator& ModuleYaw,
+	const FVector& Center,
+	const FVector& Size,
+	const float Pad,
+	const float Thickness) const
+{
+	const float OutlineTopZ = Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
+	const float OuterX = Size.X + 2.0f * Pad;
+	const float OuterY = Size.Y + 2.0f * Pad;
+
+	const auto AddBar = [&](const FVector& LocalCenter, const FVector& BarSize)
+	{
+		const FTransform BarTransform(
+			ModuleYaw,
+			Center + ModuleYaw.RotateVector(LocalCenter),
+			BarSize / 100.0f);
+		AddTransformInstance(SelectionPool, BarTransform);
+	};
+
+	AddBar(FVector(0.0f, -OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ), FVector(OuterX, Thickness, Thickness));
+	AddBar(FVector(0.0f, OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ), FVector(OuterX, Thickness, Thickness));
+	AddBar(FVector(-OuterX * 0.5f + Thickness * 0.5f, 0.0f, OutlineTopZ), FVector(Thickness, OuterY, Thickness));
+	AddBar(FVector(OuterX * 0.5f - Thickness * 0.5f, 0.0f, OutlineTopZ), FVector(Thickness, OuterY, Thickness));
+}
+
 void AShipBuilderModulePreviewActor::AddDoorOpeningFrame(
 	UInstancedStaticMeshComponent& FrameComponent,
-	const FVector& WallCenter,
+	const FRotator& ModuleYaw,
+	const FVector& ModuleCenter,
+	const FVector& LocalWallCenter,
 	const float WallThickness,
 	const float WallSpan,
 	const float WallHeight,
@@ -207,29 +312,34 @@ void AShipBuilderModulePreviewActor::AddDoorOpeningFrame(
 	const float OpenWidth = FMath::Clamp(160.0f, 80.0f, FMath::Max(80.0f, WallSpan - 2.0f * WallThickness));
 	const float OpenHeight = FMath::Clamp(220.0f, 120.0f, FMath::Max(120.0f, WallHeight - 2.0f * WallThickness));
 
+	const auto AddFrameBox = [&](const FVector& LocalCenter, const FVector& Size)
+	{
+		const FTransform FrameTransform(
+			ModuleYaw,
+			ModuleCenter + ModuleYaw.RotateVector(LocalCenter),
+			Size / 100.0f);
+		AddTransformInstance(FrameComponent, FrameTransform);
+	};
+
 	const float SideWidth = (WallSpan - OpenWidth) * 0.5f;
 	if (SideWidth > 1.0f)
 	{
 		if (bNormalAlongX)
 		{
-			AddBoxInstance(
-				FrameComponent,
-				WallCenter + FVector(0.0f, -WallSpan * 0.5f + SideWidth * 0.5f, 0.0f),
+			AddFrameBox(
+				LocalWallCenter + FVector(0.0f, -WallSpan * 0.5f + SideWidth * 0.5f, 0.0f),
 				FVector(WallThickness, SideWidth, WallHeight));
-			AddBoxInstance(
-				FrameComponent,
-				WallCenter + FVector(0.0f, WallSpan * 0.5f - SideWidth * 0.5f, 0.0f),
+			AddFrameBox(
+				LocalWallCenter + FVector(0.0f, WallSpan * 0.5f - SideWidth * 0.5f, 0.0f),
 				FVector(WallThickness, SideWidth, WallHeight));
 		}
 		else
 		{
-			AddBoxInstance(
-				FrameComponent,
-				WallCenter + FVector(-WallSpan * 0.5f + SideWidth * 0.5f, 0.0f, 0.0f),
+			AddFrameBox(
+				LocalWallCenter + FVector(-WallSpan * 0.5f + SideWidth * 0.5f, 0.0f, 0.0f),
 				FVector(SideWidth, WallThickness, WallHeight));
-			AddBoxInstance(
-				FrameComponent,
-				WallCenter + FVector(WallSpan * 0.5f - SideWidth * 0.5f, 0.0f, 0.0f),
+			AddFrameBox(
+				LocalWallCenter + FVector(WallSpan * 0.5f - SideWidth * 0.5f, 0.0f, 0.0f),
 				FVector(SideWidth, WallThickness, WallHeight));
 		}
 	}
@@ -240,18 +350,53 @@ void AShipBuilderModulePreviewActor::AddDoorOpeningFrame(
 	{
 		if (bNormalAlongX)
 		{
-			AddBoxInstance(
-				FrameComponent,
-				WallCenter + FVector(0.0f, 0.0f, OpeningTopZ + TopHeight * 0.5f),
+			AddFrameBox(
+				LocalWallCenter + FVector(0.0f, 0.0f, OpeningTopZ + TopHeight * 0.5f),
 				FVector(WallThickness, OpenWidth, TopHeight));
 		}
 		else
 		{
-			AddBoxInstance(
-				FrameComponent,
-				WallCenter + FVector(0.0f, 0.0f, OpeningTopZ + TopHeight * 0.5f),
+			AddFrameBox(
+				LocalWallCenter + FVector(0.0f, 0.0f, OpeningTopZ + TopHeight * 0.5f),
 				FVector(OpenWidth, WallThickness, TopHeight));
 		}
+	}
+}
+
+void AShipBuilderModulePreviewActor::AddPanelHatchFrame(
+	UInstancedStaticMeshComponent& FrameComponent,
+	const FRotator& ModuleYaw,
+	const FVector& ModuleCenter,
+	const FVector& LocalPanelCenter,
+	const float Thickness,
+	const float HatchSpan) const
+{
+	const float OpenSize = FMath::Clamp(160.0f, 80.0f, FMath::Max(80.0f, HatchSpan - 2.0f * Thickness));
+	const float SideWidth = (HatchSpan - OpenSize) * 0.5f;
+
+	const auto AddFrameBox = [&](const FVector& LocalCenter, const FVector& Size)
+	{
+		const FTransform FrameTransform(
+			ModuleYaw,
+			ModuleCenter + ModuleYaw.RotateVector(LocalCenter),
+			Size / 100.0f);
+		AddTransformInstance(FrameComponent, FrameTransform);
+	};
+
+	if (SideWidth > 1.0f)
+	{
+		AddFrameBox(
+			LocalPanelCenter + FVector(-HatchSpan * 0.5f + SideWidth * 0.5f, 0.0f, 0.0f),
+			FVector(SideWidth, HatchSpan, Thickness));
+		AddFrameBox(
+			LocalPanelCenter + FVector(HatchSpan * 0.5f - SideWidth * 0.5f, 0.0f, 0.0f),
+			FVector(SideWidth, HatchSpan, Thickness));
+		AddFrameBox(
+			LocalPanelCenter + FVector(0.0f, -HatchSpan * 0.5f + SideWidth * 0.5f, 0.0f),
+			FVector(OpenSize, SideWidth, Thickness));
+		AddFrameBox(
+			LocalPanelCenter + FVector(0.0f, HatchSpan * 0.5f - SideWidth * 0.5f, 0.0f),
+			FVector(OpenSize, SideWidth, Thickness));
 	}
 }
 
@@ -333,10 +478,11 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 			Entry.Def = Def;
 			Entry.InstanceId = Placed.InstanceId;
 			Entry.YawStep = Placed.YawStep;
-			Entry.Center = FVector(
-				static_cast<float>(Placed.GridPos.X) * ShipBuilderPreviewActorPrivate::GridStepXY,
-				static_cast<float>(Placed.GridPos.Y) * ShipBuilderPreviewActorPrivate::GridStepXY,
-				static_cast<float>(Placed.GridPos.Z) * ShipBuilderPreviewActorPrivate::GridStepZ + Def->Size.Z * 0.5f);
+			Entry.Center = SpaceshipCrew_ComputeModuleWorldCenter(
+				Placed,
+				*Def,
+				ShipBuilderPreviewActorPrivate::GridStepXY,
+				ShipBuilderPreviewActorPrivate::GridStepZ);
 			Resolved.Add(Entry);
 		}
 	}
@@ -373,13 +519,14 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 			continue;
 		}
 
-		const FVector Center = Resolved[Index].Center;
 		const FVector Size = Def->Size.ComponentMax(FVector(20.0f, 20.0f, 20.0f));
 		const bool bIsSelected = !SelectedModuleInstanceId.IsNone()
 			&& SelectedModuleInstanceId == Resolved[Index].InstanceId;
 		const bool bIsHovered = !HoveredModuleInstanceId.IsNone()
 			&& HoveredModuleInstanceId == Resolved[Index].InstanceId;
+		const bool bIsDragGhostTarget = bShowDragGhost && DragGhostInstanceId == Resolved[Index].InstanceId;
 		const FRotator ModuleYaw(0.0f, static_cast<float>(Resolved[Index].YawStep) * 90.0f, 0.0f);
+		const FVector Center = bIsDragGhostTarget ? GetDragGhostWorldCenter(Size) : Resolved[Index].Center;
 		const FTransform ModuleTransform(ModuleYaw, Center, FVector::OneVector);
 
 		// Ручной override визуала полностью заменяет процедурную генерацию "коробки".
@@ -410,27 +557,14 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 
 					const float Pad = FMath::Max(0.0f, bIsHovered ? SelectionOutlinePadding * 0.6f : SelectionOutlinePadding);
 					const float Thickness = FMath::Clamp(SelectionOutlineThickness, 1.0f, 40.0f);
-					const float OutlineTopZ = Center.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
-					const float OuterX = Size.X + 2.0f * Pad;
-					const float OuterY = Size.Y + 2.0f * Pad;
 					if (bIsSelected || bIsHovered)
 					{
-						AddBoxInstance(SelectionPoolOverride, FVector(Center.X, Center.Y - OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ), FVector(OuterX, Thickness, Thickness));
-						AddBoxInstance(SelectionPoolOverride, FVector(Center.X, Center.Y + OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ), FVector(OuterX, Thickness, Thickness));
-						AddBoxInstance(SelectionPoolOverride, FVector(Center.X - OuterX * 0.5f + Thickness * 0.5f, Center.Y, OutlineTopZ), FVector(Thickness, OuterY, Thickness));
-						AddBoxInstance(SelectionPoolOverride, FVector(Center.X + OuterX * 0.5f - Thickness * 0.5f, Center.Y, OutlineTopZ), FVector(Thickness, OuterY, Thickness));
+						AddRotatedSelectionOutline(SelectionPoolOverride, ModuleYaw, Center, Size, Pad, Thickness);
 					}
 					if (bShowDragGhost && DragGhostInstanceId == Resolved[Index].InstanceId)
 					{
-						const FVector GhostCenter(
-							static_cast<float>(DragGhostGridPos.X) * ShipBuilderPreviewActorPrivate::GridStepXY,
-							static_cast<float>(DragGhostGridPos.Y) * ShipBuilderPreviewActorPrivate::GridStepXY,
-							static_cast<float>(DragGhostGridPos.Z) * ShipBuilderPreviewActorPrivate::GridStepZ + Size.Z * 0.5f);
-						const float GhostTopZ = GhostCenter.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
-						AddBoxInstance(SelectionPoolOverride, FVector(GhostCenter.X, GhostCenter.Y - OuterY * 0.5f + Thickness * 0.5f, GhostTopZ), FVector(OuterX, Thickness, Thickness));
-						AddBoxInstance(SelectionPoolOverride, FVector(GhostCenter.X, GhostCenter.Y + OuterY * 0.5f - Thickness * 0.5f, GhostTopZ), FVector(OuterX, Thickness, Thickness));
-						AddBoxInstance(SelectionPoolOverride, FVector(GhostCenter.X - OuterX * 0.5f + Thickness * 0.5f, GhostCenter.Y, GhostTopZ), FVector(Thickness, OuterY, Thickness));
-						AddBoxInstance(SelectionPoolOverride, FVector(GhostCenter.X + OuterX * 0.5f - Thickness * 0.5f, GhostCenter.Y, GhostTopZ), FVector(Thickness, OuterY, Thickness));
+						const FVector GhostCenter = GetDragGhostWorldCenter(Size);
+						AddRotatedSelectionOutline(SelectionPoolOverride, ModuleYaw, GhostCenter, Size, Pad, Thickness);
 					}
 
 					if (bIsHovered || bIsSelected)
@@ -470,25 +604,7 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 					ConfigureSocketMarkerComponent(SocketPoolSolid);
 					const float Pad = FMath::Max(0.0f, bIsHovered ? SelectionOutlinePadding * 0.6f : SelectionOutlinePadding);
 					const float Thickness = FMath::Clamp(SelectionOutlineThickness, 1.0f, 40.0f);
-					const float OutlineTopZ = Center.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
-					const float OuterX = Size.X + 2.0f * Pad;
-					const float OuterY = Size.Y + 2.0f * Pad;
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(Center.X, Center.Y - OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ),
-						FVector(OuterX, Thickness, Thickness));
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(Center.X, Center.Y + OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ),
-						FVector(OuterX, Thickness, Thickness));
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(Center.X - OuterX * 0.5f + Thickness * 0.5f, Center.Y, OutlineTopZ),
-						FVector(Thickness, OuterY, Thickness));
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(Center.X + OuterX * 0.5f - Thickness * 0.5f, Center.Y, OutlineTopZ),
-						FVector(Thickness, OuterY, Thickness));
+					AddRotatedSelectionOutline(SelectionPoolSolid, ModuleYaw, Center, Size, Pad, Thickness);
 					const float Marker = FMath::Clamp(SocketMarkerSize, 8.0f, 64.0f);
 					AddEffectiveSocketMarkerInstances(*Def, ModuleTransform, SocketPoolSolid, Marker, SocketMarkerOffset);
 				}
@@ -497,61 +613,92 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 					ConfigureSelectionComponent(SelectionPoolSolid);
 					const float Pad = FMath::Max(0.0f, SelectionOutlinePadding);
 					const float Thickness = FMath::Clamp(SelectionOutlineThickness, 1.0f, 40.0f);
-					const FVector GhostCenter(
-						static_cast<float>(DragGhostGridPos.X) * ShipBuilderPreviewActorPrivate::GridStepXY,
-						static_cast<float>(DragGhostGridPos.Y) * ShipBuilderPreviewActorPrivate::GridStepXY,
-						static_cast<float>(DragGhostGridPos.Z) * ShipBuilderPreviewActorPrivate::GridStepZ + Size.Z * 0.5f);
-					const float OutlineTopZ = GhostCenter.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
-					const float OuterX = Size.X + 2.0f * Pad;
-					const float OuterY = Size.Y + 2.0f * Pad;
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(GhostCenter.X, GhostCenter.Y - OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ),
-						FVector(OuterX, Thickness, Thickness));
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(GhostCenter.X, GhostCenter.Y + OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ),
-						FVector(OuterX, Thickness, Thickness));
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(GhostCenter.X - OuterX * 0.5f + Thickness * 0.5f, GhostCenter.Y, OutlineTopZ),
-						FVector(Thickness, OuterY, Thickness));
-					AddBoxInstance(
-						SelectionPoolSolid,
-						FVector(GhostCenter.X + OuterX * 0.5f - Thickness * 0.5f, GhostCenter.Y, OutlineTopZ),
-						FVector(Thickness, OuterY, Thickness));
+					const FVector GhostCenter = GetDragGhostWorldCenter(Size);
+					AddRotatedSelectionOutline(SelectionPoolSolid, ModuleYaw, GhostCenter, Size, Pad, Thickness);
 				}
 			}
 			continue;
 		}
 
 		const FName CurrentInstanceId = Resolved[Index].InstanceId;
-		bool bOpenBackBySocket = false;
-		bool bOpenFrontBySocket = false;
-		bool bOpenLeftBySocket = false;
-		bool bOpenRightBySocket = false;
-		bool bHasVerticalConnection = false;
-		if (bHasDomainChain)
-		{
-			TArray<FShipModuleContactPoint> CurrentEffectiveSockets;
-			Def->GatherEffectiveContactPoints(CurrentEffectiveSockets);
-			auto IsDoorwaySocket = [&CurrentEffectiveSockets](const FName SocketName) -> bool
-			{
-				for (const FShipModuleContactPoint& CP : CurrentEffectiveSockets)
-				{
-					if (CP.SocketName == SocketName)
-					{
-						return CP.SocketType == EShipModuleSocketType::Horizontal
-							|| CP.SocketType == EShipModuleSocketType::Universal;
-					}
-				}
-				const FString Socket = SocketName.ToString().ToLower();
-				return Socket == TEXT("front")
-					|| Socket == TEXT("back")
-					|| Socket == TEXT("left")
-					|| Socket == TEXT("right");
-			};
+		const FIntVector Cells = Def->GetEffectiveCellSize();
+		const FVector Half = Size * 0.5f;
+		const float PanelXY = ShipBuilderGrid::PanelUnitXY;
+		const float PanelZ = ShipBuilderGrid::PanelUnitZ;
 
+		TSet<FName> ConnectedHorizontalDoorSockets;
+		TSet<FName> ConnectedVerticalDoorSockets;
+		const FShipBuilderPlacedModule* CurrentPlaced = Draft.PlacedModules.FindByPredicate(
+			[CurrentInstanceId](const FShipBuilderPlacedModule& Placed)
+			{
+				return Placed.InstanceId == CurrentInstanceId;
+			});
+		const FShipBuilderModuleWorldPlacement CurrentPlacement = CurrentPlaced
+			? SpaceshipCrew_BuildModuleWorldPlacement(
+				*CurrentPlaced,
+				*Def,
+				ShipBuilderPreviewActorPrivate::GridStepXY,
+				ShipBuilderPreviewActorPrivate::GridStepZ)
+			: FShipBuilderModuleWorldPlacement();
+
+		auto AddResolvedConnectionSocket = [&](const FName ConnectionSocketName)
+		{
+			const FName PanelSocket = CurrentPlaced
+				? SpaceshipCrew_ResolvePanelSocketName(
+					*Def,
+					ConnectionSocketName,
+					&CurrentPlacement,
+					Resolved[Index].YawStep)
+				: ConnectionSocketName;
+			if (ShipBuilderPreviewActorPrivate::IsHorizontalDoorwaySocket(*Def, PanelSocket)
+				|| ShipBuilderPreviewActorPrivate::IsHorizontalDoorwaySocket(*Def, ConnectionSocketName))
+			{
+				ConnectedHorizontalDoorSockets.Add(PanelSocket);
+				ConnectedHorizontalDoorSockets.Add(ConnectionSocketName);
+			}
+			else if (ShipBuilderPreviewActorPrivate::IsVerticalDoorwaySocket(*Def, PanelSocket)
+				|| ShipBuilderPreviewActorPrivate::IsVerticalDoorwaySocket(*Def, ConnectionSocketName))
+			{
+				ConnectedVerticalDoorSockets.Add(PanelSocket);
+				ConnectedVerticalDoorSockets.Add(ConnectionSocketName);
+			}
+		};
+
+		auto ShouldCreateOpeningTowardNeighbor = [&](const FName NeighborInstanceId) -> bool
+		{
+			const FShipBuilderPlacedModule* NeighborPlaced = Draft.PlacedModules.FindByPredicate(
+				[NeighborInstanceId](const FShipBuilderPlacedModule& Placed)
+				{
+					return Placed.InstanceId == NeighborInstanceId;
+				});
+			if (!NeighborPlaced)
+			{
+				return true;
+			}
+			const UShipModuleDefinition* NeighborDef = Catalog.FindModuleById(NeighborPlaced->ModuleId);
+			return !NeighborDef || NeighborDef->bHasInterior;
+		};
+
+		for (const FShipBuilderDraftConnection& Connection : Draft.Connections)
+		{
+			const bool bCurrentAsA = Connection.ModuleAInstanceId == CurrentInstanceId;
+			const bool bCurrentAsB = Connection.ModuleBInstanceId == CurrentInstanceId;
+			if (!bCurrentAsA && !bCurrentAsB)
+			{
+				continue;
+			}
+			const FName NeighborInstanceId = bCurrentAsA
+				? Connection.ModuleBInstanceId
+				: Connection.ModuleAInstanceId;
+			if (!ShouldCreateOpeningTowardNeighbor(NeighborInstanceId))
+			{
+				continue;
+			}
+			AddResolvedConnectionSocket(bCurrentAsA ? Connection.ModuleASocketName : Connection.ModuleBSocketName);
+		}
+
+		if (Draft.Connections.Num() == 0 && bHasDomainChain)
+		{
 			for (const FShipBuildModuleConnection& Connection : DomainModel.GetConnections())
 			{
 				const bool bCurrentAsA = Connection.ModuleAInstanceId == CurrentInstanceId;
@@ -560,103 +707,34 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 				{
 					continue;
 				}
-
-				const FName OtherInstanceId = bCurrentAsA ? Connection.ModuleBInstanceId : Connection.ModuleAInstanceId;
-				const FName CurrentSocketName = bCurrentAsA ? Connection.ModuleASocketName : Connection.ModuleBSocketName;
-				const int32* OtherIndexPtr = IndexByInstanceId.Find(OtherInstanceId);
-				if (!OtherIndexPtr)
+				const FName NeighborInstanceId = bCurrentAsA
+					? Connection.ModuleBInstanceId
+					: Connection.ModuleAInstanceId;
+				if (!ShouldCreateOpeningTowardNeighbor(NeighborInstanceId))
 				{
 					continue;
 				}
-				const int32 OtherIndex = *OtherIndexPtr;
-				if (!Resolved.IsValidIndex(OtherIndex) || !Resolved[OtherIndex].Def)
-				{
-					continue;
-				}
-
-				const UShipModuleDefinition* OtherDef = Resolved[OtherIndex].Def;
-				const FName OtherSocketName = bCurrentAsA ? Connection.ModuleBSocketName : Connection.ModuleASocketName;
-				const bool bDoorwayPair = IsDoorwaySocket(CurrentSocketName)
-					&& [OtherDef, OtherSocketName]()
-					{
-						TArray<FShipModuleContactPoint> OtherEffective;
-						OtherDef->GatherEffectiveContactPoints(OtherEffective);
-						for (const FShipModuleContactPoint& CP : OtherEffective)
-						{
-							if (CP.SocketName == OtherSocketName)
-							{
-								return CP.SocketType == EShipModuleSocketType::Horizontal
-									|| CP.SocketType == EShipModuleSocketType::Universal;
-							}
-						}
-						const FString Socket = OtherSocketName.ToString().ToLower();
-						return Socket == TEXT("front")
-							|| Socket == TEXT("back")
-							|| Socket == TEXT("left")
-							|| Socket == TEXT("right");
-					}();
-				if (!bDoorwayPair)
-				{
-					continue;
-				}
-
-				if (OtherIndex < Index)
-				{
-					const FVector Delta = Resolved[OtherIndex].Center - Center;
-					if (FMath::Abs(Delta.Y) > FMath::Abs(Delta.X))
-					{
-						if (Delta.Y > 0.0f) bOpenRightBySocket = true;
-						else bOpenLeftBySocket = true;
-					}
-					else
-					{
-						if (Delta.X > 0.0f) bOpenFrontBySocket = true;
-						else bOpenBackBySocket = true;
-					}
-				}
-				else if (OtherIndex > Index)
-				{
-					const FVector Delta = Resolved[OtherIndex].Center - Center;
-					if (FMath::Abs(Delta.Y) > FMath::Abs(Delta.X))
-					{
-						if (Delta.Y > 0.0f) bOpenRightBySocket = true;
-						else bOpenLeftBySocket = true;
-					}
-					else
-					{
-						if (Delta.X > 0.0f) bOpenFrontBySocket = true;
-						else bOpenBackBySocket = true;
-					}
-				}
-				const bool bVerticalPair = CurrentSocketName.ToString().Contains(TEXT("Top"))
-					|| CurrentSocketName.ToString().Contains(TEXT("Bottom"))
-					|| OtherSocketName.ToString().Contains(TEXT("Top"))
-					|| OtherSocketName.ToString().Contains(TEXT("Bottom"));
-				if (bVerticalPair)
-				{
-					bHasVerticalConnection = true;
-				}
+				AddResolvedConnectionSocket(bCurrentAsA ? Connection.ModuleASocketName : Connection.ModuleBSocketName);
 			}
 		}
 
-		const bool bForceFrontOpening = ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Front);
-		const bool bForceBackOpening = ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Back);
-		const bool bForceLeftOpening = ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Left);
-		const bool bForceRightOpening = ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Right);
-		bool bWorldOpenFront = false;
-		bool bWorldOpenBack = false;
-		bool bWorldOpenLeft = false;
-		bool bWorldOpenRight = false;
-		ShipBuilderPreviewActorPrivate::RotateHorizontalOpeningsByYaw(
-			Resolved[Index].YawStep,
-			bOpenFrontBySocket || bForceFrontOpening,
-			bOpenBackBySocket || bForceBackOpening,
-			bOpenLeftBySocket || bForceLeftOpening,
-			bOpenRightBySocket || bForceRightOpening,
-			bWorldOpenFront,
-			bWorldOpenBack,
-			bWorldOpenLeft,
-			bWorldOpenRight);
+		TSet<FName> ForcedOpeningSockets;
+		if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Front))
+		{
+			ForcedOpeningSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Front));
+		}
+		if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Back))
+		{
+			ForcedOpeningSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Back));
+		}
+		if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Left))
+		{
+			ForcedOpeningSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Left));
+		}
+		if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Right))
+		{
+			ForcedOpeningSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Right));
+		}
 
 		const float X = Size.X;
 		const float Y = Size.Y;
@@ -684,27 +762,7 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 			ConfigureSelectionComponent(SelectionPool);
 			const float Pad = FMath::Max(0.0f, bIsHovered ? SelectionOutlinePadding * 0.6f : SelectionOutlinePadding);
 			const float Thickness = FMath::Clamp(SelectionOutlineThickness, 1.0f, 40.0f);
-			const float OutlineTopZ = Center.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
-			const float OuterX = Size.X + 2.0f * Pad;
-			const float OuterY = Size.Y + 2.0f * Pad;
-
-			// Perimeter outline: four thin bars around module footprint.
-			AddBoxInstance(
-				SelectionPool,
-				FVector(Center.X, Center.Y - OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ),
-				FVector(OuterX, Thickness, Thickness));
-			AddBoxInstance(
-				SelectionPool,
-				FVector(Center.X, Center.Y + OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ),
-				FVector(OuterX, Thickness, Thickness));
-			AddBoxInstance(
-				SelectionPool,
-				FVector(Center.X - OuterX * 0.5f + Thickness * 0.5f, Center.Y, OutlineTopZ),
-				FVector(Thickness, OuterY, Thickness));
-			AddBoxInstance(
-				SelectionPool,
-				FVector(Center.X + OuterX * 0.5f - Thickness * 0.5f, Center.Y, OutlineTopZ),
-				FVector(Thickness, OuterY, Thickness));
+			AddRotatedSelectionOutline(SelectionPool, ModuleYaw, Center, Size, Pad, Thickness);
 		}
 
 		if (bIsHovered || bIsSelected)
@@ -723,31 +781,10 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 		{
 			const float Pad = FMath::Max(0.0f, SelectionOutlinePadding);
 			const float Thickness = FMath::Clamp(SelectionOutlineThickness, 1.0f, 40.0f);
-			const FVector GhostCenter(
-				static_cast<float>(DragGhostGridPos.X) * ShipBuilderPreviewActorPrivate::GridStepXY,
-				static_cast<float>(DragGhostGridPos.Y) * ShipBuilderPreviewActorPrivate::GridStepXY,
-				static_cast<float>(DragGhostGridPos.Z) * ShipBuilderPreviewActorPrivate::GridStepZ + Size.Z * 0.5f);
-			const float OutlineTopZ = GhostCenter.Z + Size.Z * 0.5f + Thickness * 0.5f + Pad * 0.15f;
-			const float OuterX = Size.X + 2.0f * Pad;
-			const float OuterY = Size.Y + 2.0f * Pad;
+			const FVector GhostCenter = GetDragGhostWorldCenter(Size);
 
 			ConfigureSelectionComponent(SelectionPool);
-			AddBoxInstance(
-				SelectionPool,
-				FVector(GhostCenter.X, GhostCenter.Y - OuterY * 0.5f + Thickness * 0.5f, OutlineTopZ),
-				FVector(OuterX, Thickness, Thickness));
-			AddBoxInstance(
-				SelectionPool,
-				FVector(GhostCenter.X, GhostCenter.Y + OuterY * 0.5f - Thickness * 0.5f, OutlineTopZ),
-				FVector(OuterX, Thickness, Thickness));
-			AddBoxInstance(
-				SelectionPool,
-				FVector(GhostCenter.X - OuterX * 0.5f + Thickness * 0.5f, GhostCenter.Y, OutlineTopZ),
-				FVector(Thickness, OuterY, Thickness));
-			AddBoxInstance(
-				SelectionPool,
-				FVector(GhostCenter.X + OuterX * 0.5f - Thickness * 0.5f, GhostCenter.Y, OutlineTopZ),
-				FVector(Thickness, OuterY, Thickness));
+			AddRotatedSelectionOutline(SelectionPool, ModuleYaw, GhostCenter, Size, Pad, Thickness);
 		}
 
 		auto AddOrientedShellPanel = [&](const FVector& LocalCenter, const FVector& PanelSize)
@@ -764,56 +801,119 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 			++GlobalPanelOrdinal;
 		};
 
-		// Пол и потолок.
-		AddOrientedShellPanel(FVector(0.0f, 0.0f, -Z * 0.5f + T * 0.5f), FVector(X, Y, T));
-		AddOrientedShellPanel(FVector(0.0f, 0.0f, Z * 0.5f - T * 0.5f), FVector(X, Y, T));
-		if (bHasVerticalConnection)
+		auto PanelSolidCenter = [&](const TCHAR* Face, const int32 IX, const int32 IY, const int32 IZ) -> FVector
 		{
-			const float RampWidth = FMath::Clamp(Y * 0.32f, 70.0f, 140.0f);
-			const float RampLength = FMath::Clamp(X * 0.70f, 180.0f, X - 2.0f * T);
-			const float RampRise = FMath::Clamp(Z * 0.45f, 80.0f, Z * 0.6f);
-			FTransform RampTransform(
-				FRotator(-25.0f, static_cast<float>(Resolved[Index].YawStep) * 90.0f, 0.0f),
-				Center + FVector(-X * 0.12f, 0.0f, -Z * 0.5f + T + RampRise * 0.5f),
-				FVector(RampLength / 100.0f, RampWidth / 100.0f, T / 100.0f));
-			AddTransformInstance(PanelPool, RampTransform);
+			const float Px = -Half.X + (static_cast<float>(IX) + 0.5f) * PanelXY;
+			const float Py = -Half.Y + (static_cast<float>(IY) + 0.5f) * PanelXY;
+			const float Pz = -Half.Z + (static_cast<float>(IZ) + 0.5f) * PanelZ;
+			if (FCString::Strcmp(Face, TEXT("Back")) == 0)
+			{
+				return FVector(-Half.X + T * 0.5f, Py, Pz);
+			}
+			if (FCString::Strcmp(Face, TEXT("Front")) == 0)
+			{
+				return FVector(Half.X - T * 0.5f, Py, Pz);
+			}
+			if (FCString::Strcmp(Face, TEXT("Left")) == 0)
+			{
+				return FVector(Px, -Half.Y + T * 0.5f, Pz);
+			}
+			if (FCString::Strcmp(Face, TEXT("Right")) == 0)
+			{
+				return FVector(Px, Half.Y - T * 0.5f, Pz);
+			}
+			if (FCString::Strcmp(Face, TEXT("Bottom")) == 0)
+			{
+				return FVector(Px, Py, -Half.Z + T * 0.5f);
+			}
+			return FVector(Px, Py, Half.Z - T * 0.5f);
+		};
+
+		auto ShouldOpenPanel = [&](const FName PanelSocketName) -> bool
+		{
+			if (ForcedOpeningSockets.Contains(PanelSocketName))
+			{
+				return true;
+			}
+			for (const FName Connected : ConnectedHorizontalDoorSockets)
+			{
+				if (SpaceshipCrew_DoPanelSocketsMatch(PanelSocketName, Connected))
+				{
+					return true;
+				}
+			}
+			for (const FName Connected : ConnectedVerticalDoorSockets)
+			{
+				if (SpaceshipCrew_DoPanelSocketsMatch(PanelSocketName, Connected))
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+
+		auto TryAddVerticalWallPanel = [&](
+			const TCHAR* Face,
+			const int32 IX,
+			const int32 IY,
+			const int32 IZ,
+			const bool bNormalAlongX)
+		{
+			const FName SocketName = ShipBuilderPreviewActorPrivate::MakePanelSocketName(Face, IX, IY, IZ);
+			if (ShouldOpenPanel(SocketName))
+			{
+				FVector FrameCenter = PanelSolidCenter(Face, IX, IY, IZ);
+				FVector SocketLoc = FVector::ZeroVector;
+				if (ShipBuilderPreviewActorPrivate::FindSocketRelativeLocation(*Def, SocketName, SocketLoc))
+				{
+					FrameCenter = ShipBuilderPreviewActorPrivate::DoorFrameCenterOnWallPlane(SocketLoc, Half, T);
+				}
+				AddDoorOpeningFrame(FramePool, ModuleYaw, Center, FrameCenter, T, PanelXY, PanelZ, bNormalAlongX);
+				return;
+			}
+
+			const FVector PanelSize = bNormalAlongX ? FVector(T, PanelXY, PanelZ) : FVector(PanelXY, T, PanelZ);
+			AddOrientedShellPanel(PanelSolidCenter(Face, IX, IY, IZ), PanelSize);
+		};
+
+		auto TryAddHorizontalDeckPanel = [&](const TCHAR* Face, const int32 IX, const int32 IY, const int32 IZ)
+		{
+			const FName SocketName = ShipBuilderPreviewActorPrivate::MakePanelSocketName(Face, IX, IY, IZ);
+			const FVector PanelCenter = PanelSolidCenter(Face, IX, IY, IZ);
+			if (ShouldOpenPanel(SocketName)
+				&& ShipBuilderPreviewActorPrivate::IsVerticalDoorwaySocket(*Def, SocketName))
+			{
+				AddPanelHatchFrame(FramePool, ModuleYaw, Center, PanelCenter, T, PanelXY);
+				return;
+			}
+			AddOrientedShellPanel(PanelCenter, FVector(PanelXY, PanelXY, T));
+		};
+
+		for (int32 IX = 0; IX < Cells.X; ++IX)
+		{
+			for (int32 IY = 0; IY < Cells.Y; ++IY)
+			{
+				TryAddHorizontalDeckPanel(TEXT("Bottom"), IX, IY, 0);
+				TryAddHorizontalDeckPanel(TEXT("Top"), IX, IY, Cells.Z - 1);
+			}
 		}
 
-		// Боковые стенки.
-		if (bWorldOpenLeft)
+		for (int32 IY = 0; IY < Cells.Y; ++IY)
 		{
-			AddDoorOpeningFrame(FramePool, Center + ModuleYaw.RotateVector(FVector(0.0f, -Y * 0.5f + T * 0.5f, 0.0f)), T, X, Z, false);
-		}
-		else
-		{
-			AddOrientedShellPanel(FVector(0.0f, -Y * 0.5f + T * 0.5f, 0.0f), FVector(X, T, Z));
-		}
-		if (bWorldOpenRight)
-		{
-			AddDoorOpeningFrame(FramePool, Center + ModuleYaw.RotateVector(FVector(0.0f, Y * 0.5f - T * 0.5f, 0.0f)), T, X, Z, false);
-		}
-		else
-		{
-			AddOrientedShellPanel(FVector(0.0f, Y * 0.5f - T * 0.5f, 0.0f), FVector(X, T, Z));
+			for (int32 IZ = 0; IZ < Cells.Z; ++IZ)
+			{
+				TryAddVerticalWallPanel(TEXT("Back"), 0, IY, IZ, true);
+				TryAddVerticalWallPanel(TEXT("Front"), Cells.X - 1, IY, IZ, true);
+			}
 		}
 
-		// Тыльная и фронтальная стенки. На стыке interior-модулей ставим рамку дверного проёма.
-		if (!bWorldOpenBack)
+		for (int32 IX = 0; IX < Cells.X; ++IX)
 		{
-			AddOrientedShellPanel(FVector(-X * 0.5f + T * 0.5f, 0.0f, 0.0f), FVector(T, Y, Z));
-		}
-		else
-		{
-			AddDoorOpeningFrame(FramePool, Center + ModuleYaw.RotateVector(FVector(-X * 0.5f + T * 0.5f, 0.0f, 0.0f)), T, Y, Z, true);
-		}
-
-		if (!bWorldOpenFront)
-		{
-			AddOrientedShellPanel(FVector(X * 0.5f - T * 0.5f, 0.0f, 0.0f), FVector(T, Y, Z));
-		}
-		else
-		{
-			AddDoorOpeningFrame(FramePool, Center + ModuleYaw.RotateVector(FVector(X * 0.5f - T * 0.5f, 0.0f, 0.0f)), T, Y, Z, true);
+			for (int32 IZ = 0; IZ < Cells.Z; ++IZ)
+			{
+				TryAddVerticalWallPanel(TEXT("Left"), IX, 0, IZ, false);
+				TryAddVerticalWallPanel(TEXT("Right"), IX, Cells.Y - 1, IZ, false);
+			}
 		}
 	}
 }
