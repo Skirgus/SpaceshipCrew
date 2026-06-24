@@ -38,7 +38,7 @@ git lfs pull
 | **Назначение** | Модульный sci-fi интерьер: коридоры, комнаты, панели — визуал модулей конструктора (`UShipModuleVisualOverride`) |
 | **Fab** | [Big Modular SciFi Interior Model Pack](https://www.fab.com/listings/76891a02-69fa-494e-a2c3-ea76e66cf641) |
 | **Папка в проекте** | `Content/ThirdParty/BigModularSciFi/` |
-| **UE** | 5.0–5.7 (проверить импорт в 5.7 после добавления) |
+| **UE** | 5.0–5.8 (проверить импорт в 5.8 после добавления) |
 | **В git** | ❌ не коммитить содержимое папки |
 
 ### Установка (новый разработчик)
@@ -50,7 +50,7 @@ git lfs pull
    Content/ThirdParty/BigModularSciFi/
    ```
    Рекомендуется не смешивать с `Content/Data/` — там только игровые data-ассеты (`ShipModuleDefinition` и т.д.).
-4. Открыть проект в UE 5.7, дождаться компиляции шейдеров.
+4. Открыть проект в UE 5.8, дождаться компиляции шейдеров.
 5. Убедиться, что папка **не** попала в git:
    ```powershell
    git status
