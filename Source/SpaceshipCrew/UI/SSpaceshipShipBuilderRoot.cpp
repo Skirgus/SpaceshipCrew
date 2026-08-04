@@ -5,6 +5,10 @@
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SWindow.h"
+#include "Misc/MessageDialog.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -255,7 +259,7 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 						.Justification(ETextJustify::Right)
 						.Text(LOCTEXT(
 							"HintsRow",
-							"[CTRL] НАСТРОЙКИ   [M3] КАМЕРА   [G] ДОБАВИТЬ   [C] ЧЕК-ЛИСТ   [TAB] ВЫХОД"))
+							"[CTRL] НАСТРОЙКИ   [M3] КАМЕРА   [G] ДОБАВИТЬ   [R/E] ПОВОРОТ   [PgUp/PgDn] УРОВЕНЬ   [C] ЧЕК-ЛИСТ   [TAB] ВЫХОД"))
 					]
 				]
 			+ SScrollBox::Slot()
@@ -275,11 +279,11 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 							return FText::GetEmpty();
 						}
 						const FShipBuildValidationResult V = OwnerPC->ComputeValidation();
-						if (V.bIsValid && V.Errors.Num() == 0 && V.Warnings.Num() == 0)
+						if (V.bIsPlayReady)
 						{
-							return LOCTEXT("Nominal", "ВСЕ СИСТЕМЫ В НОРМЕ");
+							return LOCTEXT("PlayReady", "ГОТОВ К ПОЛЁТУ");
 						}
-						return LOCTEXT("NotNominal", "ТРЕБУЕТСЯ ВНИМАНИЕ");
+						return LOCTEXT("Draft", "ЧЕРНОВИК");
 					})
 				]
 			]
@@ -302,10 +306,10 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 						}
 						const FShipBuildValidationResult V = OwnerPC->ComputeValidation();
 						return FText::Format(
-							LOCTEXT("ValTiny", "T02b: {0}  ·  ошибок: {1}  ·  предупреждений: {2}"),
+							LOCTEXT("ValTiny", "Сборка: {0}  ·  ошибок: {1}  ·  не готов к полёту: {2}"),
 							V.bIsValid ? LOCTEXT("Ok2", "OK") : LOCTEXT("Err2", "ОШИБКИ"),
 							FText::AsNumber(V.Errors.Num()),
-							FText::AsNumber(V.Warnings.Num()));
+							FText::AsNumber(V.PlayBlockers.Num()));
 					})
 				]
 			]
@@ -314,6 +318,95 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 			[
 				BuildFooterStatsRow()
 			]
+			]
+		]
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Top)
+		.Padding(FMargin(0.0f, 24.0f, 0.0f, 0.0f))
+		[
+			SNew(SBorder)
+			.BorderImage(SpaceshipShipBuilderUiPrivate::PanelTintBrush())
+			.BorderBackgroundColor(SpaceshipShipBuilderUiPrivate::PanelBg())
+			.Padding(FMargin(16.0f, 10.0f, 16.0f, 10.0f))
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(SpaceshipShipBuilderUiPrivate::CapsFont(16))
+					.ColorAndOpacity(SpaceshipShipBuilderUiPrivate::TextHi())
+					.Text_Lambda([this]()
+					{
+						return OwnerPC.IsValid() ? OwnerPC->GetShipSessionTitle() : FText::GetEmpty();
+					})
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(FMargin(0.0f, 6.0f, 0.0f, 0.0f))
+				.HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Font(SpaceshipShipBuilderUiPrivate::BodyFont(10))
+					.ColorAndOpacity(SpaceshipShipBuilderUiPrivate::TextMutedHi())
+					.Text_Lambda([this]()
+					{
+						if (!OwnerPC.IsValid())
+						{
+							return FText::GetEmpty();
+						}
+						if (OwnerPC->RequiresSaveShipAs())
+						{
+							return LOCTEXT("TplBadge", "Шаблон проекта — сохранение только как новый корабль");
+						}
+						if (OwnerPC->IsShipSessionDirty())
+						{
+							return LOCTEXT("DirtyBadge", "Есть несохранённые изменения");
+						}
+						return LOCTEXT("SavedBadge", "Мой корабль");
+					})
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(FMargin(0.0f, 8.0f, 0.0f, 0.0f))
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(FMargin(0.0f, 0.0f, 8.0f, 0.0f))
+					[
+						SNew(SButton)
+						.IsEnabled_Lambda([this]()
+						{
+							return OwnerPC.IsValid() && OwnerPC->CanSaveShipInPlace();
+						})
+						.OnClicked_Lambda([this]()
+						{
+							OnSaveClicked();
+							return FReply::Handled();
+						})
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("SaveBtn", "Сохранить"))
+						]
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SButton)
+						.OnClicked_Lambda([this]()
+						{
+							OnSaveAsClicked();
+							return FReply::Handled();
+						})
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("SaveAsBtn", "Сохранить как…"))
+						]
+					]
+				]
 			]
 		]
 		+ SOverlay::Slot()
@@ -425,7 +518,9 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 							}
 							return FText::Format(
 								LOCTEXT("DraftTiny", "Черновик: {0} мод."),
-								FText::AsNumber(OwnerPC->AccessDraft().ModuleIds.Num()));
+								FText::AsNumber(OwnerPC->AccessDraft().PlacedModules.Num() > 0
+									? OwnerPC->AccessDraft().PlacedModules.Num()
+									: OwnerPC->AccessDraft().ModuleIds.Num()));
 						})
 					]
 				]
@@ -543,11 +638,48 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 							})
 						]
 						+ SScrollBox::Slot()
+						.Padding(FMargin(0.0f, 4.0f, 0.0f, 0.0f))
+						[
+							SNew(STextBlock)
+							.Font(SpaceshipShipBuilderUiPrivate::CapsFont(14))
+							.ColorAndOpacity(FLinearColor(1.0f, 0.55f, 0.25f))
+							.Text(LOCTEXT("PlayHdr", "НЕ ГОТОВ К ПОЛЁТУ"))
+						]
+						+ SScrollBox::Slot()
+						.Padding(FMargin(0.0f, 6.0f, 0.0f, 12.0f))
+						[
+							SNew(STextBlock)
+							.WrapTextAt(400.0f)
+							.Font(SpaceshipShipBuilderUiPrivate::BodyFont(11))
+							.ColorAndOpacity(SpaceshipShipBuilderUiPrivate::TextHi())
+							.Text_Lambda([this]()
+							{
+								if (!OwnerPC.IsValid())
+								{
+									return FText::GetEmpty();
+								}
+								const FShipBuildValidationResult V = OwnerPC->ComputeValidation();
+								TArray<FString> PlayOnly;
+								for (const FString& Msg : V.PlayBlockers)
+								{
+									if (!V.Errors.Contains(Msg))
+									{
+										PlayOnly.Add(Msg);
+									}
+								}
+								if (PlayOnly.Num() == 0)
+								{
+									return LOCTEXT("PlayOk", "—");
+								}
+								return FText::FromString(FString::Join(PlayOnly, TEXT("\n")));
+							})
+						]
+						+ SScrollBox::Slot()
 						[
 							SNew(STextBlock)
 							.Font(SpaceshipShipBuilderUiPrivate::CapsFont(14))
 							.ColorAndOpacity(FLinearColor(1.0f, 0.85f, 0.35f))
-							.Text(LOCTEXT("WarnHdr", "ПРЕДУПРЕЖДЕНИЯ"))
+							.Text(LOCTEXT("WarnHdr", "СОВЕТЫ"))
 						]
 						+ SScrollBox::Slot()
 						.Padding(FMargin(0.0f, 6.0f, 0.0f, 0.0f))
@@ -562,7 +694,12 @@ void SSpaceshipShipBuilderRoot::Construct(const FArguments& InArgs)
 								{
 									return FText::GetEmpty();
 								}
-								return FText::FromString(FString::Join(OwnerPC->ComputeValidation().Warnings, TEXT("\n")));
+								const TArray<FString>& Tips = OwnerPC->ComputeValidation().Warnings;
+								if (Tips.Num() == 0)
+								{
+									return LOCTEXT("TipsOk", "—");
+								}
+								return FText::FromString(FString::Join(Tips, TEXT("\n")));
 							})
 						]
 					]
@@ -1097,6 +1234,134 @@ void SSpaceshipShipBuilderRoot::RebuildCatalogList()
 			]
 		];
 	}
+}
+
+void SSpaceshipShipBuilderRoot::OnSaveClicked()
+{
+	if (!OwnerPC.IsValid())
+	{
+		return;
+	}
+
+	FString Error;
+	if (OwnerPC->TrySaveShip(Error))
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("SaveOk", "Корабль сохранён."));
+		RequestRefresh();
+		return;
+	}
+
+	if (OwnerPC->RequiresSaveShipAs())
+	{
+		ShowSaveAsDialog();
+		return;
+	}
+
+	FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(Error));
+}
+
+void SSpaceshipShipBuilderRoot::OnSaveAsClicked()
+{
+	ShowSaveAsDialog();
+}
+
+void SSpaceshipShipBuilderRoot::ShowSaveAsDialog()
+{
+	if (!OwnerPC.IsValid())
+	{
+		return;
+	}
+
+	FString DefaultName;
+	if (OwnerPC->IsNewShipEditSession())
+	{
+		DefaultName = LOCTEXT("DefaultNewShipSaveName", "Мой корабль").ToString();
+	}
+	else
+	{
+		DefaultName = OwnerPC->GetShipSessionTitle().ToString();
+	}
+
+	SaveAsNameBox = SNew(SEditableTextBox)
+		.Text(FText::FromString(DefaultName))
+		.HintText(LOCTEXT("NameHint", "Имя корабля"));
+
+	const TWeakPtr<SSpaceshipShipBuilderRoot> WeakSelf = SharedThis(this);
+
+	SaveAsWindow = SNew(SWindow)
+		.Title(LOCTEXT("SaveAsTitle", "Сохранить корабль как"))
+		.ClientSize(FVector2D(420.0f, 120.0f))
+		.SupportsMaximize(false)
+		.SupportsMinimize(false)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(8.0f)
+			[
+				SaveAsNameBox.ToSharedRef()
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(8.0f)
+			.HAlign(HAlign_Right)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(FMargin(0.0f, 0.0f, 8.0f, 0.0f))
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("Ok", "OK"))
+					.OnClicked_Lambda([WeakSelf]()
+					{
+						if (const TSharedPtr<SSpaceshipShipBuilderRoot> Self = WeakSelf.Pin())
+						{
+							if (Self->OwnerPC.IsValid() && Self->SaveAsNameBox.IsValid())
+							{
+								const FString Name = Self->SaveAsNameBox->GetText().ToString();
+								FString Error;
+								if (Self->OwnerPC->TrySaveShipAs(Name, Error))
+								{
+									FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("SaveAsOk", "Корабль сохранён."));
+									Self->RequestRefresh();
+								}
+								else
+								{
+									FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(Error));
+								}
+							}
+							if (Self->SaveAsWindow.IsValid())
+							{
+								FSlateApplication::Get().RequestDestroyWindow(Self->SaveAsWindow.ToSharedRef());
+								Self->SaveAsWindow.Reset();
+							}
+						}
+						return FReply::Handled();
+					})
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("Cancel", "Отмена"))
+					.OnClicked_Lambda([WeakSelf]()
+					{
+						if (const TSharedPtr<SSpaceshipShipBuilderRoot> Self = WeakSelf.Pin())
+						{
+							if (Self->SaveAsWindow.IsValid())
+							{
+								FSlateApplication::Get().RequestDestroyWindow(Self->SaveAsWindow.ToSharedRef());
+								Self->SaveAsWindow.Reset();
+							}
+						}
+						return FReply::Handled();
+					})
+				]
+			]
+		];
+
+	FSlateApplication::Get().AddWindow(SaveAsWindow.ToSharedRef());
 }
 
 #undef LOCTEXT_NAMESPACE

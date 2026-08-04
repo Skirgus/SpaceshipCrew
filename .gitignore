@@ -31,4 +31,9 @@ Thumbs.db
 # Референсы / скриншоты для дизайна (не версионируем)
 References/
 
+# Fab / Marketplace — сырые паки только локально (лицензия + размер). См. Content/THIRD_PARTY_ASSETS.md
+Content/ThirdParty/**
+!Content/ThirdParty/.gitkeep
+!Content/ThirdParty/README.md
+
 .fake

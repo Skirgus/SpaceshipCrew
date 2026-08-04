@@ -37,9 +37,13 @@ struct FShipBuildValidationResult
 {
 	/** Критические ошибки: при наличии хотя бы одной сборка невалидна (`bIsValid == false`). */
 	TArray<FString> Errors;
-	/** Предупреждения: не влияют на `bIsValid` (T02c-1 чеклист). */
+	/** Предупреждения: не влияют на `bIsValid` (мягкие советы в чеклисте). */
 	TArray<FString> Warnings;
+	/** Блокеры старта игры: ошибки сборки + отсутствие обязательных модулей. */
+	TArray<FString> PlayBlockers;
 	bool bIsValid = false;
+	/** true: нет ошибок стыковки и присутствуют все обязательные типы модулей. */
+	bool bIsPlayReady = false;
 	float TotalMass = 0.0f;
 };
 
@@ -93,6 +97,14 @@ public:
 		FName ExistingInstanceId,
 		FName NewModuleSocketName,
 		FName ExistingModuleSocketName,
+		FString* OutError = nullptr);
+
+	/** Добавляет связь между уже существующими модулями. */
+	bool AddConnectionBetweenExisting(
+		FName ModuleAInstanceId,
+		FName ModuleASocketName,
+		FName ModuleBInstanceId,
+		FName ModuleBSocketName,
 		FString* OutError = nullptr);
 
 	/** Удаляет модуль и все его соединения. */

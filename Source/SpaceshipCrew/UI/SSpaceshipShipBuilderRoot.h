@@ -27,6 +27,10 @@ public:
 	/** Полная пересборка правой панели каталога (тип, сегменты, список модулей). */
 	void RebuildCatalogPanel();
 
+	void OnSaveClicked();
+	void OnSaveAsClicked();
+	void ShowSaveAsDialog();
+
 private:
 	void RebuildCatalogList();
 
@@ -42,4 +46,7 @@ private:
 
 	TSharedPtr<class SVerticalBox> CatalogPanelRoot;
 	TSharedPtr<SScrollBox> CatalogList;
+
+	TSharedPtr<class SEditableTextBox> SaveAsNameBox;
+	TSharedPtr<class SWindow> SaveAsWindow;
 };

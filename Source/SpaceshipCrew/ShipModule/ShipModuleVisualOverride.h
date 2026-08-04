@@ -48,7 +48,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")
 	bool bOverrideContactPoints = false;
 
-	/** Контактные точки override (используются только при bOverrideContactPoints=true). */
+	/**
+	 * Контактные точки override (при bOverrideContactPoints=true).
+	 * Маркеры сокетов в редакторе модуля пишутся сюда — без записей в этом списке визуальных сокетов нет.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking", meta = (EditCondition = "bOverrideContactPoints"))
 	TArray<FShipModuleContactPoint> ContactPointsOverride;
 };

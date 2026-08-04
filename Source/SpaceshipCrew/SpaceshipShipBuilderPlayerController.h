@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "ShipBuilder/ShipBuilderDraftTypes.h"
+#include "ShipBuilder/ShipBlueprintTypes.h"
 #include "ShipModule/ShipBuildDomain.h"
 #include "ShipModuleTypes.h"
 #include "SpaceshipCrew.h"
@@ -10,6 +11,7 @@
 
 class SSpaceshipShipBuilderRoot;
 class UShipModuleCatalog;
+class UShipBlueprintSessionSubsystem;
 class AShipBuilderModulePreviewActor;
 
 /**
@@ -24,6 +26,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
+	virtual void PlayerTick(float DeltaSeconds) override;
 
 	/** Черновик для UI и расчётов. */
 	FShipBuilderDraftConfig& AccessDraft() { return Draft; }
@@ -43,6 +46,22 @@ public:
 
 	void AppendModuleToDraft(FName ModuleId);
 	void RequestExitToMainMenu();
+	void RequestExitToMainMenuForce();
+
+	UShipBlueprintSessionSubsystem* GetBlueprintSession() const;
+
+	FText GetShipSessionTitle() const;
+	bool CanSaveShipInPlace() const;
+	bool RequiresSaveShipAs() const;
+	bool IsShipSessionDirty() const;
+
+	/** Сохранить (перезапись player) или ошибка, если нужен Save As. */
+	bool TrySaveShip(FString& OutError);
+	bool TrySaveShipAs(const FString& DisplayName, FString& OutError);
+
+	void ApplyLoadedDocumentToDraft();
+	bool IsNewShipEditSession() const;
+	void NotifyDraftChanged();
 
 	/** Сумма эффективной стоимости модулей в черновике (CreditCost или масса). */
 	int32 GetDraftTotalCreditCost() const;
@@ -63,12 +82,48 @@ private:
 	void OnExitPressed();
 	void CatalogCyclePrev();
 	void CatalogCycleNext();
+	void RotatePlacementLeft();
+	void RotatePlacementRight();
+	void MovePlacementUp();
+	void MovePlacementDown();
+	void OnRightMouseLookPressed();
+	void OnRightMouseLookReleased();
+	void OnSelectOrBeginDragPressed();
+	void OnEndDragReleased();
+	void UpdateRightMouseLook();
+	void UpdateModuleDrag();
+	void UpdateHoveredModuleUnderCursor();
+	bool TrySelectModuleUnderCursor();
+	int32 FindDraftModuleIndexByInstanceId(FName InstanceId) const;
+	void RecomputeDraftConnectionSockets();
+	void RebuildConnectionsFromAdjacency();
+	bool IsFootprintOccupied(
+		const FIntVector& CornerCell,
+		const FIntVector& CellSize,
+		FName IgnoreInstanceId = NAME_None) const;
+	FIntVector FindBestSnappedCell(const FIntVector& RawCornerCell, FName MovingInstanceId) const;
 
 	void EnsureCatalogCategoryIndexValid();
 	void EnsurePreviewActor();
 	void RefreshPreviewFromDraft();
+	void SyncLegacyModuleIds();
+	void SyncSessionFromDraft();
+	FName MakeNextDraftInstanceId() const;
+	bool ConfirmDiscardDirtyAndContinue(TFunctionRef<void()> OnConfirmed);
 
 	FShipBuilderDraftConfig Draft;
+	int32 PendingPlacementYawStep = 0;
+	int32 PendingPlacementZ = 0;
+	bool bDraggingModule = false;
+	bool bDragMovementActivated = false;
+	FVector2D DragStartMousePos = FVector2D::ZeroVector;
+	bool bRightMouseLookActive = false;
+	FVector2D LastRightMousePos = FVector2D::ZeroVector;
+	FName DraggedModuleInstanceId = NAME_None;
+	FName SelectedModuleInstanceId = NAME_None;
+	FName HoveredModuleInstanceId = NAME_None;
+	bool bHasDragTargetCell = false;
+	FIntVector DragTargetCell = FIntVector::ZeroValue;
 
 	FName HoveredCatalogModuleId = NAME_None;
 	bool bCatalogOpen = false;

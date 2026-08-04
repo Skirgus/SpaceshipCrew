@@ -31,6 +31,10 @@ protected:
 
 	FReply OnRouteClicked(ESpaceshipMenuRoute Route);
 	FReply OnBackClicked();
+	void OnBlueprintPickerBack();
+
+	void ShowBlueprintPicker();
+	void ShowMainMenu();
 
 	TSharedRef<SWidget> BuildPlaceholderSlot();
 
@@ -38,7 +42,12 @@ protected:
 	TWeakObjectPtr<APlayerController> OwnerPC;
 
 	TSharedPtr<SWidgetSwitcher> MenuSwitcher;
+	TSharedPtr<class SSpaceshipBlueprintPicker> BlueprintPicker;
 	FText PlaceholderTitle;
+
+	static constexpr int32 MainMenuSlotIndex = 0;
+	static constexpr int32 PlaceholderSlotIndex = 1;
+	static constexpr int32 BlueprintPickerSlotIndex = 2;
 
 protected:
 	static FSlateFontInfo GetMenuTitleFont();

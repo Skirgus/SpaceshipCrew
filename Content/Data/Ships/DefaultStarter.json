@@ -1,0 +1,32 @@
+{
+  "SchemaVersion": 1,
+  "ShipId": "DefaultStarter",
+  "DisplayName": "Стартовый шаблон",
+  "CachedCreditCost": 0,
+  "ModuleLayout": {
+    "ModuleIds": ["TestBridge", "TestCorridorModule"],
+    "PlacedModules": [
+      {
+        "InstanceId": "Draft0",
+        "ModuleId": "TestBridge",
+        "GridPos": { "X": 0, "Y": 0, "Z": 0 },
+        "YawStep": 0
+      },
+      {
+        "InstanceId": "Draft1",
+        "ModuleId": "TestCorridorModule",
+        "GridPos": { "X": 1, "Y": 0, "Z": 0 },
+        "YawStep": 0
+      }
+    ],
+    "Connections": [
+      {
+        "ModuleAInstanceId": "Draft0",
+        "ModuleASocketName": "Front",
+        "ModuleBInstanceId": "Draft1",
+        "ModuleBSocketName": "Back"
+      }
+    ]
+  },
+  "InteriorPlacements": []
+}

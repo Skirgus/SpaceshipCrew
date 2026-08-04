@@ -2,6 +2,7 @@
 
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
+#include "ShipPlayRequirements.h"
 #include "ShipModuleTypes.h"
 
 #include "Algo/Sort.h"
@@ -11,6 +12,52 @@ DEFINE_LOG_CATEGORY_STATIC(LogShipBuildDomain, Log, All);
 
 namespace ShipBuildDomainPrivate
 {
+	enum class ESocketDirection : uint8
+	{
+		Unknown,
+		Front,
+		Back,
+		Left,
+		Right,
+		Top,
+		Bottom
+	};
+
+	static ESocketDirection OppositeDirection(const ESocketDirection Direction)
+	{
+		switch (Direction)
+		{
+		case ESocketDirection::Front: return ESocketDirection::Back;
+		case ESocketDirection::Back: return ESocketDirection::Front;
+		case ESocketDirection::Left: return ESocketDirection::Right;
+		case ESocketDirection::Right: return ESocketDirection::Left;
+		case ESocketDirection::Top: return ESocketDirection::Bottom;
+		case ESocketDirection::Bottom: return ESocketDirection::Top;
+		default: return ESocketDirection::Unknown;
+		}
+	}
+
+	static ESocketDirection GuessDirection(const FShipModuleContactPoint& CP)
+	{
+		const FString Lower = CP.SocketName.ToString().ToLower();
+		if (Lower.Contains(TEXT("front"))) return ESocketDirection::Front;
+		if (Lower.Contains(TEXT("back")) || Lower.Contains(TEXT("rear"))) return ESocketDirection::Back;
+		if (Lower.Contains(TEXT("left"))) return ESocketDirection::Left;
+		if (Lower.Contains(TEXT("right"))) return ESocketDirection::Right;
+		if (Lower.Contains(TEXT("top")) || Lower.Contains(TEXT("up"))) return ESocketDirection::Top;
+		if (Lower.Contains(TEXT("bottom")) || Lower.Contains(TEXT("down"))) return ESocketDirection::Bottom;
+		const FVector Abs = CP.RelativeLocation.GetAbs();
+		if (Abs.X >= Abs.Y && Abs.X >= Abs.Z) return CP.RelativeLocation.X >= 0.0f ? ESocketDirection::Front : ESocketDirection::Back;
+		if (Abs.Y >= Abs.X && Abs.Y >= Abs.Z) return CP.RelativeLocation.Y >= 0.0f ? ESocketDirection::Right : ESocketDirection::Left;
+		if (Abs.Z >= Abs.X && Abs.Z >= Abs.Y) return CP.RelativeLocation.Z >= 0.0f ? ESocketDirection::Top : ESocketDirection::Bottom;
+		return ESocketDirection::Unknown;
+	}
+
+	static void GetEffectiveContactPoints(const UShipModuleDefinition& ModuleDefinition, TArray<FShipModuleContactPoint>& OutPoints)
+	{
+		ModuleDefinition.GatherEffectiveContactPoints(OutPoints);
+	}
+
 	static void SetError(FString* OutError, const FString& ErrorText)
 	{
 		if (OutError)
@@ -37,31 +84,45 @@ namespace ShipBuildDomainPrivate
 			|| Source.CompatibleModuleTypes.Contains(TargetType);
 	}
 
-	static const FShipModuleContactPoint* FindSocketByName(
+	static bool FindSocketByName(
 		const UShipModuleDefinition& ModuleDefinition,
-		const FName SocketName)
+		const FName SocketName,
+		FShipModuleContactPoint& OutSocket)
 	{
-		for (const FShipModuleContactPoint& ContactPoint : ModuleDefinition.GetResolvedContactPoints())
+		TArray<FShipModuleContactPoint> EffectivePoints;
+		GetEffectiveContactPoints(ModuleDefinition, EffectivePoints);
+		for (const FShipModuleContactPoint& ContactPoint : EffectivePoints)
 		{
 			if (ContactPoint.SocketName == SocketName)
 			{
-				return &ContactPoint;
+				OutSocket = ContactPoint;
+				return true;
 			}
 		}
-		return nullptr;
+		return false;
 	}
 
 	static const UShipModuleDefinition* FindAnyDefinitionWithSocket(const TArray<UShipModuleDefinition*>& Definitions)
 	{
 		for (const UShipModuleDefinition* Definition : Definitions)
 		{
-			if (Definition && Definition->GetResolvedContactPoints().Num() > 0)
+			if (!Definition)
+			{
+				continue;
+			}
+			TArray<FShipModuleContactPoint> Effective;
+			Definition->GatherEffectiveContactPoints(Effective);
+			if (Effective.Num() > 0)
 			{
 				return Definition;
 			}
 		}
 		return nullptr;
 	}
+
+	/** Устойчивые адреса для возврата из TryFindCompatiblePair (имена сокетов читают после выхода из вложенных циклов). */
+	static FShipModuleContactPoint GCompatiblePairSocketA;
+	static FShipModuleContactPoint GCompatiblePairSocketB;
 
 	static bool TryFindCompatiblePair(
 		const TArray<UShipModuleDefinition*>& Definitions,
@@ -77,6 +138,9 @@ namespace ShipBuildDomainPrivate
 				continue;
 			}
 
+			TArray<FShipModuleContactPoint> SocketsA;
+			CandidateA->GatherEffectiveContactPoints(SocketsA);
+
 			for (const UShipModuleDefinition* CandidateB : Definitions)
 			{
 				if (!CandidateB)
@@ -84,19 +148,24 @@ namespace ShipBuildDomainPrivate
 					continue;
 				}
 
-				for (const FShipModuleContactPoint& SocketA : CandidateA->GetResolvedContactPoints())
+				TArray<FShipModuleContactPoint> SocketsB;
+				CandidateB->GatherEffectiveContactPoints(SocketsB);
+
+				for (const FShipModuleContactPoint& SocketA : SocketsA)
 				{
-					for (const FShipModuleContactPoint& SocketB : CandidateB->GetResolvedContactPoints())
+					for (const FShipModuleContactPoint& SocketB : SocketsB)
 					{
 						const bool bSocketCompatible = AreSocketTypesCompatible(SocketA.SocketType, SocketB.SocketType);
 						const bool bTypeCompatibleAB = IsTypeAllowedBySource(*CandidateA, CandidateB->ModuleType);
 						const bool bTypeCompatibleBA = IsTypeAllowedBySource(*CandidateB, CandidateA->ModuleType);
 						if (bSocketCompatible && bTypeCompatibleAB && bTypeCompatibleBA)
 						{
+							GCompatiblePairSocketA = SocketA;
+							GCompatiblePairSocketB = SocketB;
 							OutA = CandidateA;
-							OutSocketA = &SocketA;
+							OutSocketA = &GCompatiblePairSocketA;
 							OutB = CandidateB;
-							OutSocketB = &SocketB;
+							OutSocketB = &GCompatiblePairSocketB;
 							return true;
 						}
 					}
@@ -185,6 +254,33 @@ bool FShipBuildDomainModel::AddAttachedModule(
 		ExistingModuleSocketName
 	});
 
+	return true;
+}
+
+bool FShipBuildDomainModel::AddConnectionBetweenExisting(
+	FName ModuleAInstanceId,
+	FName ModuleASocketName,
+	FName ModuleBInstanceId,
+	FName ModuleBSocketName,
+	FString* OutError)
+{
+	if (ModuleAInstanceId.IsNone() || ModuleBInstanceId.IsNone() || ModuleASocketName.IsNone() || ModuleBSocketName.IsNone())
+	{
+		ShipBuildDomainPrivate::SetError(OutError, TEXT("Для связи требуются два InstanceId и два SocketName."));
+		return false;
+	}
+	if (FindModuleInstance(ModuleAInstanceId) == nullptr || FindModuleInstance(ModuleBInstanceId) == nullptr)
+	{
+		ShipBuildDomainPrivate::SetError(OutError, TEXT("Нельзя создать связь: один из module instance отсутствует."));
+		return false;
+	}
+
+	Connections.Add(FShipBuildModuleConnection{
+		ModuleAInstanceId,
+		ModuleASocketName,
+		ModuleBInstanceId,
+		ModuleBSocketName
+	});
 	return true;
 }
 
@@ -313,10 +409,12 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 			continue;
 		}
 
-		const FShipModuleContactPoint* SocketA = ShipBuildDomainPrivate::FindSocketByName(*DefinitionA, Connection.ModuleASocketName);
-		const FShipModuleContactPoint* SocketB = ShipBuildDomainPrivate::FindSocketByName(*DefinitionB, Connection.ModuleBSocketName);
+		FShipModuleContactPoint SocketA;
+		FShipModuleContactPoint SocketB;
+		const bool bHasSocketA = ShipBuildDomainPrivate::FindSocketByName(*DefinitionA, Connection.ModuleASocketName, SocketA);
+		const bool bHasSocketB = ShipBuildDomainPrivate::FindSocketByName(*DefinitionB, Connection.ModuleBSocketName, SocketB);
 
-		if (!SocketA)
+		if (!bHasSocketA)
 		{
 			AddError(Result.Errors, FString::Printf(
 				TEXT("Socket '%s' не найден у instance '%s'."),
@@ -324,7 +422,7 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 				*Connection.ModuleAInstanceId.ToString()));
 			continue;
 		}
-		if (!SocketB)
+		if (!bHasSocketB)
 		{
 			AddError(Result.Errors, FString::Printf(
 				TEXT("Socket '%s' не найден у instance '%s'."),
@@ -333,14 +431,25 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 			continue;
 		}
 
-		if (!ShipBuildDomainPrivate::AreSocketTypesCompatible(SocketA->SocketType, SocketB->SocketType))
+		if (!ShipBuildDomainPrivate::AreSocketTypesCompatible(SocketA.SocketType, SocketB.SocketType))
 		{
 			AddError(Result.Errors, FString::Printf(
 				TEXT("Несовместимые типы сокетов: '%s' (%d) и '%s' (%d)."),
 				*Connection.ModuleASocketName.ToString(),
-				static_cast<int32>(SocketA->SocketType),
+				static_cast<int32>(SocketA.SocketType),
 				*Connection.ModuleBSocketName.ToString(),
-				static_cast<int32>(SocketB->SocketType)));
+				static_cast<int32>(SocketB.SocketType)));
+		}
+		const ShipBuildDomainPrivate::ESocketDirection DirA = ShipBuildDomainPrivate::GuessDirection(SocketA);
+		const ShipBuildDomainPrivate::ESocketDirection DirB = ShipBuildDomainPrivate::GuessDirection(SocketB);
+		if (DirA != ShipBuildDomainPrivate::ESocketDirection::Unknown
+			&& DirB != ShipBuildDomainPrivate::ESocketDirection::Unknown
+			&& ShipBuildDomainPrivate::OppositeDirection(DirA) != DirB)
+		{
+			AddError(Result.Errors, FString::Printf(
+				TEXT("Сокеты '%s' и '%s' направлены некорректно для стыковки."),
+				*Connection.ModuleASocketName.ToString(),
+				*Connection.ModuleBSocketName.ToString()));
 		}
 
 		if (!AreModuleTypesCompatible(*DefinitionA, *DefinitionB)
@@ -368,70 +477,12 @@ FShipBuildValidationResult FShipBuildDomainModel::Validate() const
 
 	Result.bIsValid = Result.Errors.Num() == 0;
 
-	// Неблокирующие предупреждения по составу модулей (заглушки; баланс настраивается позже).
-	if (DefinitionByInstance.Num() > 0)
-	{
-		bool bHasReactor = false;
-		bool bHasBridge = false;
-		bool bHasAirlock = false;
-		bool bHasFuelTank = false;
-		bool bHasOxygenTank = false;
-		int32 EngineCount = 0;
-		for (const TPair<FName, const UShipModuleDefinition*>& Pair : DefinitionByInstance)
-		{
-			if (!Pair.Value)
-			{
-				continue;
-			}
-			switch (Pair.Value->ModuleType)
-			{
-			case EShipModuleType::Reactor:
-				bHasReactor = true;
-				break;
-			case EShipModuleType::Bridge:
-				bHasBridge = true;
-				break;
-			case EShipModuleType::Airlock:
-				bHasAirlock = true;
-				break;
-			case EShipModuleType::FuelTank:
-				bHasFuelTank = true;
-				break;
-			case EShipModuleType::OxygenTank:
-				bHasOxygenTank = true;
-				break;
-			case EShipModuleType::Engine:
-				++EngineCount;
-				break;
-			default:
-				break;
-			}
-		}
-		if (!bHasReactor)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет реактора: энергобаланс не задан (предупреждение)."));
-		}
-		if (!bHasBridge)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет мостика: нет явного модуля управления (предупреждение)."));
-		}
-		if (!bHasAirlock)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет шлюза (Airlock): нет явной точки выхода наружу (предупреждение)."));
-		}
-		if (!bHasFuelTank)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет топливных баков (предупреждение)."));
-		}
-		if (!bHasOxygenTank)
-		{
-			AddWarning(Result.Warnings, TEXT("Нет кислородных баков (предупреждение)."));
-		}
-		if (Result.TotalMass > 500.0f && EngineCount == 0)
-		{
-			AddWarning(Result.Warnings, TEXT("Высокая масса при отсутствии двигателей: возможна низкая мобильность (предупреждение)."));
-		}
-	}
+	Result.PlayBlockers = Result.Errors;
+	FShipPlayRequirements::AppendMissingMandatoryModuleMessages(DefinitionByInstance, Result.PlayBlockers);
+
+	const bool bHasMandatory = DefinitionByInstance.Num() > 0
+		&& FShipPlayRequirements::HasAllMandatoryModules(DefinitionByInstance);
+	Result.bIsPlayReady = Result.bIsValid && bHasMandatory;
 
 	return Result;
 }
@@ -538,12 +589,18 @@ static void RunShipBuildDebugScenario(const TArray<FString>& Args, UWorld* World
 			return;
 		}
 
-		const TArray<FShipModuleContactPoint>& ThirdSockets = ThirdDefinition->GetResolvedContactPoints();
+		TArray<FShipModuleContactPoint> ThirdEffective;
+		ThirdDefinition->GatherEffectiveContactPoints(ThirdEffective);
+		if (ThirdEffective.Num() == 0)
+		{
+			UE_LOG(LogShipBuildDomain, Warning, TEXT("ShipBuild.DebugScenario: у третьего модуля нет эффективных сокетов."));
+			return;
+		}
 		BuildModel.AddAttachedModule(
 			TEXT("InvalidAttach"),
 			ThirdDefinition->ModuleId,
 			TEXT("Root"),
-			ThirdSockets[0].SocketName,
+			ThirdEffective[0].SocketName,
 			FirstSocket->SocketName,
 			nullptr);
 	}

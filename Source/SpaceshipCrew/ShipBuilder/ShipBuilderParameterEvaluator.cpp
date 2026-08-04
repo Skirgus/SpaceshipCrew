@@ -1,5 +1,6 @@
 #include "ShipBuilderParameterEvaluator.h"
 
+#include "ShipBuilder/ShipBuilderDomainGlue.h"
 #include "ShipModuleCatalog.h"
 #include "ShipModuleDefinition.h"
 #include "ShipModuleTypes.h"
@@ -16,6 +17,26 @@ namespace ShipBuilderParameterEvaluatorPrivate
 		OutMass = 0.0;
 		OutEngineCount = 0;
 		bOutHasReactor = false;
+		const bool bUsePlaced = Draft.PlacedModules.Num() > 0;
+		if (bUsePlaced)
+		{
+			for (const FShipBuilderDraftConfig::FPlacedModule& Placed : Draft.PlacedModules)
+			{
+				if (const UShipModuleDefinition* Def = Catalog.FindModuleById(Placed.ModuleId))
+				{
+					OutMass += static_cast<double>(Def->Mass);
+					if (Def->ModuleType == EShipModuleType::Engine)
+					{
+						++OutEngineCount;
+					}
+					if (Def->ModuleType == EShipModuleType::Reactor)
+					{
+						bOutHasReactor = true;
+					}
+				}
+			}
+			return;
+		}
 		for (const FName ModuleId : Draft.ModuleIds)
 		{
 			if (const UShipModuleDefinition* Def = Catalog.FindModuleById(ModuleId))
@@ -91,7 +112,7 @@ void FShipBuilderParameterEvaluator::ComputeSnapshot(
 		Mass,
 		EngineCount,
 		bReactor,
-		Draft.ModuleIds.Num(),
+		Draft.PlacedModules.Num() > 0 ? Draft.PlacedModules.Num() : Draft.ModuleIds.Num(),
 		OutSnapshot);
 }
 
@@ -104,7 +125,21 @@ void FShipBuilderParameterEvaluator::ComputeSnapshotWithPreviewAppend(
 	FShipBuilderDraftConfig Temp = Draft;
 	if (!PreviewModuleId.IsNone())
 	{
-		Temp.ModuleIds.Add(PreviewModuleId);
+		if (Temp.PlacedModules.Num() > 0)
+		{
+			FShipBuilderDraftConfig::FPlacedModule Placed;
+			Placed.InstanceId = *FString::Printf(TEXT("Preview%d"), Temp.PlacedModules.Num());
+			Placed.ModuleId = PreviewModuleId;
+			Placed.GridPos = SpaceshipCrew_ComputeNextDraftAppendCornerCell(
+				Temp,
+				[&Catalog](const FName ModuleId) { return Catalog.FindModuleById(ModuleId); },
+				0);
+			Temp.PlacedModules.Add(Placed);
+		}
+		else
+		{
+			Temp.ModuleIds.Add(PreviewModuleId);
+		}
 	}
 	ComputeSnapshot(Temp, Catalog, OutSnapshot);
 }

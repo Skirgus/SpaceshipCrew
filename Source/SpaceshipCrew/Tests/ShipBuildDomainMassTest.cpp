@@ -42,11 +42,7 @@ namespace ShipBuildDomainMassTestPrivate
 		Definition->Mass = Mass;
 		Definition->Size = FVector(300.0, 300.0, 300.0);
 		Definition->CompatibleModuleTypes = { EShipModuleType::Corridor };
-
-		FShipModuleContactPoint ContactPoint;
-		ContactPoint.SocketName = TEXT("Main");
-		ContactPoint.SocketType = EShipModuleSocketType::Horizontal;
-		Definition->ContactPoints.Add(ContactPoint);
+		Definition->EnsureContactPointsPopulatedIfNoAuthoringOverride();
 		return Definition;
 	}
 }

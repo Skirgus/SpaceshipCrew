@@ -29,12 +29,7 @@ bool FShipModuleRequiredFieldsTest::RunTest(const FString& Parameters)
 	Def->DisplayName = FText::FromString(TEXT("Тестовый мостик"));
 	Def->Mass = 500.0f;
 	Def->Size = FVector(800.0, 600.0, 400.0);
-
-	FShipModuleContactPoint CP;
-	CP.SocketName = FName(TEXT("Front"));
-	CP.RelativeLocation = FVector(400.0, 0.0, 0.0);
-	CP.SocketType = EShipModuleSocketType::Horizontal;
-	Def->ContactPoints.Add(CP);
+	Def->EnsureContactPointsPopulatedIfNoAuthoringOverride();
 
 	{
 		TArray<FText> Errors;
@@ -86,6 +81,30 @@ bool FShipModuleRequiredFieldsTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("PrimaryAssetType"), Id.PrimaryAssetType.ToString(), FString(TEXT("ShipModule")));
 		TestEqual(TEXT("PrimaryAssetName"), Id.PrimaryAssetName.ToString(), FString(TEXT("TestBridge")));
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FShipModuleCellSizeSyncTest,
+	"SpaceshipCrew.ShipModule.CellSizeSync",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+
+bool FShipModuleCellSizeSyncTest::RunTest(const FString& Parameters)
+{
+	UShipModuleDefinition* Def = NewObject<UShipModuleDefinition>();
+	Def->CellSize = FIntVector(1, 1, 1);
+	Def->Size = FVector(400.0f, 400.0f, 300.0f);
+	UShipModuleDefinition::AppendDefaultPanelContactPointsForCellSize(Def->CellSize, Def->ContactPoints);
+	TestEqual(TEXT("OneByOnePanelCount"), Def->ContactPoints.Num(), 6);
+
+	Def->CellSize = FIntVector(1, 3, 1);
+	Def->SyncCellSizeAndSizeFromLegacy();
+	TestEqual(TEXT("OneByThreeSizeY"), static_cast<float>(Def->Size.Y), 1200.0f);
+	TestEqual(TEXT("OneByThreeSizeX"), static_cast<float>(Def->Size.X), 400.0f);
+
+	Def->RegenerateDefaultContactPointsFromCellSize();
+	TestEqual(TEXT("OneByThreePanelCount"), Def->ContactPoints.Num(), 14);
 
 	return true;
 }

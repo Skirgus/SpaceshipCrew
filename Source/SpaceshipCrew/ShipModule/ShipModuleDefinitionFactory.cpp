@@ -2,6 +2,7 @@
 
 #include "ShipModuleDefinitionFactory.h"
 #include "ShipModuleDefinition.h"
+#include "ShipBuilder/ShipBuilderGridConstants.h"
 #include "AssetToolsModule.h"
 
 UShipModuleDefinitionFactory::UShipModuleDefinitionFactory()
@@ -22,19 +23,10 @@ UObject* UShipModuleDefinitionFactory::FactoryCreateNew(
 	UShipModuleDefinition* NewModule = NewObject<UShipModuleDefinition>(InParent, InClass, InName, Flags);
 
 	NewModule->Mass = 100.0f;
-	NewModule->Size = FVector(400.0, 400.0, 300.0);
+	NewModule->CellSize = FIntVector(1, 1, 1);
+	NewModule->Size = ShipBuilderGrid::CellSizeToWorldSize(NewModule->CellSize);
 
-	FShipModuleContactPoint DefaultCP;
-	DefaultCP.SocketName = FName(TEXT("Front"));
-	DefaultCP.RelativeLocation = FVector(200.0, 0.0, 0.0);
-	DefaultCP.SocketType = EShipModuleSocketType::Horizontal;
-	NewModule->ContactPoints.Add(DefaultCP);
-
-	FShipModuleContactPoint BackCP;
-	BackCP.SocketName = FName(TEXT("Back"));
-	BackCP.RelativeLocation = FVector(-200.0, 0.0, 0.0);
-	BackCP.SocketType = EShipModuleSocketType::Horizontal;
-	NewModule->ContactPoints.Add(BackCP);
+	UShipModuleDefinition::AppendDefaultPanelContactPointsForCellSize(NewModule->CellSize, NewModule->ContactPoints);
 
 	return NewModule;
 }
