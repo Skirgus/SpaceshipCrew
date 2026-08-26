@@ -104,6 +104,8 @@ Legacy-имена (`Front`, `Back`, …) поддерживаются для с�
 
 Для **внешнего декора** (крылья, большие двигатели) в этом паке мало подходящего — используйте `Details/` (генераторы) или отдельный hull-пак позже. Для MVP интерьера и «стен» этого набора достаточно.
 
+> **Стыковка VisualOverride:** стены с `WallSocketName` при стыковке меняются на `OpeningMesh` (`Passage` / `SlidingDoor`). См. [VISUAL_OVERRIDE_DOCK_OPENINGS_RU.md](VISUAL_OVERRIDE_DOCK_OPENINGS_RU.md).
+
 ---
 
 ## 4. Пошагово: новый модуль «Коридор»

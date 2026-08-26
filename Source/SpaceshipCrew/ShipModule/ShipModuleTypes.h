@@ -73,6 +73,19 @@ enum class EShipModuleOpeningSide : uint8
 };
 
 /**
+ * Чем заменить стену VisualOverride при открытом panel-socket (стыковка / ForcedOpening).
+ * SlidingDoor — задел под раздвижные двери и менеджмент кислорода (герметичность).
+ */
+UENUM(BlueprintType)
+enum class EShipModuleWallOpeningKind : uint8
+{
+	/** Открытый проход (рамка / OpeningMesh без створок). */
+	Passage,
+	/** Раздвижная дверь (OpeningMesh или OpeningActorClass); по умолчанию герметична, когда закрыта. */
+	SlidingDoor
+};
+
+/**
  * Контактная точка (стыковочный узел) модуля корабля.
  * Определяет место и тип возможного соединения с другим модулем.
  */

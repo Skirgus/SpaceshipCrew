@@ -160,6 +160,17 @@ UInstancedStaticMeshComponent& AShipBuilderModulePreviewActor::GetOrCreatePool(
 	NewComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	NewComponent->SetCastShadow(true);
 	NewComponent->SetStaticMesh(Mesh);
+	// ISM must explicitly inherit mesh materials; missing "Used with Instanced Static Meshes"
+	// on a material otherwise falls back to WorldGrid/Default in PIE.
+	NewComponent->EmptyOverrideMaterials();
+	const TArray<FStaticMaterial>& MeshMaterials = Mesh->GetStaticMaterials();
+	for (int32 MaterialIndex = 0; MaterialIndex < MeshMaterials.Num(); ++MaterialIndex)
+	{
+		if (UMaterialInterface* Material = Mesh->GetMaterial(MaterialIndex))
+		{
+			NewComponent->SetMaterial(MaterialIndex, Material);
+		}
+	}
 	NewComponent->RegisterComponent();
 
 	Pools.Add(Mesh, NewComponent);
@@ -529,21 +540,154 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 		const FVector Center = bIsDragGhostTarget ? GetDragGhostWorldCenter(Size) : Resolved[Index].Center;
 		const FTransform ModuleTransform(ModuleYaw, Center, FVector::OneVector);
 
-		// Ручной override визуала полностью заменяет процедурную генерацию "коробки".
+		// Ручной override: VisualParts + замена стен с WallSocketName на OpeningMesh при стыковке.
 		if (const UShipModuleVisualOverride* VisualOverride = Def->GetVisualOverride())
 		{
 			if (VisualOverride->VisualParts.Num() > 0)
 			{
+				const FName CurrentInstanceId = Resolved[Index].InstanceId;
+				const FIntVector Cells = Def->GetEffectiveCellSize();
+				const FShipBuilderPlacedModule* CurrentPlaced = Draft.PlacedModules.FindByPredicate(
+					[CurrentInstanceId](const FShipBuilderPlacedModule& Placed)
+					{
+						return Placed.InstanceId == CurrentInstanceId;
+					});
+				const FShipBuilderModuleWorldPlacement CurrentPlacement = CurrentPlaced
+					? SpaceshipCrew_BuildModuleWorldPlacement(
+						*CurrentPlaced,
+						*Def,
+						ShipBuilderPreviewActorPrivate::GridStepXY,
+						ShipBuilderPreviewActorPrivate::GridStepZ)
+					: FShipBuilderModuleWorldPlacement();
+
+				TSet<FName> OpenWallSockets;
+				auto AddResolvedConnectionSocket = [&](const FName ConnectionSocketName)
+				{
+					const FName PanelSocket = CurrentPlaced
+						? SpaceshipCrew_ResolvePanelSocketName(
+							*Def,
+							ConnectionSocketName,
+							&CurrentPlacement,
+							Resolved[Index].YawStep)
+						: ConnectionSocketName;
+					OpenWallSockets.Add(PanelSocket);
+					OpenWallSockets.Add(ConnectionSocketName);
+				};
+
+				auto ShouldCreateOpeningTowardNeighbor = [&](const FName NeighborInstanceId) -> bool
+				{
+					const FShipBuilderPlacedModule* NeighborPlaced = Draft.PlacedModules.FindByPredicate(
+						[NeighborInstanceId](const FShipBuilderPlacedModule& Placed)
+						{
+							return Placed.InstanceId == NeighborInstanceId;
+						});
+					if (!NeighborPlaced)
+					{
+						return true;
+					}
+					const UShipModuleDefinition* NeighborDef = Catalog.FindModuleById(NeighborPlaced->ModuleId);
+					return !NeighborDef || NeighborDef->bHasInterior;
+				};
+
+				for (const FShipBuilderDraftConnection& Connection : Draft.Connections)
+				{
+					const bool bCurrentAsA = Connection.ModuleAInstanceId == CurrentInstanceId;
+					const bool bCurrentAsB = Connection.ModuleBInstanceId == CurrentInstanceId;
+					if (!bCurrentAsA && !bCurrentAsB)
+					{
+						continue;
+					}
+					const FName NeighborInstanceId = bCurrentAsA
+						? Connection.ModuleBInstanceId
+						: Connection.ModuleAInstanceId;
+					if (!ShouldCreateOpeningTowardNeighbor(NeighborInstanceId))
+					{
+						continue;
+					}
+					AddResolvedConnectionSocket(bCurrentAsA ? Connection.ModuleASocketName : Connection.ModuleBSocketName);
+				}
+
+				if (Draft.Connections.Num() == 0 && bHasDomainChain)
+				{
+					for (const FShipBuildModuleConnection& Connection : DomainModel.GetConnections())
+					{
+						const bool bCurrentAsA = Connection.ModuleAInstanceId == CurrentInstanceId;
+						const bool bCurrentAsB = Connection.ModuleBInstanceId == CurrentInstanceId;
+						if (!bCurrentAsA && !bCurrentAsB)
+						{
+							continue;
+						}
+						const FName NeighborInstanceId = bCurrentAsA
+							? Connection.ModuleBInstanceId
+							: Connection.ModuleAInstanceId;
+						if (!ShouldCreateOpeningTowardNeighbor(NeighborInstanceId))
+						{
+							continue;
+						}
+						AddResolvedConnectionSocket(bCurrentAsA ? Connection.ModuleASocketName : Connection.ModuleBSocketName);
+					}
+				}
+
+				if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Front))
+				{
+					OpenWallSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Front));
+				}
+				if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Back))
+				{
+					OpenWallSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Back));
+				}
+				if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Left))
+				{
+					OpenWallSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Left));
+				}
+				if (ShouldForceOpeningForSide(*Def, EShipModuleOpeningSide::Right))
+				{
+					OpenWallSockets.Add(ShipBuilderPreviewActorPrivate::ForcedOpeningSocketForSide(Cells, EShipModuleOpeningSide::Right));
+				}
+
+				auto IsWallSocketOpen = [&](const FName WallSocketName) -> bool
+				{
+					if (WallSocketName.IsNone())
+					{
+						return false;
+					}
+					for (const FName OpenName : OpenWallSockets)
+					{
+						if (SpaceshipCrew_DoPanelSocketsMatch(WallSocketName, OpenName))
+						{
+							return true;
+						}
+					}
+					return false;
+				};
+
 				for (const FShipModuleVisualPart& Part : VisualOverride->VisualParts)
 				{
-					UStaticMesh* PartMesh = Part.Mesh.Get();
+					const bool bSocketOpen = IsWallSocketOpen(Part.WallSocketName);
+					UStaticMesh* PartMesh = nullptr;
+					const FTransform* LocalTransform = &Part.RelativeTransform;
+					if (bSocketOpen)
+					{
+						// Open: OpeningMesh (passage / sliding door mesh). Empty = hole (omit solid).
+						PartMesh = Part.OpeningMesh.Get();
+						if (Part.bUseOpeningRelativeTransform)
+						{
+							LocalTransform = &Part.OpeningRelativeTransform;
+						}
+						// OpeningActorClass reserved for future interactive sliding doors / O2 volumes.
+					}
+					else
+					{
+						PartMesh = Part.Mesh.Get();
+					}
+
 					if (!PartMesh)
 					{
 						continue;
 					}
 
 					UInstancedStaticMeshComponent& OverridePool = GetOrCreatePool(OverrideMeshPools, PartMesh, TEXT("Override"));
-					FTransform FinalTransform = Part.RelativeTransform * ModuleTransform;
+					FTransform FinalTransform = (*LocalTransform) * ModuleTransform;
 					AddTransformInstance(OverridePool, FinalTransform);
 				}
 
