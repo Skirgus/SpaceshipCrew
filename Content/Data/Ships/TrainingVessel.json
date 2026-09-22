@@ -1,0 +1,61 @@
+{
+	"SchemaVersion": 2,
+	"ShipId": "TrainingVessel",
+	"DisplayName": "Учебный корабль",
+	"CachedCreditCost": 0,
+	"ModuleLayout": {
+		"ModuleIds": [
+			"Airlock_Training_01",
+			"CargoHold_Training_01",
+			"Corridor_CustomPanels_01",
+			"Bridge_Training_01"
+		],
+		"PlacedModules": [
+			{
+				"InstanceId": "TV_Airlock",
+				"ModuleId": "Airlock_Training_01",
+				"GridPos": { "X": 0, "Y": 0, "Z": 0 },
+				"YawStep": 0
+			},
+			{
+				"InstanceId": "TV_Cargo",
+				"ModuleId": "CargoHold_Training_01",
+				"GridPos": { "X": 1, "Y": 0, "Z": 0 },
+				"YawStep": 0
+			},
+			{
+				"InstanceId": "TV_Engineering",
+				"ModuleId": "Corridor_CustomPanels_01",
+				"GridPos": { "X": 3, "Y": 0, "Z": 0 },
+				"YawStep": 0
+			},
+			{
+				"InstanceId": "TV_Bridge",
+				"ModuleId": "Bridge_Training_01",
+				"GridPos": { "X": 4, "Y": 0, "Z": 0 },
+				"YawStep": 0
+			}
+		],
+		"Connections": [
+			{
+				"ModuleAInstanceId": "TV_Airlock",
+				"ModuleASocketName": "Front_X0_Y0_Z0",
+				"ModuleBInstanceId": "TV_Cargo",
+				"ModuleBSocketName": "Back_X0_Y0_Z0"
+			},
+			{
+				"ModuleAInstanceId": "TV_Cargo",
+				"ModuleASocketName": "Front_X1_Y0_Z0",
+				"ModuleBInstanceId": "TV_Engineering",
+				"ModuleBSocketName": "Back_X0_Y0_Z0"
+			},
+			{
+				"ModuleAInstanceId": "TV_Engineering",
+				"ModuleASocketName": "Front_X0_Y0_Z0",
+				"ModuleBInstanceId": "TV_Bridge",
+				"ModuleBSocketName": "Back_X0_Y0_Z0"
+			}
+		]
+	},
+	"InteriorPlacements": []
+}

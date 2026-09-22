@@ -1,0 +1,37 @@
+---
+description: Ship modules must be hermetic — no sky gaps/slits, sealed joins, walkable interiors
+globs: tools/blender/**/*.py,Content/Python/author_*module*.py,.cursor/skills/ship-module-creation/**
+alwaysApply: false
+---
+
+# Hermetic ship modules
+
+Spaceship modules are pressure vessels. Visual/geometry joins must look and measure **airtight**.
+
+## Mandatory
+
+- **No slits / щелей:** daylight (sky, exterior) through any interior seam is a **hard fail**. Fix before authoring.
+- Shared join profiles: opening, collar hole, canopy aft ring, and frames use the **same** opening size. Canopy/frame aft |Y|,|Z| must be **≥ hole − 1 cm**. Never a smaller glass plug inside a larger bevel.
+- **Overlap, don’t butt:** seat glazing/frames ≥ 15 cm into the hull/collar along X. Prefer collar hole **slightly smaller** than glass so the opaque flange overlaps the pane edge.
+- **Walkable interiors:** clear passage half-width ≥ 200 cm through cabin → nose; portal chamfer ≤ 20 cm.
+- **Floor flush:** walkable floor top = `FLOOR_TOP_Z` (−184) into the nose; no step under the sill.
+- **Glass seated on floor:** canopy sill Z ≈ `FLOOR_TOP_Z` (not floating). Floating panes show a white floor lip under glazing from outside.
+- **Floor vs glazing:** floor outline under the canopy = **inner** face of glass/frame/cheek (fit after canopy exists). Past outer silhouette = lip; large inset = sky gap. Neither is acceptable.
+- **No shell debris past canopy:** belly `floor_cut` / boolean cutters must not extend into the nose (end-caps look like floor shelves). `shell.maxX` stays near canopy join.
+- **After mesh changes:** run hermetic bounds check; do not author while sky seams remain.
+
+## Collision (related)
+
+- Hollow shell/glass: **complex-as-simple**, never auto convex (fills cabin / blocks threshold).
+- Floor: **simple box**. Open-forward shell if the nose is walkable.
+- See skill `ship-module-creation` § Collision.
+
+## Symptoms (blockers)
+
+- Blue sky between white hull and glass/frame (side or corner slit)
+- Canopy floating inside a larger hexagonal/beveled opening
+- Triangular holes at wall–ceiling–window corners
+- Floor ledge at glazing start **or** white slab past glass/hull from exterior
+- Glass floating above the deck (underhang lip)
+- Character blocked at canopy threshold despite a visible opening (convex/bulkhead)
+- Character walks through cabin walls (shell collision missing / disabled)

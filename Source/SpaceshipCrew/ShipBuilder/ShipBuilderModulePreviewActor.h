@@ -65,6 +65,10 @@ protected:
 
 	/** Пулы инстансов по мешам для ручных override-элементов. */
 	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> OverrideMeshPools;
+	/** Проёмы (OpeningMesh): визуал рамки; коллизия прохода — PassageCollisionPools. */
+	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> OpeningMeshPools;
+	/** Невидимые ISM-боксы: стена с дверным вырезом (проход только в проёме). */
+	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> PassageCollisionPools;
 	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> SelectionMeshPools;
 	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> SocketMarkerPools;
 
@@ -181,7 +185,8 @@ private:
 	UInstancedStaticMeshComponent& GetOrCreatePool(
 		TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pools,
 		UStaticMesh* Mesh,
-		const TCHAR* NamePrefix);
+		const TCHAR* NamePrefix,
+		bool bEnableCollision = true);
 
 	static UStaticMesh* ResolveMeshForType(
 		const TMap<EShipModuleType, TObjectPtr<UStaticMesh>>& Overrides,

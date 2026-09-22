@@ -1,6 +1,7 @@
 #include "ShipBuilder/ShipBuilderModulePreviewActor.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "ShipBuilder/ShipBuilderDomainGlue.h"
@@ -14,8 +15,8 @@
 
 namespace ShipBuilderPreviewActorPrivate
 {
-	static constexpr float GridStepXY = 400.0f;
-	static constexpr float GridStepZ = 300.0f;
+	static constexpr float GridStepXY = 800.0f;
+	static constexpr float GridStepZ = 400.0f;
 
 	static bool IsHorizontalDoorwaySocket(const UShipModuleDefinition& Def, const FName SocketName)
 	{
@@ -145,7 +146,8 @@ AShipBuilderModulePreviewActor::AShipBuilderModulePreviewActor()
 UInstancedStaticMeshComponent& AShipBuilderModulePreviewActor::GetOrCreatePool(
 	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pools,
 	UStaticMesh* Mesh,
-	const TCHAR* NamePrefix)
+	const TCHAR* NamePrefix,
+	bool bEnableCollision)
 {
 	check(Mesh);
 	if (TObjectPtr<UInstancedStaticMeshComponent>* Existing = Pools.Find(Mesh))
@@ -157,7 +159,16 @@ UInstancedStaticMeshComponent& AShipBuilderModulePreviewActor::GetOrCreatePool(
 	UInstancedStaticMeshComponent* NewComponent = NewObject<UInstancedStaticMeshComponent>(this, ComponentName);
 	NewComponent->SetupAttachment(Root);
 	NewComponent->SetMobility(EComponentMobility::Static);
-	NewComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	if (bEnableCollision)
+	{
+		// Profile first — SetCollisionEnabled alone leaves default "NoCollision" profile on new ISMs.
+		NewComponent->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+		NewComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+	else
+	{
+		NewComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 	NewComponent->SetCastShadow(true);
 	NewComponent->SetStaticMesh(Mesh);
 	// ISM must explicitly inherit mesh materials; missing "Used with Instanced Static Meshes"
@@ -320,8 +331,9 @@ void AShipBuilderModulePreviewActor::AddDoorOpeningFrame(
 	const float WallHeight,
 	const bool bNormalAlongX) const
 {
-	const float OpenWidth = FMath::Clamp(160.0f, 80.0f, FMath::Max(80.0f, WallSpan - 2.0f * WallThickness));
-	const float OpenHeight = FMath::Clamp(220.0f, 120.0f, FMath::Max(120.0f, WallHeight - 2.0f * WallThickness));
+	// Match kit door cutout (~240×260); Clamp(constant,…) was stuck at 160 forever.
+	const float OpenWidth = FMath::Clamp(240.0f, 80.0f, FMath::Max(80.0f, WallSpan - 2.0f * WallThickness));
+	const float OpenHeight = FMath::Clamp(260.0f, 120.0f, FMath::Max(120.0f, WallHeight - 2.0f * WallThickness));
 
 	const auto AddFrameBox = [&](const FVector& LocalCenter, const FVector& Size)
 	{
@@ -355,7 +367,29 @@ void AShipBuilderModulePreviewActor::AddDoorOpeningFrame(
 		}
 	}
 
-	const float OpeningTopZ = -WallHeight * 0.5f + WallThickness + OpenHeight;
+	// Walkable threshold across the dock seam. Module floors meet edge-to-edge at the
+	// shared wall; without a sill the character falls through the hatch gap.
+	constexpr float SillHeight = 16.0f;
+	{
+		constexpr float SillDepthExtra = 40.0f; // overlap into both modules
+		const float SillDepth = WallThickness + SillDepthExtra;
+		const float SillCenterZ = -WallHeight * 0.5f + SillHeight * 0.5f; // top ≈ FloorTopLocalZ
+		if (bNormalAlongX)
+		{
+			AddFrameBox(
+				LocalWallCenter + FVector(0.0f, 0.0f, SillCenterZ),
+				FVector(SillDepth, OpenWidth, SillHeight));
+		}
+		else
+		{
+			AddFrameBox(
+				LocalWallCenter + FVector(0.0f, 0.0f, SillCenterZ),
+				FVector(OpenWidth, SillDepth, SillHeight));
+		}
+	}
+
+	// Lintel above the opening (opening starts at sill top).
+	const float OpeningTopZ = -WallHeight * 0.5f + SillHeight + OpenHeight;
 	const float TopHeight = WallHeight * 0.5f - OpeningTopZ;
 	if (TopHeight > 1.0f)
 	{
@@ -445,6 +479,8 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 	ClearPools(DoorFrameMeshPools);
 	ClearPools(SolidMeshPools);
 	ClearPools(OverrideMeshPools);
+	ClearPools(OpeningMeshPools);
+	ClearPools(PassageCollisionPools);
 	ClearPools(SelectionMeshPools);
 	ClearPools(SocketMarkerPools);
 
@@ -665,14 +701,14 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 				{
 					const bool bSocketOpen = IsWallSocketOpen(Part.WallSocketName);
 					UStaticMesh* PartMesh = nullptr;
-					const FTransform* LocalTransform = &Part.RelativeTransform;
+					FTransform LocalTransform = Part.RelativeTransform;
 					if (bSocketOpen)
 					{
 						// Open: OpeningMesh (passage / sliding door mesh). Empty = hole (omit solid).
 						PartMesh = Part.OpeningMesh.Get();
 						if (Part.bUseOpeningRelativeTransform)
 						{
-							LocalTransform = &Part.OpeningRelativeTransform;
+							LocalTransform = Part.OpeningRelativeTransform;
 						}
 						// OpeningActorClass reserved for future interactive sliding doors / O2 volumes.
 					}
@@ -681,14 +717,98 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 						PartMesh = Part.Mesh.Get();
 					}
 
-					if (!PartMesh)
+					if (!PartMesh && !bSocketOpen)
 					{
 						continue;
 					}
 
-					UInstancedStaticMeshComponent& OverridePool = GetOrCreatePool(OverrideMeshPools, PartMesh, TEXT("Override"));
-					FTransform FinalTransform = (*LocalTransform) * ModuleTransform;
-					AddTransformInstance(OverridePool, FinalTransform);
+					// UE Python иногда сохраняет yaw±90 как pitch → панель «ложится» и соседний
+					// модуль выглядит как пол/потолок. Для стен форсим yaw по сокету; пол/потолок — identity.
+					const FString Sock = Part.WallSocketName.ToString();
+					float YawDeg = 0.0f;
+					bool bWallSocket = false;
+					if (Sock.StartsWith(TEXT("Front")))
+					{
+						YawDeg = 180.0f;
+						bWallSocket = true;
+					}
+					else if (Sock.StartsWith(TEXT("Back")))
+					{
+						YawDeg = 0.0f;
+						bWallSocket = true;
+					}
+					else if (Sock.StartsWith(TEXT("Left")))
+					{
+						YawDeg = 0.0f;
+						bWallSocket = true;
+					}
+					else if (Sock.StartsWith(TEXT("Right")))
+					{
+						YawDeg = 180.0f;
+						bWallSocket = true;
+					}
+
+					{
+						const FVector Translation = LocalTransform.GetTranslation();
+						const FVector Scale3D = LocalTransform.GetScale3D();
+						if (bWallSocket)
+						{
+							LocalTransform = FTransform(
+								FRotator(0.0f, YawDeg, 0.0f),
+								Translation,
+								Scale3D);
+						}
+						else
+						{
+							LocalTransform = FTransform(FRotator::ZeroRotator, Translation, Scale3D);
+						}
+					}
+
+					// Визуал открытого проёма (рамка) — без коллизии bbox.
+					// Коллизия стены с вырезом двери — отдельными боксами ниже.
+					// Non-socket: Floor + Shell/cheeks + Glass/Frame/Porthole collide.
+					// Collar stays off (convex flange filled the doorway). Shell is open-forward.
+					if (PartMesh)
+					{
+						const FString MeshName = PartMesh->GetName();
+						const bool bIsFloorPart = MeshName.Contains(TEXT("Floor"));
+						const bool bIsShellPart = MeshName.Contains(TEXT("Shell"));
+						const bool bIsCheekPart = MeshName.Contains(TEXT("SideWalls"));
+						const bool bIsGlassPart = MeshName.Contains(TEXT("Glass"));
+						const bool bIsFramePart = MeshName.Contains(TEXT("Frame"));
+						const bool bIsPortholePart = MeshName.Contains(TEXT("Porthole"));
+						const bool bEnableOverrideCollision = bWallSocket
+							? !bSocketOpen
+							: (bIsFloorPart || bIsShellPart || bIsCheekPart || bIsGlassPart
+								|| bIsFramePart || bIsPortholePart);
+						UInstancedStaticMeshComponent& OverridePool = bSocketOpen
+							? GetOrCreatePool(OpeningMeshPools, PartMesh, TEXT("Opening"), false)
+							: GetOrCreatePool(OverrideMeshPools, PartMesh, TEXT("Override"), bEnableOverrideCollision);
+						FTransform FinalTransform = LocalTransform * ModuleTransform;
+						AddTransformInstance(OverridePool, FinalTransform);
+					}
+
+					if (bSocketOpen && bWallSocket && PanelMesh)
+					{
+						UInstancedStaticMeshComponent& PassageCol = GetOrCreatePool(
+							PassageCollisionPools, PanelMesh, TEXT("PassageCol"), true);
+						PassageCol.SetVisibility(false);
+						PassageCol.SetHiddenInGame(true);
+						PassageCol.SetCastShadow(false);
+
+						const bool bNormalAlongX =
+							Sock.StartsWith(TEXT("Front")) || Sock.StartsWith(TEXT("Back"));
+						const FVector WallLocal = LocalTransform.GetTranslation();
+						AddDoorOpeningFrame(
+							PassageCol,
+							ModuleYaw,
+							Center,
+							WallLocal,
+							PanelThickness,
+							ShipBuilderGrid::PanelUnitXY,
+							ShipBuilderGrid::PanelUnitZ,
+							bNormalAlongX);
+					}
 				}
 
 				// Для override-модулей тоже показываем hover/selection и сокеты.
@@ -897,7 +1017,8 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 		UInstancedStaticMeshComponent* DamagedPool = SelectedDamagedMesh
 			? &GetOrCreatePool(DamagedPanelMeshPools, SelectedDamagedMesh, TEXT("Damaged"))
 			: nullptr;
-		UInstancedStaticMeshComponent& FramePool = GetOrCreatePool(DoorFrameMeshPools, SelectedFrameMesh, TEXT("DoorFrame"));
+		UInstancedStaticMeshComponent& FramePool = GetOrCreatePool(
+			DoorFrameMeshPools, SelectedFrameMesh, TEXT("DoorFrame"), true);
 		UInstancedStaticMeshComponent& SelectionPool = GetOrCreatePool(SelectionMeshPools, SelectedFrameMesh, TEXT("Selection"));
 		UInstancedStaticMeshComponent& SocketPool = GetOrCreatePool(SocketMarkerPools, SelectedFrameMesh, TEXT("SocketMarker"));
 
