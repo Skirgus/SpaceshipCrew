@@ -146,6 +146,10 @@ bool AUsableEquipment::BeginUse(APawn* User)
 
 	if (IsMovementLocked() && UseAnchor)
 	{
+		if (DisplayMesh)
+		{
+			DisplayMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+		}
 		User->SetActorLocation(UseAnchor->GetComponentLocation());
 		User->SetActorRotation(UseAnchor->GetComponentRotation());
 		SetUserMovementLocked(User, true);
@@ -165,8 +169,35 @@ void AUsableEquipment::EndUse()
 	}
 
 	APawn* PreviousUser = UserPawn;
-	if (IsMovementLocked())
+	const bool bWasLocked = IsMovementLocked();
+
+	if (ACharacter* Character = Cast<ACharacter>(PreviousUser))
 	{
+		if (USkeletalMeshComponent* Mesh = Character->GetMesh())
+		{
+			if (UAnimInstance* CharacterAnim = Mesh->GetAnimInstance())
+			{
+				if (CharacterUseMontage)
+				{
+					CharacterAnim->Montage_Stop(0.2f, CharacterUseMontage);
+				}
+			}
+		}
+	}
+
+	if (bWasLocked && UseAnchor)
+	{
+		const FVector StandLocation = UseAnchor->GetComponentTransform().TransformPosition(ReleaseOffset);
+		PreviousUser->SetActorLocation(StandLocation);
+		PreviousUser->SetActorRotation(UseAnchor->GetComponentRotation());
+	}
+
+	if (bWasLocked)
+	{
+		if (DisplayMesh)
+		{
+			DisplayMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		}
 		SetUserMovementLocked(PreviousUser, false);
 	}
 

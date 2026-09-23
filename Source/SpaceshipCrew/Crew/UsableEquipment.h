@@ -102,6 +102,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment|Animation")
 	TObjectPtr<UAnimMontage> CharacterUseMontage;
 
+	/**
+	 * Куда сдвинуть персонажа относительно UseAnchor, когда он отпускает предмет.
+	 * Для кресла это шаг вперёд: капсула выходит из сиденья, пока монтаж сходит в стойку.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
+	FVector ReleaseOffset = FVector::ZeroVector;
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Equipment")
 	void OnEquipmentUsed(APawn* User);
 
