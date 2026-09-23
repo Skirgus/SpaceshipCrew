@@ -27,4 +27,17 @@ namespace SpaceshipCrewLevelTravel
 			TEXT("?game=%s"),
 			TEXT("/Script/SpaceshipCrew.SpaceshipShipBuilderGameMode"));
 	}
+
+	/** Карта тренировки инженера (создаётся в Content; до готовности — Template_Default). */
+	inline const TCHAR* GetEngineerTrainingMapPackagePath()
+	{
+		return TEXT("/Game/Maps/Training/EngineerTraining");
+	}
+
+	inline FString GetTrainingGameOptions()
+	{
+		return FString::Printf(
+			TEXT("?game=%s"),
+			TEXT("/Script/SpaceshipCrew.SpaceshipCrewTrainingGameMode"));
+	}
 }

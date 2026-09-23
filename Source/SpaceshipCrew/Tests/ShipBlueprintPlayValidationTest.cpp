@@ -31,7 +31,7 @@ namespace ShipBlueprintPlayValidationTestPrivate
 		Definition->ModuleType = Type;
 		Definition->DisplayName = FText::FromString(ModuleId.ToString());
 		Definition->Mass = 100.0f;
-		Definition->Size = FVector(400.0f, 400.0f, 300.0f);
+		Definition->Size = FVector(800.0f, 800.0f, 400.0f);
 		Definition->CompatibleModuleTypes = AllDockableTypes();
 		Definition->EnsureContactPointsPopulatedIfNoAuthoringOverride();
 		Catalog->RegisterDefinitionForAutomation(Definition);

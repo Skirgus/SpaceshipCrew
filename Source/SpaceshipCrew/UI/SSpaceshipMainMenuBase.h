@@ -34,9 +34,13 @@ protected:
 	void OnBlueprintPickerBack();
 
 	void ShowBlueprintPicker();
+	void ShowTrainingsMenu();
 	void ShowMainMenu();
 
+	FReply OnEngineerTrainingClicked();
+
 	TSharedRef<SWidget> BuildPlaceholderSlot();
+	TSharedRef<SWidget> BuildTrainingsSlot();
 
 	TWeakObjectPtr<UWorld> World;
 	TWeakObjectPtr<APlayerController> OwnerPC;
@@ -48,6 +52,7 @@ protected:
 	static constexpr int32 MainMenuSlotIndex = 0;
 	static constexpr int32 PlaceholderSlotIndex = 1;
 	static constexpr int32 BlueprintPickerSlotIndex = 2;
+	static constexpr int32 TrainingsSlotIndex = 3;
 
 protected:
 	static FSlateFontInfo GetMenuTitleFont();

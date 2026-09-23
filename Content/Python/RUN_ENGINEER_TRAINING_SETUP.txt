@@ -1,0 +1,6 @@
+@echo off
+REM Paste into Unreal Output Log (Window -> Developer Tools -> Output Log):
+REM py "H:/Projects/SpaceshipCrew/Content/Python/setup_engineer_training_level.py"
+echo Run in Unreal Editor Output Log:
+echo py "H:/Projects/SpaceshipCrew/Content/Python/setup_engineer_training_level.py"
+pause

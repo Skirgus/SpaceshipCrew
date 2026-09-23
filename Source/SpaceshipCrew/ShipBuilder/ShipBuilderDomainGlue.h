@@ -42,15 +42,15 @@ struct FShipBuilderModuleWorldPlacement
 FShipBuilderModuleWorldPlacement SpaceshipCrew_BuildModuleWorldPlacement(
 	const FShipBuilderPlacedModule& Placed,
 	const UShipModuleDefinition& Def,
-	float GridStepXY = 400.0f,
-	float GridStepZ = 300.0f);
+	float GridStepXY = 800.0f,
+	float GridStepZ = 400.0f);
 
 /** Центр модуля в мире (GridPos = угол footprint). */
 FVector SpaceshipCrew_ComputeModuleWorldCenter(
 	const FShipBuilderPlacedModule& Placed,
 	const UShipModuleDefinition& Def,
-	float GridStepXY = 400.0f,
-	float GridStepZ = 300.0f);
+	float GridStepXY = 800.0f,
+	float GridStepZ = 400.0f);
 
 /** Подбирает GridPos (угол footprint) для перемещаемого модуля: магнит panel-socket к panel-socket. */
 bool SpaceshipCrew_TryFindBestSocketSnapCell(
@@ -61,16 +61,16 @@ bool SpaceshipCrew_TryFindBestSocketSnapCell(
 	FName MovingInstanceId,
 	const TFunction<const UShipModuleDefinition*(FName)>& ResolveModule,
 	FIntVector& OutBestCornerCell,
-	float GridStepXY = 400.0f,
-	float GridStepZ = 300.0f,
-	float SnapRadiusWorld = 650.0f);
+	float GridStepXY = 800.0f,
+	float GridStepZ = 400.0f,
+	float SnapRadiusWorld = 1300.0f);
 
 /** Пересчитывает Draft.Connections по геометрическому совпадению panel-socket соседних модулей. */
 void SpaceshipCrew_RebuildDraftConnectionsFromAdjacency(
 	FShipBuilderDraftConfig& Draft,
 	const TFunction<const UShipModuleDefinition*(FName)>& ResolveModule,
-	float GridStepXY = 400.0f,
-	float GridStepZ = 300.0f);
+	float GridStepXY = 800.0f,
+	float GridStepZ = 400.0f);
 
 /** Следующий угол footprint для добавления модуля в цепочку по +X (пустой draft → (0,0,Z)). */
 FIntVector SpaceshipCrew_ComputeNextDraftAppendCornerCell(
@@ -120,5 +120,5 @@ bool SpaceshipCrew_WouldModulePlacementOverlap(
 	const FShipBuilderPlacedModule& CandidatePlaced,
 	const UShipModuleDefinition& ModuleDef,
 	const TFunction<const UShipModuleDefinition*(FName)>& ResolveModule,
-	float GridStepXY = 400.0f,
-	float GridStepZ = 300.0f);
+	float GridStepXY = 800.0f,
+	float GridStepZ = 400.0f);

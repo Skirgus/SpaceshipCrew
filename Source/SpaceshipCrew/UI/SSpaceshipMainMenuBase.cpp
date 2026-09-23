@@ -60,6 +60,10 @@ void SSpaceshipMainMenuBase::Construct(const FArguments& InArgs)
 						.OwnerPC(OwnerPC)
 						.OnBack(this, &SSpaceshipMainMenuBase::OnBlueprintPickerBack)
 					]
+					+ SWidgetSwitcher::Slot()
+					[
+						BuildTrainingsSlot()
+					]
 				]
 			]
 		]
@@ -132,6 +136,12 @@ FReply SSpaceshipMainMenuBase::OnRouteClicked(ESpaceshipMenuRoute Route)
 		return FReply::Handled();
 	}
 
+	if (Route == ESpaceshipMenuRoute::Trainings)
+	{
+		ShowTrainingsMenu();
+		return FReply::Handled();
+	}
+
 	PlaceholderTitle = GetDisplayName(Route);
 	if (MenuSwitcher.IsValid())
 	{
@@ -150,6 +160,74 @@ FReply SSpaceshipMainMenuBase::OnBackClicked()
 void SSpaceshipMainMenuBase::OnBlueprintPickerBack()
 {
 	ShowMainMenu();
+}
+
+TSharedRef<SWidget> SSpaceshipMainMenuBase::BuildTrainingsSlot()
+{
+	using namespace SpaceshipCrewSlateMenu;
+
+	return SNew(SBorder)
+		.Padding(FMargin(PlaceholderInnerPadding))
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(STextBlock)
+				.Justification(ETextJustify::Center)
+				.Font(GetMenuPlaceholderTitleFont())
+				.Text(LOCTEXT("TrainingsTitle", "Тренировки"))
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(FMargin(0.0f, 28.0f, 0.0f, 0.0f))
+			[
+				SNew(SButton)
+				.ContentPadding(FMargin(28.0f, 14.0f))
+				.OnClicked(this, &SSpaceshipMainMenuBase::OnEngineerTrainingClicked)
+				[
+					SNew(STextBlock)
+					.Font(GetMenuButtonFont())
+					.Text(LOCTEXT("Training_Engineer", "Инженер"))
+				]
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(FMargin(0.0f, 14.0f, 0.0f, 0.0f))
+			[
+				SNew(SButton)
+				.ContentPadding(FMargin(28.0f, 14.0f))
+				.OnClicked(this, &SSpaceshipMainMenuBase::OnBackClicked)
+				[
+					SNew(STextBlock)
+					.Font(GetMenuButtonFont())
+					.Text(LOCTEXT("Back", "Назад"))
+				]
+			]
+		];
+}
+
+FReply SSpaceshipMainMenuBase::OnEngineerTrainingClicked()
+{
+	if (UWorld* W = World.Get())
+	{
+		// Сначала пробуем карту тренировки; если ассета ещё нет — OpenLevel всё равно
+		// позволит увидеть ошибку загрузки в логе и подставить карту позже.
+		UGameplayStatics::OpenLevel(
+			W,
+			FName(SpaceshipCrewLevelTravel::GetEngineerTrainingMapPackagePath()),
+			true,
+			SpaceshipCrewLevelTravel::GetTrainingGameOptions());
+	}
+	return FReply::Handled();
+}
+
+void SSpaceshipMainMenuBase::ShowTrainingsMenu()
+{
+	if (MenuSwitcher.IsValid())
+	{
+		MenuSwitcher->SetActiveWidgetIndex(TrainingsSlotIndex);
+	}
 }
 
 void SSpaceshipMainMenuBase::ShowBlueprintPicker()

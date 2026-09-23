@@ -47,7 +47,7 @@ namespace ShipBuilderDomainGlueChainSocketsTestPrivate
 		Definition->ModuleType = ModuleType;
 		Definition->DisplayName = FText::FromString(ModuleId.ToString());
 		Definition->Mass = 100.0f;
-		Definition->Size = FVector(400.0, 400.0, 300.0);
+		Definition->Size = FVector(800.0, 800.0, 400.0);
 		Definition->CompatibleModuleTypes = CompatibleTypes;
 
 		Definition->SyncCellSizeAndSizeFromLegacy();
@@ -302,8 +302,8 @@ bool FShipBuilderDomainGlueSocketSnapTest::RunTest(const FString& Parameters)
 		Moving.InstanceId,
 		[&Resolver](const FName ModuleId) { return Resolver.ResolveModule(ModuleId); },
 		BestCell,
+		800.0f,
 		400.0f,
-		300.0f,
 		900.0f);
 	TestTrue(TEXT("SocketSnapFound"), bFound);
 	TestNotEqual(TEXT("SnappedOffOverlapCell"), BestCell, FIntVector(0, 0, 0));
@@ -381,8 +381,8 @@ bool FShipBuilderDomainGluePartialSocketSnapTest::RunTest(const FString& Paramet
 		Moving.InstanceId,
 		[&Resolver](const FName ModuleId) { return Resolver.ResolveModule(ModuleId); },
 		BestCell,
+		800.0f,
 		400.0f,
-		300.0f,
 		900.0f);
 	TestTrue(TEXT("PartialOverrideSnapFound"), bFound);
 	TestEqual(TEXT("SnappedToNeighborCell"), BestCell, FIntVector(0, 0, 0));
@@ -455,7 +455,7 @@ bool FShipBuilderDomainGlueMixedSizeSnapTest::RunTest(const FString& Parameters)
 	Wide->ModuleType = EShipModuleType::Corridor;
 	Wide->DisplayName = FText::FromString(TEXT("MixedWide"));
 	Wide->Mass = 100.0f;
-	Wide->Size = FVector(500.0, 800.0, 300.0);
+	Wide->Size = FVector(900.0, 1600.0, 400.0);
 	Wide->CompatibleModuleTypes = { EShipModuleType::Corridor };
 	Wide->SyncCellSizeAndSizeFromLegacy();
 	Wide->EnsureContactPointsPopulatedIfNoAuthoringOverride();
@@ -490,8 +490,8 @@ bool FShipBuilderDomainGlueMixedSizeSnapTest::RunTest(const FString& Parameters)
 		Moving.InstanceId,
 		[&Resolver](const FName ModuleId) { return Resolver.ResolveModule(ModuleId); },
 		BestCell,
+		800.0f,
 		400.0f,
-		300.0f,
 		1200.0f);
 	TestTrue(TEXT("MixedSizeSnapFound"), bFound);
 	TestEqual(TEXT("SnappedCorner"), BestCell, FIntVector(1, 0, 0));
@@ -529,7 +529,7 @@ bool FShipBuilderDomainGlueLShapePanelSnapTest::RunTest(const FString& Parameter
 	Tall->ModuleType = EShipModuleType::Corridor;
 	Tall->DisplayName = FText::FromString(TEXT("TallCorridor"));
 	Tall->Mass = 100.0f;
-	Tall->Size = FVector(400.0, 800.0, 300.0);
+	Tall->Size = FVector(800.0, 1600.0, 400.0);
 	Tall->CompatibleModuleTypes = { EShipModuleType::Corridor };
 	Tall->SyncCellSizeAndSizeFromLegacy();
 
@@ -566,8 +566,8 @@ bool FShipBuilderDomainGlueLShapePanelSnapTest::RunTest(const FString& Parameter
 		Moving.InstanceId,
 		[&Resolver](const FName ModuleId) { return Resolver.ResolveModule(ModuleId); },
 		BestCell,
+		800.0f,
 		400.0f,
-		300.0f,
 		1200.0f);
 	TestTrue(TEXT("LShapeSnapFound"), bFound);
 	TestEqual(TEXT("LShapeCornerCell"), BestCell, FIntVector(1, 0, 0));
@@ -625,8 +625,8 @@ bool FShipBuilderDomainGlueBilateralConnectionTest::RunTest(const FString& Param
 	SpaceshipCrew_RebuildDraftConnectionsFromAdjacency(
 		Draft,
 		[&Resolver](const FName ModuleId) { return Resolver.ResolveModule(ModuleId); },
-		400.0f,
-		300.0f);
+		800.0f,
+		400.0f);
 
 	TestEqual(TEXT("SingleConnection"), Draft.Connections.Num(), 1);
 

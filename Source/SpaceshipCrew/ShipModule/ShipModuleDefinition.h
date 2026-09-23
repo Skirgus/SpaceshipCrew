@@ -49,10 +49,10 @@ public:
 
 	/** Габариты модуля в см (производное от CellSize, синхронизируется автоматически). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Physics")
-	FVector Size = FVector(400.0, 400.0, 300.0);
+	FVector Size = FVector(800.0, 800.0, 400.0);
 
 	/**
-	 * Размер модуля в панелях сетки (1 панель = 400×400×300 см).
+	 * Размер модуля в панелях сетки (1 панель = 800×800×400 см).
 	 * Модуль 2×1×2 = две панели по X, одна по Y, два этажа по Z.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics", meta = (ClampMin = "1"))

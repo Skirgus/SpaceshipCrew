@@ -19,8 +19,8 @@
 
 namespace SpaceshipShipBuilderInputPrivate
 {
-	static constexpr float DragGridStepXY = 400.0f;
-	static constexpr float DragGridStepZ = 300.0f;
+	static constexpr float DragGridStepXY = 800.0f;
+	static constexpr float DragGridStepZ = 400.0f;
 	static constexpr float SelectionScreenRadiusPx = 140.0f;
 }
 

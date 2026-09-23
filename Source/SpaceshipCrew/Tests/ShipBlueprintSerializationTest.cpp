@@ -86,7 +86,7 @@ bool FShipBlueprintModuleValidationTest::RunTest(const FString& Parameters)
 	Known->ModuleId = FName(TEXT("KnownModule"));
 	Known->DisplayName = FText::FromString(TEXT("Known"));
 	Known->Mass = 100.0f;
-	Known->Size = FVector(400.0f, 400.0f, 300.0f);
+	Known->Size = FVector(800.0f, 800.0f, 400.0f);
 	Catalog->RegisterDefinitionForAutomation(Known);
 
 	FShipBlueprintDocument ValidDoc;

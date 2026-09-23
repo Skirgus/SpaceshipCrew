@@ -1,8 +1,21 @@
 # Author Corridor_CustomPanels wall slots with orientation-matched OpeningMesh.
 # LR walls: SM_Wall_Solid + SM_Wall_Door (thin Y), yaw 0/180.
 # FB walls: SM_Wall_Solid_FB + SM_Wall_Door_FB (thin X), yaw 0/180 only — never ±90.
+# Grid: PanelUnitXY=600, PanelUnitZ=400 (see ship_builder_grid.py).
 import unreal
 import os
+import math
+import sys
+
+sys.path.insert(0, unreal.Paths.project_content_dir() + "Python")
+from ship_builder_grid import (
+	FLOOR_REL_Z,
+	CEILING_REL_Z,
+	WALL_OFFSET,
+	FACE_OFFSET,
+	PANEL_XY,
+	PANEL_Z,
+)
 
 MESH_DIR = "/Game/Meshes/CorridorPanels"
 MAT_DIR = "/Game/Meshes/CorridorPanels/Materials"
@@ -30,7 +43,7 @@ def ensure_mat(mesh, mat_name):
         unreal.log_warning(f"set_material: {exc}")
 
 
-def import_mesh(mesh_name: str, uniform_scale: float = 0.01):
+def import_mesh(mesh_name: str, uniform_scale: float = 1.0):
     path = f"{MESH_DIR}/{mesh_name}"
     fbx_path = FBX_DIR + mesh_name + ".fbx"
     if not os.path.isfile(fbx_path):
@@ -68,15 +81,15 @@ def import_mesh(mesh_name: str, uniform_scale: float = 0.01):
 
 
 def make_tr(location, yaw_deg=0.0):
-    # Only 0/180 are used — stable Rotator→Quat round-trip (no ±90 pitch quirk).
     tr = unreal.Transform()
     tr.translation = unreal.Vector(*location)
-    tr.rotation = unreal.Rotator(0.0, yaw_deg, 0.0).quaternion()
+    yaw_rad = math.radians(float(yaw_deg))
+    tr.rotation = unreal.Quat(0.0, 0.0, math.sin(yaw_rad * 0.5), math.cos(yaw_rad * 0.5))
     tr.scale3d = unreal.Vector(1.0, 1.0, 1.0)
     return tr
 
 
-def make_part(mesh, location, yaw_deg=0.0, wall_socket=None, opening_mesh=None, opening_kind="SlidingDoor"):
+def make_part(mesh, location, yaw_deg=0.0, wall_socket=None, opening_mesh=None, opening_kind="Passage"):
     part = unreal.ShipModuleVisualPart()
     part.set_editor_property("mesh", mesh)
     part.set_editor_property("relative_transform", make_tr(location, yaw_deg))
@@ -118,15 +131,15 @@ def main():
         )
         return
 
-    floor = unreal.EditorAssetLibrary.load_asset(f"{MESH_DIR}/SM_Floor_400")
-    ceiling = unreal.EditorAssetLibrary.load_asset(f"{MESH_DIR}/SM_Ceiling_400")
-    wall_lr = unreal.EditorAssetLibrary.load_asset(f"{MESH_DIR}/SM_Wall_Solid_400x300")
-    door_lr = unreal.EditorAssetLibrary.load_asset(f"{MESH_DIR}/SM_Wall_Door_400x300")
-    door_fb = unreal.EditorAssetLibrary.load_asset(f"{MESH_DIR}/SM_Wall_Door_FB_400x300")
-    wall_fb = import_mesh("SM_Wall_Solid_FB_400x300", uniform_scale=1.0)
+    floor = import_mesh("SM_Floor_400", 1.0)
+    ceiling = import_mesh("SM_Ceiling_400", 1.0)
+    wall_lr = import_mesh("SM_Wall_Solid_400x300", 1.0)
+    door_lr = import_mesh("SM_Wall_Door_400x300", 1.0)
+    door_fb = import_mesh("SM_Wall_Door_FB_400x300", 1.0)
+    wall_fb = import_mesh("SM_Wall_Solid_FB_400x300", 1.0)
 
     if not all([floor, ceiling, wall_lr, door_lr, door_fb, wall_fb]):
-        unreal.log_error("Missing required meshes (need SM_Wall_Solid_FB_400x300)")
+        unreal.log_error("Missing required corridor panel meshes")
         return
 
     for m in (floor, ceiling, wall_lr, door_lr, door_fb, wall_fb):
@@ -139,14 +152,12 @@ def main():
         return
 
     parts = [
-        make_part(floor, (0.0, 0.0, -142.0)),
-        make_part(ceiling, (0.0, 0.0, 141.0)),
-        # Left / Right — LR meshes, thin in Y
-        make_part(wall_lr, (0.0, -190.0, 0.0), 0.0, "Left_X0_Y0_Z0", door_lr),
-        make_part(wall_lr, (0.0, 190.0, 0.0), 180.0, "Right_X0_Y0_Z0", door_lr),
-        # Front / Back — FB meshes, thin in X; yaw 0/180 only (same for Mesh and OpeningMesh)
-        make_part(wall_fb, (191.0, 0.0, 0.0), 180.0, "Front_X0_Y0_Z0", door_fb),
-        make_part(wall_fb, (-191.0, 0.0, 0.0), 0.0, "Back_X0_Y0_Z0", door_fb),
+        make_part(floor, (0.0, 0.0, FLOOR_REL_Z)),
+        make_part(ceiling, (0.0, 0.0, CEILING_REL_Z)),
+        make_part(wall_lr, (0.0, -WALL_OFFSET, 0.0), 0.0, "Left_X0_Y0_Z0", door_lr, "Passage"),
+        make_part(wall_lr, (0.0, WALL_OFFSET, 0.0), 180.0, "Right_X0_Y0_Z0", door_lr, "Passage"),
+        make_part(wall_fb, (FACE_OFFSET, 0.0, 0.0), 180.0, "Front_X0_Y0_Z0", door_fb, "Passage"),
+        make_part(wall_fb, (-FACE_OFFSET, 0.0, 0.0), 0.0, "Back_X0_Y0_Z0", door_fb, "Passage"),
     ]
 
     override.set_editor_property("visual_parts", parts)
@@ -154,6 +165,11 @@ def main():
 
     definition.set_editor_property("visual_override", override)
     definition.set_editor_property("has_interior", True)
+    try:
+        definition.set_editor_property("cell_size", unreal.IntVector(1, 1, 1))
+        definition.set_editor_property("size", unreal.Vector(PANEL_XY, PANEL_XY, PANEL_Z))
+    except Exception as exc:
+        unreal.log_warning(f"cell/size: {exc}")
     unreal.EditorAssetLibrary.save_loaded_asset(definition)
     unreal.EditorAssetLibrary.save_loaded_asset(override)
 

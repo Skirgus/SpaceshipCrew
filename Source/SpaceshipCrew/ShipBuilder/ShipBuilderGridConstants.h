@@ -5,8 +5,8 @@
 /** Единичная панель BigModularSciFi / конструктора (см). */
 namespace ShipBuilderGrid
 {
-	inline constexpr float PanelUnitXY = 400.0f;
-	inline constexpr float PanelUnitZ = 300.0f;
+	inline constexpr float PanelUnitXY = 800.0f;
+	inline constexpr float PanelUnitZ = 400.0f;
 
 	inline FIntVector WorldSizeToCellSize(const FVector& WorldSize)
 	{
