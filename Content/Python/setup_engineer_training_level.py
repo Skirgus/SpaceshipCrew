@@ -147,9 +147,6 @@ def clear_placeable_actors() -> None:
         if label.startswith("ET_") or cls_name in (
             "StaticMeshActor",
             "PlayerStart",
-            "EngineerEnergyConsole",
-            "DamagedHullPanel",
-            "EngineerTrainingScenario",
             "DirectionalLight",
             "SkyLight",
             "ExponentialHeightFog",
@@ -175,20 +172,6 @@ def setup_lighting() -> None:
         atmos.set_actor_label("ET_SkyAtmosphere")
     except Exception:
         pass
-
-
-def wire_scenario(console, panel, scenario) -> None:
-    if not scenario:
-        return
-    try:
-        if console:
-            scenario.set_editor_property("EnergyConsole", console)
-        if panel:
-            scenario.set_editor_property("DamagedPanel", panel)
-        scenario.set_editor_property("bReturnToMenuOnComplete", True)
-        unreal.log("[EngineerTraining] Scenario wired to console/panel")
-    except Exception as exc:
-        unreal.log_warning(f"[EngineerTraining] Wire scenario failed (check property names): {exc}")
 
 
 def main() -> None:
@@ -218,44 +201,7 @@ def main() -> None:
     )
     ps.set_actor_label("ET_PlayerStart")
 
-    # Energy console near back wall (bay back at -X)
-    console_mesh = meshes.get("SM_EnergyConsole")
-    console = spawn_actor(
-        "/Script/SpaceshipCrew.EngineerEnergyConsole",
-        (-140.0, 0.0, -150.0),
-        (0.0, 0.0, 0.0),
-        "ET_EnergyConsole",
-    )
-    if console:
-        assign_mesh_if_possible(console, console_mesh)
-    elif console_mesh:
-        spawn_static_mesh(console_mesh, (-140.0, 0.0, -150.0), label="ET_EnergyConsole_MeshOnly")
-
-    # Damaged panel on right wall
-    panel_mesh = meshes.get("SM_HullPanel_Damaged")
-    panel = spawn_actor(
-        "/Script/SpaceshipCrew.DamagedHullPanel",
-        (0.0, 160.0, -60.0),
-        (0.0, -90.0, 0.0),
-        "ET_DamagedPanel",
-    )
-    if panel:
-        assign_mesh_if_possible(panel, panel_mesh)
-    elif panel_mesh:
-        spawn_static_mesh(panel_mesh, (0.0, 160.0, -60.0), (0.0, -90.0, 0.0), "ET_DamagedPanel_MeshOnly")
-
-    # Torch pickup visual (mesh only until pickup class exists)
-    torch_mesh = meshes.get("SM_RepairTorch")
-    if torch_mesh:
-        spawn_static_mesh(torch_mesh, (60.0, 80.0, -150.0), label="ET_RepairTorch")
-
-    scenario = spawn_actor(
-        "/Script/SpaceshipCrew.EngineerTrainingScenario",
-        (0.0, 0.0, 50.0),
-        (0.0, 0.0, 0.0),
-        "ET_Scenario",
-    )
-    wire_scenario(console, panel, scenario)
+    # Оборудование живёт в VisualOverride модуля, не отдельными акторами карты.
 
     # World settings / game mode override for this map
     try:

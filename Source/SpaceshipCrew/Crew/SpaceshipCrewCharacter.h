@@ -3,13 +3,15 @@
 #include "CoreMinimal.h"
 #include "CrewInteractable.h"
 #include "GameFramework/Character.h"
+#include "UI/UsableEquipmentPromptWidget.h"
 #include "SpaceshipCrewCharacter.generated.h"
 
 class UCameraComponent;
 class USpringArmComponent;
+class AUsableEquipment;
 
 /**
- * Пеший персонаж экипажа (3-е лицо): движение и Interact по трассировке.
+ * Пеший персонаж экипажа (3-е лицо): движение и взаимодействие с оборудованием по зоне.
  * База для BP_CrewCharacter и тренировок / кампании.
  */
 UCLASS(Blueprintable)
@@ -24,13 +26,9 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Дальность трассировки Interact (см). */
+	/** Виджет подсказки «E». Пустой класс — стандартный C++ виджет. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crew|Interact")
-	float InteractTraceDistance = 250.0f;
-
-	/** Радиус сферы overlap вокруг hit (см). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crew|Interact")
-	float InteractTraceRadius = 40.0f;
+	TSubclassOf<UUsableEquipmentPromptWidget> PromptWidgetClass;
 
 	/** Текущая цель Interact (для HUD / отладки). */
 	UFUNCTION(BlueprintPure, Category = "Crew|Interact")
@@ -48,17 +46,21 @@ protected:
 	void TurnAtRate(float Rate);
 	void LookUpAtRate(float Rate);
 	void OnInteractPressed();
-	void OnStationPrimaryAction();
 
 	void UpdateFocusedInteractable();
 	void PollGameplayInput(float DeltaSeconds);
+	void EnsurePromptWidget();
+	void RefreshInteractPrompt();
 
-	/** Станция, которую сейчас занимает этот персонаж (если есть). */
+	/** Оборудование, которое сейчас использует этот персонаж. */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<class ACrewWorkstation> OccupiedWorkstation;
+	TWeakObjectPtr<AUsableEquipment> ActiveEquipment;
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AActor> FocusedInteractable;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UUsableEquipmentPromptWidget> PromptWidget;
 
 	UPROPERTY(EditAnywhere, Category = "Crew|Camera")
 	float BaseTurnRate = 45.0f;

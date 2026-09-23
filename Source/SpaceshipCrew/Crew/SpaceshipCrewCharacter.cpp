@@ -1,20 +1,22 @@
 #include "SpaceshipCrewCharacter.h"
 
-#include "CrewWorkstation.h"
-#include "EngineerEnergyConsole.h"
+#include "UsableEquipment.h"
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "CrewInteractable.h"
-#include "Engine/Engine.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputCoreTypes.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UI/UsableEquipmentPromptWidget.h"
 
 ASpaceshipCrewCharacter::ASpaceshipCrewCharacter()
 {
@@ -43,6 +45,8 @@ ASpaceshipCrewCharacter::ASpaceshipCrewCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	PromptWidgetClass = UUsableEquipmentPromptWidget::StaticClass();
 
 	// Пакеты шаблона UE — /Game/Characters/Mannequins (не /Game/Mannequins).
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MannyMesh(
@@ -103,6 +107,7 @@ void ASpaceshipCrewCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	PollGameplayInput(DeltaSeconds);
 	UpdateFocusedInteractable();
+	RefreshInteractPrompt();
 }
 
 void ASpaceshipCrewCharacter::PollGameplayInput(float DeltaSeconds)
@@ -131,8 +136,18 @@ void ASpaceshipCrewCharacter::PollGameplayInput(float DeltaSeconds)
 	{
 		Right -= 1.0f;
 	}
-	MoveForward(Forward);
-	MoveRight(Right);
+
+	AUsableEquipment* Active = ActiveEquipment.Get();
+	const bool bUsing = Active && Active->IsInUseBy(this);
+	if (bUsing && Active->WantsMovementRedirect())
+	{
+		Active->NotifyRedirectedMove(FVector2D(Right, Forward));
+	}
+	else if (!bUsing || !Active->IsMovementLocked())
+	{
+		MoveForward(Forward);
+		MoveRight(Right);
+	}
 
 	float MouseX = 0.0f;
 	float MouseY = 0.0f;
@@ -143,22 +158,6 @@ void ASpaceshipCrewCharacter::PollGameplayInput(float DeltaSeconds)
 	if (PC->WasInputKeyJustPressed(EKeys::E))
 	{
 		OnInteractPressed();
-	}
-	if (PC->WasInputKeyJustPressed(EKeys::One))
-	{
-		OnStationPrimaryAction();
-	}
-
-	if (AActor* Focus = FocusedInteractable.Get())
-	{
-		if (GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(
-				7101,
-				0.0f,
-				FColor::Cyan,
-				ICrewInteractable::Execute_GetInteractPrompt(Focus, this).ToString());
-		}
 	}
 
 	(void)DeltaSeconds;
@@ -197,72 +196,125 @@ void ASpaceshipCrewCharacter::UpdateFocusedInteractable()
 	FocusedInteractable = nullptr;
 
 	UWorld* World = GetWorld();
-	if (!World)
+	UCapsuleComponent* Capsule = GetCapsuleComponent();
+	if (!World || !Capsule)
 	{
 		return;
 	}
 
-	const FVector Start = FollowCamera ? FollowCamera->GetComponentLocation() : GetActorLocation() + FVector(0, 0, 60);
-	const FVector End = Start + (FollowCamera ? FollowCamera->GetForwardVector() : GetActorForwardVector()) * InteractTraceDistance;
-
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(CrewInteract), false, this);
-	FHitResult Hit;
-	const bool bHit = World->SweepSingleByChannel(
-		Hit,
-		Start,
-		End,
-		FQuat::Identity,
-		ECC_Visibility,
-		FCollisionShape::MakeSphere(InteractTraceRadius),
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(UsableEquipmentFocus), false, this);
+	const FCollisionShape Shape = FCollisionShape::MakeCapsule(
+		Capsule->GetScaledCapsuleRadius(),
+		Capsule->GetScaledCapsuleHalfHeight());
+	World->OverlapMultiByChannel(
+		Overlaps,
+		Capsule->GetComponentLocation(),
+		Capsule->GetComponentQuat(),
+		ECC_Pawn,
+		Shape,
 		Params);
 
-	if (!bHit || !Hit.GetActor())
+	AUsableEquipment* Best = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AUsableEquipment* Equipment = Cast<AUsableEquipment>(Overlap.GetActor());
+		if (!Equipment || Overlap.GetComponent() != Equipment->GetInteractionVolume())
+		{
+			continue;
+		}
+		if (!ICrewInteractable::Execute_CanInteract(Equipment, this))
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(
+			GetActorLocation(),
+			Equipment->GetInteractionVolume()->GetComponentLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = Equipment;
+		}
+	}
+
+	FocusedInteractable = Best;
+}
+
+void ASpaceshipCrewCharacter::EnsurePromptWidget()
+{
+	if (PromptWidget)
 	{
 		return;
 	}
 
-	AActor* Candidate = Hit.GetActor();
-	if (Candidate->GetClass()->ImplementsInterface(UCrewInteractable::StaticClass()))
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
 	{
-		if (ICrewInteractable::Execute_CanInteract(Candidate, this))
-		{
-			FocusedInteractable = Candidate;
-		}
+		return;
 	}
+
+	const TSubclassOf<UUsableEquipmentPromptWidget> WidgetClass = PromptWidgetClass
+		? PromptWidgetClass
+		: TSubclassOf<UUsableEquipmentPromptWidget>(UUsableEquipmentPromptWidget::StaticClass());
+	PromptWidget = CreateWidget<UUsableEquipmentPromptWidget>(PC, WidgetClass);
+	if (PromptWidget)
+	{
+		PromptWidget->AddToViewport(5);
+		PromptWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void ASpaceshipCrewCharacter::RefreshInteractPrompt()
+{
+	EnsurePromptWidget();
+	if (!PromptWidget)
+	{
+		return;
+	}
+
+	AActor* Focus = FocusedInteractable.Get();
+	AUsableEquipment* Equipment = Cast<AUsableEquipment>(Focus);
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!Focus || !Equipment || !PC)
+	{
+		PromptWidget->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+
+	const FVector AnchorWorld = Equipment->GetPromptAnchorWorldLocation();
+	FVector2D Pixel = FVector2D::ZeroVector;
+	const bool bProjected = PC->ProjectWorldLocationToScreen(AnchorWorld, Pixel, true);
+	const float ViewportScale = FMath::Max(UWidgetLayoutLibrary::GetViewportScale(PromptWidget), 0.01f);
+
+	const FText Action = ICrewInteractable::Execute_GetInteractPrompt(Focus, this);
+	const FText Title = Equipment->DisplayName.IsEmpty() ? Action : Equipment->DisplayName;
+	const bool bShowAction = !Equipment->DisplayName.IsEmpty() && !Title.EqualTo(Action);
+
+	PromptWidget->SetCallout(Title, Action, Pixel / ViewportScale, bProjected, bShowAction);
+	PromptWidget->SetVisibility(bProjected ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 }
 
 void ASpaceshipCrewCharacter::OnInteractPressed()
 {
-	if (ACrewWorkstation* Station = OccupiedWorkstation.Get())
+	if (AUsableEquipment* Active = ActiveEquipment.Get())
 	{
-		if (Station->GetOperator() == this)
+		if (Active->IsInUseBy(this))
 		{
-			Station->Leave();
-			OccupiedWorkstation = nullptr;
+			Active->EndUse();
+			ActiveEquipment = nullptr;
 			return;
 		}
+		ActiveEquipment = nullptr;
 	}
 
 	UpdateFocusedInteractable();
 	if (AActor* Target = FocusedInteractable.Get())
 	{
 		ICrewInteractable::Execute_Interact(Target, this);
-		if (ACrewWorkstation* Occupied = Cast<ACrewWorkstation>(Target))
+		if (AUsableEquipment* Equipment = Cast<AUsableEquipment>(Target))
 		{
-			OccupiedWorkstation = Occupied->IsOccupied() && Occupied->GetOperator() == this ? Occupied : nullptr;
+			ActiveEquipment = Equipment->IsInUseBy(this) ? Equipment : nullptr;
 		}
-	}
-}
-
-void ASpaceshipCrewCharacter::OnStationPrimaryAction()
-{
-	ACrewWorkstation* Station = OccupiedWorkstation.Get();
-	if (!Station || Station->GetOperator() != this)
-	{
-		return;
-	}
-	if (AEngineerEnergyConsole* Energy = Cast<AEngineerEnergyConsole>(Station))
-	{
-		Energy->ApplyDefensePreset();
 	}
 }

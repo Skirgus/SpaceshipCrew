@@ -31,7 +31,7 @@ def should_drop(actor) -> bool:
 	if any(label.startswith(p) for p in DROP_LABEL_PREFIXES):
 		return True
 	cls = actor.get_class().get_name() if actor.get_class() else ""
-	if cls in ("EngineerEnergyConsole", "DamagedHullPanel"):
+	if cls in ("EngineerEnergyConsole", "DamagedHullPanel", "EngineerTrainingScenario", "CrewWorkstation"):
 		return True
 	name = mesh_name(actor)
 	return any(tok in name for tok in DROP_MESH_TOKENS)

@@ -82,9 +82,6 @@ def main() -> None:
     destroy_et_actors()
 
     bay = mesh("SM_TechBay_Interior_1x1x1")
-    console_m = mesh("SM_EnergyConsole")
-    panel_m = mesh("SM_HullPanel_Damaged")
-    torch_m = mesh("SM_RepairTorch")
 
     if bay:
         spawn_sma(bay, (0, 0, 0), label="ET_TechBay")
@@ -103,50 +100,7 @@ def main() -> None:
     )
     ps.set_actor_label("ET_PlayerStart")
 
-    console = spawn_native(
-        "/Script/SpaceshipCrew.EngineerEnergyConsole",
-        (-140, 0, -150),
-        label="ET_EnergyConsole",
-    )
-    assign_mesh(console, console_m)
-    if not console and console_m:
-        spawn_sma(console_m, (-140, 0, -150), label="ET_EnergyConsole_MeshOnly")
-
-    panel = spawn_native(
-        "/Script/SpaceshipCrew.DamagedHullPanel",
-        (0, 160, -60),
-        (0, -90, 0),
-        label="ET_DamagedPanel",
-    )
-    assign_mesh(panel, panel_m)
-    if not panel and panel_m:
-        spawn_sma(panel_m, (0, 160, -60), (0, -90, 0), label="ET_DamagedPanel_MeshOnly")
-
-    if torch_m:
-        spawn_sma(torch_m, (60, 80, -150), label="ET_RepairTorch")
-
-    scenario = spawn_native(
-        "/Script/SpaceshipCrew.EngineerTrainingScenario",
-        (0, 0, 50),
-        label="ET_Scenario",
-    )
-    if scenario:
-        try:
-            if console:
-                scenario.set_editor_property("energy_console", console)
-        except Exception:
-            try:
-                scenario.set_editor_property("EnergyConsole", console)
-            except Exception as exc:
-                unreal.log_warning(f"[ET] EnergyConsole prop: {exc}")
-        try:
-            if panel:
-                scenario.set_editor_property("damaged_panel", panel)
-        except Exception:
-            try:
-                scenario.set_editor_property("DamagedPanel", panel)
-            except Exception as exc:
-                unreal.log_warning(f"[ET] DamagedPanel prop: {exc}")
+    # Оборудование задаётся в модуле (EquipmentPlacements), не акторами этой карты.
 
     try:
         world = unreal.EditorLevelLibrary.get_editor_world()

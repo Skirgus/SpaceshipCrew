@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "ShipBuilder/ShipBuilderDraftTypes.h"
 #include "ShipModule/ShipModuleTypes.h"
+#include "UsableEquipment.h"
 #include "ShipBuilderModulePreviewActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -26,6 +27,8 @@ class SPACESHIPCREW_API AShipBuilderModulePreviewActor : public AActor
 
 public:
 	AShipBuilderModulePreviewActor();
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/**
 	 * Полная пересборка превью из текущего черновика конструктора.
@@ -194,6 +197,8 @@ private:
 		EShipModuleType ModuleType);
 
 	void ClearPools(TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pools);
+	void ClearSpawnedEquipment();
+	void SpawnModuleEquipment(const UShipModuleDefinition& Def, const FTransform& ModuleTransform);
 	void ConfigureSelectionComponent(UInstancedStaticMeshComponent& Component) const;
 	void ConfigureSocketMarkerComponent(UInstancedStaticMeshComponent& Component) const;
 	FVector GetDragGhostWorldCenter(const FVector& ModuleSize) const;
@@ -203,5 +208,8 @@ private:
 	bool bShowDragGhost = false;
 	FName DragGhostInstanceId = NAME_None;
 	FIntVector DragGhostGridPos = FIntVector::ZeroValue;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AUsableEquipment>> SpawnedEquipment;
 };
 

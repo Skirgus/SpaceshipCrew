@@ -43,15 +43,20 @@ private:
 	UShipModuleVisualOverride* ResolveEditableOverride(bool bCreateIfMissing);
 	void RebuildPartItems();
 	void RebuildSocketItems();
+	void RebuildEquipmentItems();
 	TSharedRef<ITableRow> GeneratePartRow(TSharedPtr<int32> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	TSharedRef<ITableRow> GenerateSocketRow(TSharedPtr<int32> Item, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedRef<ITableRow> GenerateEquipmentRow(TSharedPtr<int32> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	void OnPartSelectionChanged(TSharedPtr<int32> Item, ESelectInfo::Type SelectInfo);
 	void OnSocketSelectionChanged(TSharedPtr<int32> Item, ESelectInfo::Type SelectInfo);
+	void OnEquipmentSelectionChanged(TSharedPtr<int32> Item, ESelectInfo::Type SelectInfo);
 	void SelectPartIndex(int32 NewIndex, bool bFromViewport);
 	void SelectSocketIndex(int32 NewIndex);
+	void SelectEquipmentIndex(int32 NewIndex);
 	FReply OnAddPart();
 	FReply OnDuplicatePart();
 	FReply OnRemovePart();
+	FReply OnRemoveEquipment();
 	FReply OnAddSocket();
 	FReply OnRemoveSocket();
 	FReply OnSetSocketType(EShipModuleSocketType NewType);
@@ -80,12 +85,16 @@ private:
 	TSharedPtr<IDetailsView> DetailsView;
 	TSharedPtr<SListView<TSharedPtr<int32>>> PartsListView;
 	TSharedPtr<SListView<TSharedPtr<int32>>> SocketsListView;
+	TSharedPtr<SListView<TSharedPtr<int32>>> EquipmentListView;
 	TArray<TSharedPtr<int32>> PartItems;
 	TArray<TSharedPtr<int32>> SocketItems;
+	TArray<TSharedPtr<int32>> EquipmentItems;
 	int32 SelectedPartIndex = INDEX_NONE;
 	int32 SelectedSocketIndex = INDEX_NONE;
+	int32 SelectedEquipmentIndex = INDEX_NONE;
 	bool bSyncingPartSelection = false;
 	bool bSyncingSocketSelection = false;
+	bool bSyncingEquipmentSelection = false;
 	bool bSocketEditMode = false;
 };
 

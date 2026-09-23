@@ -1,8 +1,5 @@
 #include "SpaceshipCrewTrainingGameMode.h"
 
-#include "DamagedHullPanel.h"
-#include "EngineerEnergyConsole.h"
-#include "EngineerTrainingScenario.h"
 #include "ShipBuilder/ShipBlueprintRegistry.h"
 #include "ShipBuilder/ShipBlueprintTypes.h"
 #include "ShipBuilder/ShipBuilderDomainGlue.h"
@@ -31,13 +28,6 @@ namespace
 {
 	constexpr float FloorTopLocalZ = -184.0f;
 	constexpr float CapsuleHalfHeight = 96.0f;
-
-	UStaticMesh* LoadTrainingProp(const TCHAR* AssetName)
-	{
-		const FString Path = FString::Printf(
-			TEXT("/Game/Meshes/EngineerTraining/%s.%s"), AssetName, AssetName);
-		return LoadObject<UStaticMesh>(nullptr, *Path);
-	}
 
 	template <typename T>
 	T* FindOrNull(UWorld* World)
@@ -78,27 +68,6 @@ namespace
 		};
 		DestroyByTag(FName(TEXT("ET_TrainingHull")));
 		DestroyByTag(FName(TEXT("ET_CollisionFloor")));
-
-		{
-			TArray<AActor*> Consoles;
-			UGameplayStatics::GetAllActorsOfClass(World, AEngineerEnergyConsole::StaticClass(), Consoles);
-			for (AActor* Actor : Consoles)
-			{
-				if (Actor)
-				{
-					Actor->Destroy();
-				}
-			}
-			TArray<AActor*> Panels;
-			UGameplayStatics::GetAllActorsOfClass(World, ADamagedHullPanel::StaticClass(), Panels);
-			for (AActor* Actor : Panels)
-			{
-				if (Actor)
-				{
-					Actor->Destroy();
-				}
-			}
-		}
 
 		TArray<UStaticMesh*> PropMeshes;
 		auto Collect = [&PropMeshes](const TCHAR* Dir, const TCHAR* Name)
@@ -288,51 +257,8 @@ bool ASpaceshipCrewTrainingGameMode::SpawnTrainingShipHull()
 
 void ASpaceshipCrewTrainingGameMode::PlaceTrainingPropsAround(const FVector& EngineeringCenter)
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
-
-	// Empty shells for layout walkthrough — no console/panel/torch placeholder meshes.
-	if (AEngineerEnergyConsole* Console = FindOrNull<AEngineerEnergyConsole>(World))
-	{
-		Console->Destroy();
-	}
-	if (ADamagedHullPanel* Panel = FindOrNull<ADamagedHullPanel>(World))
-	{
-		Panel->Destroy();
-	}
-	if (UStaticMesh* TorchMesh = LoadTrainingProp(TEXT("SM_RepairTorch")))
-	{
-		TArray<AActor*> MeshActors;
-		UGameplayStatics::GetAllActorsOfClass(World, AStaticMeshActor::StaticClass(), MeshActors);
-		for (AActor* Actor : MeshActors)
-		{
-			if (AStaticMeshActor* SMA = Cast<AStaticMeshActor>(Actor))
-			{
-				if (SMA->GetStaticMeshComponent() && SMA->GetStaticMeshComponent()->GetStaticMesh() == TorchMesh)
-				{
-					SMA->Destroy();
-				}
-			}
-		}
-	}
-
-	AEngineerTrainingScenario* Scenario = FindOrNull<AEngineerTrainingScenario>(World);
-	if (!Scenario)
-	{
-		Scenario = World->SpawnActor<AEngineerTrainingScenario>(
-			EngineeringCenter + FVector(0.0f, 0.0f, 80.0f), FRotator::ZeroRotator);
-	}
-	if (Scenario)
-	{
-		Scenario->EnergyConsole = nullptr;
-		Scenario->DamagedPanel = nullptr;
-	}
-
 	UE_LOG(LogTemp, Log,
-		TEXT("EngineerTraining: engineer prop meshes cleared (center=%s)"),
+		TEXT("EngineerTraining: equipment comes from module placements (center=%s)"),
 		*EngineeringCenter.ToString());
 }
 

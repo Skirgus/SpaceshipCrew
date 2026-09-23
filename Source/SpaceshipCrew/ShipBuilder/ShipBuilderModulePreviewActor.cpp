@@ -11,6 +11,8 @@
 #include "ShipModule/ShipModuleDefinition.h"
 #include "ShipModule/ShipModuleTypes.h"
 #include "ShipModule/ShipModuleVisualOverride.h"
+#include "UsableEquipment.h"
+#include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace ShipBuilderPreviewActorPrivate
@@ -197,6 +199,59 @@ void AShipBuilderModulePreviewActor::ClearPools(
 		{
 			Entry.Value->ClearInstances();
 		}
+	}
+}
+
+void AShipBuilderModulePreviewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ClearSpawnedEquipment();
+	Super::EndPlay(EndPlayReason);
+}
+
+void AShipBuilderModulePreviewActor::ClearSpawnedEquipment()
+{
+	for (AUsableEquipment* Equipment : SpawnedEquipment)
+	{
+		if (IsValid(Equipment))
+		{
+			Equipment->Destroy();
+		}
+	}
+	SpawnedEquipment.Reset();
+}
+
+void AShipBuilderModulePreviewActor::SpawnModuleEquipment(
+	const UShipModuleDefinition& Def,
+	const FTransform& ModuleTransform)
+{
+	const UShipModuleVisualOverride* VisualOverride = Def.GetVisualOverride();
+	UWorld* World = GetWorld();
+	if (!VisualOverride || !World)
+	{
+		return;
+	}
+
+	for (const FShipModuleEquipmentPlacement& Placement : VisualOverride->EquipmentPlacements)
+	{
+		UClass* EquipmentClass = Placement.EquipmentClass.IsNull()
+			? nullptr
+			: Placement.EquipmentClass.LoadSynchronous();
+		if (!EquipmentClass || !EquipmentClass->IsChildOf(AUsableEquipment::StaticClass()))
+		{
+			continue;
+		}
+
+		const FTransform WorldTransform = Placement.RelativeTransform * ModuleTransform;
+		FActorSpawnParameters Params;
+		Params.Owner = this;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AUsableEquipment* Equipment = World->SpawnActor<AUsableEquipment>(EquipmentClass, WorldTransform, Params);
+		if (!Equipment)
+		{
+			continue;
+		}
+		Equipment->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+		SpawnedEquipment.Add(Equipment);
 	}
 }
 
@@ -483,6 +538,7 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 	ClearPools(PassageCollisionPools);
 	ClearPools(SelectionMeshPools);
 	ClearPools(SocketMarkerPools);
+	ClearSpawnedEquipment();
 
 	if (Draft.ModuleIds.Num() == 0)
 	{
@@ -575,6 +631,7 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 		const FRotator ModuleYaw(0.0f, static_cast<float>(Resolved[Index].YawStep) * 90.0f, 0.0f);
 		const FVector Center = bIsDragGhostTarget ? GetDragGhostWorldCenter(Size) : Resolved[Index].Center;
 		const FTransform ModuleTransform(ModuleYaw, Center, FVector::OneVector);
+		SpawnModuleEquipment(*Def, ModuleTransform);
 
 		// Ручной override: VisualParts + замена стен с WallSocketName на OpeningMesh при стыковке.
 		if (const UShipModuleVisualOverride* VisualOverride = Def->GetVisualOverride())

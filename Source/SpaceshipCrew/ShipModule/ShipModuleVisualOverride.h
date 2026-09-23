@@ -3,8 +3,25 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameFramework/Actor.h"
+#include "UsableEquipment.h"
 #include "ShipModuleTypes.h"
 #include "ShipModuleVisualOverride.generated.h"
+
+/**
+ * Экземпляр используемого оборудования внутри модуля.
+ * Transform — в локали модуля (центр = 0,0,0). Зона взаимодействия задаётся на самом акторе.
+ */
+USTRUCT(BlueprintType)
+struct FShipModuleEquipmentPlacement
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment")
+	TSoftClassPtr<AUsableEquipment> EquipmentClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment")
+	FTransform RelativeTransform = FTransform::Identity;
+};
 
 /**
  * Один визуальный элемент кастомного представления модуля.
@@ -95,6 +112,13 @@ public:
 	/** Набор вручную отредактированных мешей для модуля. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
 	TArray<FShipModuleVisualPart> VisualParts;
+
+	/**
+	 * Используемое оборудование модуля (кресла, пульты). Спавнятся вместе с корпусом.
+	 * Поворот сохраняется: это не VisualPart.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment")
+	TArray<FShipModuleEquipmentPlacement> EquipmentPlacements;
 
 	/** Использовать контактные точки из этого ассета вместо ModuleDefinition.ContactPoints. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Docking")

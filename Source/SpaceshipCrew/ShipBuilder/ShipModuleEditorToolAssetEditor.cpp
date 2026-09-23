@@ -5,6 +5,7 @@
 #include "ShipBuilder/ShipModuleEditorTool.h"
 #include "ShipModule/ShipModuleDefinition.h"
 #include "ShipModule/ShipModuleVisualOverride.h"
+#include "UsableEquipment.h"
 #include "AdvancedPreviewScene.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Components/StaticMeshComponent.h"
@@ -216,6 +217,47 @@ public:
 		PreviewComponents.Reset();
 		ComponentToPartIndex.Reset();
 		PartIndexToComponent.Reset();
+		EquipmentIndexToComponent.Reset();
+
+		auto SpawnEquipmentPreview = [this](const UShipModuleVisualOverride* Override)
+		{
+			if (!Override || !PreviewScene || !PreviewScene->GetWorld())
+			{
+				return;
+			}
+			for (int32 Index = 0; Index < Override->EquipmentPlacements.Num(); ++Index)
+			{
+				const FShipModuleEquipmentPlacement& Placement = Override->EquipmentPlacements[Index];
+				UClass* EquipmentClass = Placement.EquipmentClass.IsNull()
+					? nullptr
+					: Placement.EquipmentClass.LoadSynchronous();
+				if (!EquipmentClass || !EquipmentClass->IsChildOf(AUsableEquipment::StaticClass()))
+				{
+					continue;
+				}
+
+				FActorSpawnParameters SpawnParams;
+				SpawnParams.ObjectFlags = RF_Transient;
+				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				AActor* Spawned = PreviewScene->GetWorld()->SpawnActor<AActor>(
+					EquipmentClass, Placement.RelativeTransform, SpawnParams);
+				if (!IsValid(Spawned))
+				{
+					continue;
+				}
+
+				USceneComponent* RootComp = Spawned->GetRootComponent();
+				if (!RootComp)
+				{
+					PreviewScene->GetWorld()->DestroyActor(Spawned);
+					continue;
+				}
+
+				PreviewComponents.Add(RootComp);
+				PreviewActors.Add(Spawned);
+				EquipmentIndexToComponent.Add(Index, RootComp);
+			}
+		};
 
 		if (!IsValid(ToolAsset.Get()) || !CubeMesh)
 		{
@@ -296,14 +338,17 @@ public:
 					}
 				}
 			}
+			SpawnEquipmentPreview(OverrideAsset);
 			AlignPreviewAboveFloor();
-			UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] RebuildPreview: override parts=%d mappedComponents=%d"),
-				OverrideAsset->VisualParts.Num(), PartIndexToComponent.Num());
+			UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] RebuildPreview: override parts=%d mappedComponents=%d equipment=%d"),
+				OverrideAsset->VisualParts.Num(), PartIndexToComponent.Num(), EquipmentIndexToComponent.Num());
 			return;
 		}
 
 		if (!Def)
 		{
+			SpawnEquipmentPreview(OverrideAsset);
+			AlignPreviewAboveFloor();
 			return;
 		}
 
@@ -327,6 +372,8 @@ public:
 		if (!Def->bHasInterior)
 		{
 			AddBox(FVector::ZeroVector, Size);
+			SpawnEquipmentPreview(OverrideAsset);
+			AlignPreviewAboveFloor();
 			return;
 		}
 
@@ -336,8 +383,10 @@ public:
 		AddBox(FVector(0.0f, Size.Y * 0.5f - Thickness * 0.5f, 0.0f), FVector(Size.X, Thickness, Size.Z));
 		AddBox(FVector(-Size.X * 0.5f + Thickness * 0.5f, 0.0f, 0.0f), FVector(Thickness, Size.Y, Size.Z));
 		AddBox(FVector(Size.X * 0.5f - Thickness * 0.5f, 0.0f, 0.0f), FVector(Thickness, Size.Y, Size.Z));
+		SpawnEquipmentPreview(OverrideAsset);
 		AlignPreviewAboveFloor();
-		UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] RebuildPreview: procedural mode, mappedComponents=%d"), PartIndexToComponent.Num());
+		UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] RebuildPreview: procedural mode, mappedComponents=%d equipment=%d"),
+			PartIndexToComponent.Num(), EquipmentIndexToComponent.Num());
 	}
 
 private:
@@ -517,6 +566,24 @@ public:
 		return Result;
 	}
 
+	void SetSelectedEquipmentIndex(const int32 NewIndex)
+	{
+		SelectedEquipmentIndex = NewIndex;
+		if (ViewportClient.IsValid())
+		{
+			ViewportClient->Invalidate();
+		}
+	}
+
+	bool HasSelectedEquipment() const
+	{
+		return SelectedEquipmentIndex != INDEX_NONE
+			&& IsValid(ToolAsset.Get())
+			&& ToolAsset->TargetVisualOverride
+			&& ToolAsset->TargetVisualOverride->EquipmentPlacements.IsValidIndex(SelectedEquipmentIndex)
+			&& EquipmentIndexToComponent.Contains(SelectedEquipmentIndex);
+	}
+
 	FVector GetSelectedPartWidgetLocation() const
 	{
 		if (!HasSelectedPart())
@@ -524,6 +591,16 @@ public:
 			return FVector::ZeroVector;
 		}
 		return ToolAsset->TargetVisualOverride->VisualParts[SelectedPartIndex].RelativeTransform.GetTranslation()
+			+ FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
+	}
+
+	FVector GetSelectedEquipmentWidgetLocation() const
+	{
+		if (!HasSelectedEquipment())
+		{
+			return FVector::ZeroVector;
+		}
+		return ToolAsset->TargetVisualOverride->EquipmentPlacements[SelectedEquipmentIndex].RelativeTransform.GetTranslation()
 			+ FVector(0.0f, 0.0f, PreviewFloorOffsetZ);
 	}
 
@@ -649,6 +726,40 @@ public:
 			if (CompPtr->IsValid())
 			{
 				FTransform PreviewWorldTransform = Part.RelativeTransform;
+				PreviewWorldTransform.AddToTranslation(FVector(0.0f, 0.0f, PreviewFloorOffsetZ));
+				(*CompPtr)->SetWorldTransform(PreviewWorldTransform);
+			}
+		}
+		return true;
+	}
+
+	bool ApplyWidgetDeltaToSelectedEquipment(FVector& Drag, FRotator& Rot, FVector& Scale)
+	{
+		if (!HasSelectedEquipment())
+		{
+			return false;
+		}
+
+		const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "MoveEquipment", "Move Ship Module Equipment"));
+		ToolAsset->TargetVisualOverride->SetFlags(RF_Transactional);
+		ToolAsset->TargetVisualOverride->Modify();
+		FShipModuleEquipmentPlacement& Placement = ToolAsset->TargetVisualOverride->EquipmentPlacements[SelectedEquipmentIndex];
+		FTransform T = Placement.RelativeTransform;
+		T.AddToTranslation(Drag);
+		FRotator R = T.Rotator();
+		R += Rot;
+		T.SetRotation(R.Quaternion());
+		if (!Scale.IsNearlyZero())
+		{
+			T.SetScale3D(T.GetScale3D() + Scale);
+		}
+		Placement.RelativeTransform = T;
+		ToolAsset->TargetVisualOverride->MarkPackageDirty();
+		if (const TWeakObjectPtr<USceneComponent>* CompPtr = EquipmentIndexToComponent.Find(SelectedEquipmentIndex))
+		{
+			if (CompPtr->IsValid())
+			{
+				FTransform PreviewWorldTransform = Placement.RelativeTransform;
 				PreviewWorldTransform.AddToTranslation(FVector(0.0f, 0.0f, PreviewFloorOffsetZ));
 				(*CompPtr)->SetWorldTransform(PreviewWorldTransform);
 			}
@@ -1094,7 +1205,9 @@ public:
 	TArray<TObjectPtr<AActor>> PreviewActors;
 	TMap<const UPrimitiveComponent*, int32> ComponentToPartIndex;
 	TMap<int32, TWeakObjectPtr<USceneComponent>> PartIndexToComponent;
+	TMap<int32, TWeakObjectPtr<USceneComponent>> EquipmentIndexToComponent;
 	int32 SelectedPartIndex = INDEX_NONE;
+	int32 SelectedEquipmentIndex = INDEX_NONE;
 	int32 SelectedSocketIndex = INDEX_NONE;
 	float PreviewFloorOffsetZ = 0.0f;
 	UE::Widget::EWidgetMode CurrentWidgetMode = UE::Widget::WM_Translate;
@@ -1116,7 +1229,15 @@ FVector FShipModuleEditorToolViewportClient::GetWidgetLocation() const
 		return FVector::ZeroVector;
 	}
 	const bool bSocketMode = Pinned->IsSocketModeEnabled();
-	return bSocketMode ? Pinned->GetSelectedSocketWidgetLocation() : Pinned->GetSelectedPartWidgetLocation();
+	if (bSocketMode)
+	{
+		return Pinned->GetSelectedSocketWidgetLocation();
+	}
+	if (Pinned->HasSelectedEquipment())
+	{
+		return Pinned->GetSelectedEquipmentWidgetLocation();
+	}
+	return Pinned->GetSelectedPartWidgetLocation();
 }
 
 bool FShipModuleEditorToolViewportClient::InputWidgetDelta(
@@ -1133,6 +1254,10 @@ bool FShipModuleEditorToolViewportClient::InputWidgetDelta(
 	}
 	const bool bSocketMode = Pinned->IsSocketModeEnabled();
 	if (bSocketMode && Pinned->ApplyWidgetDeltaToSelectedSocket(Drag, Rot))
+	{
+		return true;
+	}
+	if (!bSocketMode && Pinned->ApplyWidgetDeltaToSelectedEquipment(Drag, Rot, Scale))
 	{
 		return true;
 	}
@@ -1190,11 +1315,11 @@ UE::Widget::EWidgetMode FShipModuleEditorToolViewportClient::GetWidgetMode() con
 	{
 		return Pinned->HasSelectedSocket() ? Pinned->GetTransformWidgetMode() : UE::Widget::WM_None;
 	}
-	if (!Pinned->HasSelectedPart())
+	if (Pinned->HasSelectedEquipment() || Pinned->HasSelectedPart())
 	{
-		return UE::Widget::WM_None;
+		return Pinned->GetTransformWidgetMode();
 	}
-	return Pinned->GetTransformWidgetMode();
+	return UE::Widget::WM_None;
 }
 
 bool FShipModuleEditorToolViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
@@ -1522,6 +1647,7 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 {
 	RebuildPartItems();
 	RebuildSocketItems();
+	RebuildEquipmentItems();
 
 	TSharedRef<SWidget> ListArea =
 		SNew(SBorder)
@@ -2194,6 +2320,100 @@ TSharedRef<SDockTab> FShipModuleEditorToolAssetEditor::SpawnPartsTab(const FSpaw
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
+		.Padding(FMargin(6.0f, 8.0f, 6.0f, 2.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Equipment")))
+			]
+		]
+		+ SVerticalBox::Slot()
+		.FillHeight(0.6f)
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[
+				SAssignNew(EquipmentListView, SListView<TSharedPtr<int32>>)
+				.ListItemsSource(&EquipmentItems)
+				.OnGenerateRow(this, &FShipModuleEditorToolAssetEditor::GenerateEquipmentRow)
+				.OnSelectionChanged(this, &FShipModuleEditorToolAssetEditor::OnEquipmentSelectionChanged)
+			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				return bSocketEditMode ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			[
+				SNew(SUniformGridPanel)
+				.SlotPadding(FMargin(2.0f))
+				+ SUniformGridPanel::Slot(0, 0)
+				[
+					SNew(SComboButton)
+					.ButtonContent()
+					[
+						SNew(STextBlock).Text(FText::FromString(TEXT("Добавить оборудование")))
+					]
+					.MenuContent()
+					[
+						SNew(SBox)
+						.WidthOverride(320.0f)
+						[
+							SNew(SObjectPropertyEntryBox)
+							.AllowedClass(UBlueprint::StaticClass())
+							.OnShouldFilterAsset_Lambda([](const FAssetData& Asset)
+							{
+								UClass* ActorClass = ShipModuleEditorToolAssetEditorPrivate::ResolveActorClassFromAssetData(Asset);
+								return !(ActorClass && ActorClass->IsChildOf(AUsableEquipment::StaticClass()));
+							})
+							.OnObjectChanged_Lambda([this](const FAssetData& Asset)
+							{
+								UClass* ActorClass = ShipModuleEditorToolAssetEditorPrivate::ResolveActorClassFromAssetData(Asset);
+								if (!ActorClass || !ActorClass->IsChildOf(AUsableEquipment::StaticClass()))
+								{
+									return;
+								}
+								UShipModuleVisualOverride* Override = ResolveEditableOverride(true);
+								if (!Override)
+								{
+									return;
+								}
+								const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "AddEquipment", "Add Ship Module Equipment"));
+								Override->Modify();
+								FShipModuleEquipmentPlacement Placement;
+								Placement.EquipmentClass = ActorClass;
+								Placement.RelativeTransform = FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, -150.0f));
+								Override->EquipmentPlacements.Add(Placement);
+								SelectedEquipmentIndex = Override->EquipmentPlacements.Num() - 1;
+								Override->MarkPackageDirty();
+								OnRefreshPreview();
+								SelectEquipmentIndex(SelectedEquipmentIndex);
+							})
+						]
+					]
+				]
+				+ SUniformGridPanel::Slot(1, 0)
+				[
+					SNew(SButton)
+					.Text(FText::FromString(TEXT("Убрать")))
+					.OnClicked(this, &FShipModuleEditorToolAssetEditor::OnRemoveEquipment)
+				]
+			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
 		.Padding(FMargin(6.0f, 0.0f, 6.0f, 6.0f))
 		[
 			SNew(SBox)
@@ -2404,8 +2624,9 @@ void FShipModuleEditorToolAssetEditor::OnRefreshPreview()
 	}
 	RebuildPartItems();
 	RebuildSocketItems();
+	RebuildEquipmentItems();
 
-	if (!bSocketEditMode)
+	if (!bSocketEditMode && SelectedEquipmentIndex == INDEX_NONE)
 	{
 		int32 DesiredSelection = SelectedPartIndex;
 		if (ViewportWidget.IsValid())
@@ -2522,6 +2743,134 @@ void FShipModuleEditorToolAssetEditor::RebuildSocketItems()
 	}
 }
 
+void FShipModuleEditorToolAssetEditor::RebuildEquipmentItems()
+{
+	EquipmentItems.Reset();
+	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+	{
+		for (int32 Index = 0; Index < Override->EquipmentPlacements.Num(); ++Index)
+		{
+			EquipmentItems.Add(MakeShared<int32>(Index));
+		}
+		if (!Override->EquipmentPlacements.IsValidIndex(SelectedEquipmentIndex))
+		{
+			SelectedEquipmentIndex = INDEX_NONE;
+		}
+	}
+	else
+	{
+		SelectedEquipmentIndex = INDEX_NONE;
+	}
+
+	if (EquipmentListView.IsValid())
+	{
+		EquipmentListView->RequestListRefresh();
+	}
+}
+
+TSharedRef<ITableRow> FShipModuleEditorToolAssetEditor::GenerateEquipmentRow(
+	TSharedPtr<int32> Item,
+	const TSharedRef<STableViewBase>& OwnerTable)
+{
+	const int32 Index = Item.IsValid() ? *Item : INDEX_NONE;
+	FString Label = FString::Printf(TEXT("Equipment %d"), Index);
+	if (UShipModuleVisualOverride* Override = ResolveEditableOverride(false))
+	{
+		if (Override->EquipmentPlacements.IsValidIndex(Index))
+		{
+			UClass* EquipmentClass = Override->EquipmentPlacements[Index].EquipmentClass.IsNull()
+				? nullptr
+				: Override->EquipmentPlacements[Index].EquipmentClass.LoadSynchronous();
+			if (EquipmentClass)
+			{
+				Label = FString::Printf(TEXT("%d: %s"), Index, *EquipmentClass->GetName());
+			}
+		}
+	}
+
+	return SNew(STableRow<TSharedPtr<int32>>, OwnerTable)
+		[
+			SNew(STextBlock).Text(FText::FromString(Label))
+		];
+}
+
+void FShipModuleEditorToolAssetEditor::OnEquipmentSelectionChanged(
+	TSharedPtr<int32> Item,
+	ESelectInfo::Type SelectInfo)
+{
+	if (bSyncingEquipmentSelection || !Item.IsValid())
+	{
+		return;
+	}
+	SelectEquipmentIndex(*Item);
+}
+
+void FShipModuleEditorToolAssetEditor::SelectEquipmentIndex(const int32 NewIndex)
+{
+	SelectedEquipmentIndex = NewIndex;
+	if (ViewportWidget.IsValid())
+	{
+		ViewportWidget->SetSelectedEquipmentIndex(SelectedEquipmentIndex);
+		ViewportWidget->Invalidate();
+	}
+
+	if (NewIndex != INDEX_NONE && SelectedPartIndex != INDEX_NONE)
+	{
+		SelectedPartIndex = INDEX_NONE;
+		if (ViewportWidget.IsValid())
+		{
+			ViewportWidget->SetSelectedPartIndex(INDEX_NONE);
+		}
+		if (PartsListView.IsValid())
+		{
+			bSyncingPartSelection = true;
+			PartsListView->ClearSelection();
+			bSyncingPartSelection = false;
+		}
+	}
+
+	if (EquipmentListView.IsValid())
+	{
+		bSyncingEquipmentSelection = true;
+		TSharedPtr<int32> Desired;
+		for (const TSharedPtr<int32>& Row : EquipmentItems)
+		{
+			if (Row.IsValid() && *Row == SelectedEquipmentIndex)
+			{
+				Desired = Row;
+				break;
+			}
+		}
+		if (Desired.IsValid())
+		{
+			EquipmentListView->SetSelection(Desired, ESelectInfo::Direct);
+		}
+		else
+		{
+			EquipmentListView->ClearSelection();
+		}
+		bSyncingEquipmentSelection = false;
+	}
+}
+
+FReply FShipModuleEditorToolAssetEditor::OnRemoveEquipment()
+{
+	UShipModuleVisualOverride* Override = ResolveEditableOverride(false);
+	if (!Override || !Override->EquipmentPlacements.IsValidIndex(SelectedEquipmentIndex))
+	{
+		return FReply::Handled();
+	}
+
+	const FScopedTransaction Transaction(NSLOCTEXT("ShipModuleEditor", "RemoveEquipment", "Remove Ship Module Equipment"));
+	Override->Modify();
+	Override->EquipmentPlacements.RemoveAt(SelectedEquipmentIndex);
+	Override->MarkPackageDirty();
+	SelectedEquipmentIndex = INDEX_NONE;
+	OnRefreshPreview();
+	SelectEquipmentIndex(INDEX_NONE);
+	return FReply::Handled();
+}
+
 TSharedRef<ITableRow> FShipModuleEditorToolAssetEditor::GeneratePartRow(TSharedPtr<int32> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	const int32 Index = Item.IsValid() ? *Item : INDEX_NONE;
@@ -2622,6 +2971,20 @@ void FShipModuleEditorToolAssetEditor::SelectPartIndex(const int32 NewIndex, con
 	UE_LOG(LogTemp, Warning, TEXT("[ShipModuleEditor] SelectPartIndex: %d -> %d (fromViewport=%d)"),
 		SelectedPartIndex, NewIndex, bFromViewport ? 1 : 0);
 	SelectedPartIndex = NewIndex;
+	if (NewIndex != INDEX_NONE && SelectedEquipmentIndex != INDEX_NONE)
+	{
+		SelectedEquipmentIndex = INDEX_NONE;
+		if (ViewportWidget.IsValid())
+		{
+			ViewportWidget->SetSelectedEquipmentIndex(INDEX_NONE);
+		}
+		if (EquipmentListView.IsValid())
+		{
+			bSyncingEquipmentSelection = true;
+			EquipmentListView->ClearSelection();
+			bSyncingEquipmentSelection = false;
+		}
+	}
 	if (ViewportWidget.IsValid())
 	{
 		ViewportWidget->SetSelectedPartIndex(SelectedPartIndex);
