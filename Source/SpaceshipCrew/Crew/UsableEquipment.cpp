@@ -60,7 +60,13 @@ void AUsableEquipment::BeginPlay()
 	}
 }
 
-FVector AUsableEquipment::GetPromptAnchorWorldLocation() const
+FText AUsableEquipment::GetInteractDisplayName_Implementation(APawn* InstigatorPawn) const
+{
+	(void)InstigatorPawn;
+	return DisplayName;
+}
+
+FVector AUsableEquipment::GetPromptAnchorWorldLocation_Implementation() const
 {
 	if (PromptAnchor)
 	{
@@ -71,6 +77,11 @@ FVector AUsableEquipment::GetPromptAnchorWorldLocation() const
 		return DisplayMesh->GetComponentLocation();
 	}
 	return GetActorLocation();
+}
+
+UPrimitiveComponent* AUsableEquipment::GetInteractionPrimitive_Implementation() const
+{
+	return InteractionVolume;
 }
 
 bool AUsableEquipment::CanInteract_Implementation(APawn* InstigatorPawn) const

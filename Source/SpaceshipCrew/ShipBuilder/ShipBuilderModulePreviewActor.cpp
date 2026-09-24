@@ -823,12 +823,13 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 
 					// Визуал открытого проёма (рамка) — без коллизии bbox.
 					// Коллизия стены с вырезом двери — отдельными боксами ниже.
-					// Non-socket: Floor + Shell/cheeks + Glass/Frame/Porthole collide.
+					// Non-socket: Floor/Ceiling + Shell/cheeks + Glass/Frame/Porthole collide.
 					// Collar stays off (convex flange filled the doorway). Shell is open-forward.
 					if (PartMesh)
 					{
 						const FString MeshName = PartMesh->GetName();
 						const bool bIsFloorPart = MeshName.Contains(TEXT("Floor"));
+						const bool bIsCeilingPart = MeshName.Contains(TEXT("Ceiling"));
 						const bool bIsShellPart = MeshName.Contains(TEXT("Shell"));
 						const bool bIsCheekPart = MeshName.Contains(TEXT("SideWalls"));
 						const bool bIsGlassPart = MeshName.Contains(TEXT("Glass"));
@@ -836,8 +837,8 @@ void AShipBuilderModulePreviewActor::RebuildFromDraft(
 						const bool bIsPortholePart = MeshName.Contains(TEXT("Porthole"));
 						const bool bEnableOverrideCollision = bWallSocket
 							? !bSocketOpen
-							: (bIsFloorPart || bIsShellPart || bIsCheekPart || bIsGlassPart
-								|| bIsFramePart || bIsPortholePart);
+							: (bIsFloorPart || bIsCeilingPart || bIsShellPart || bIsCheekPart
+								|| bIsGlassPart || bIsFramePart || bIsPortholePart);
 						UInstancedStaticMeshComponent& OverridePool = bSocketOpen
 							? GetOrCreatePool(OpeningMeshPools, PartMesh, TEXT("Opening"), false)
 							: GetOrCreatePool(OverrideMeshPools, PartMesh, TEXT("Override"), bEnableOverrideCollision);

@@ -8,6 +8,7 @@
 class APawn;
 class UAnimMontage;
 class UBoxComponent;
+class UPrimitiveComponent;
 class USceneComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
@@ -42,6 +43,9 @@ public:
 	virtual bool CanInteract_Implementation(APawn* InstigatorPawn) const override;
 	virtual void Interact_Implementation(APawn* InstigatorPawn) override;
 	virtual FText GetInteractPrompt_Implementation(APawn* InstigatorPawn) const override;
+	virtual FText GetInteractDisplayName_Implementation(APawn* InstigatorPawn) const override;
+	virtual FVector GetPromptAnchorWorldLocation_Implementation() const override;
+	virtual UPrimitiveComponent* GetInteractionPrimitive_Implementation() const override;
 
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	bool BeginUse(APawn* User);
@@ -74,10 +78,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Equipment")
 	UBoxComponent* GetInteractionVolume() const { return InteractionVolume; }
-
-	/** Мировая точка на предмете, от которой идёт линия подсказки. */
-	UFUNCTION(BlueprintPure, Category = "Equipment")
-	FVector GetPromptAnchorWorldLocation() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
 	EUsableEquipmentUseMode UseMode = EUsableEquipmentUseMode::Interact;

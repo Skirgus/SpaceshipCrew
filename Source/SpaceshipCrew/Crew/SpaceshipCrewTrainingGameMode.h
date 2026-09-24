@@ -30,16 +30,24 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Training")
 	FName EngineeringModuleInstanceId = FName(TEXT("TV_Engineering"));
 
+	/** Демо-пикап горелки рядом со спавном (пусто — не спавнить). */
+	UPROPERTY(EditDefaultsOnly, Category = "Training|Items")
+	TSoftClassPtr<class AEquippableItem> DemoPickupItemClass;
+
 protected:
 	void EnsureTrainingLayout();
 	bool SpawnTrainingShipHull();
 	void PlaceTrainingPropsAround(const FVector& EngineeringCenter);
+	void SpawnDemoPickupNearStart();
 
 	UPROPERTY(Transient)
 	TObjectPtr<AActor> TrainingPlayerStart = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<AShipBuilderModulePreviewActor> TrainingHull = nullptr;
+
+	UPROPERTY(Transient)
+	bool bDemoPickupSpawned = false;
 
 	FTransform TrainingSpawnTransform = FTransform::Identity;
 	FVector EngineeringModuleCenter = FVector::ZeroVector;

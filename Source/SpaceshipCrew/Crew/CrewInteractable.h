@@ -5,6 +5,7 @@
 #include "CrewInteractable.generated.h"
 
 class APawn;
+class UPrimitiveComponent;
 
 UINTERFACE(MinimalAPI, BlueprintType)
 class UCrewInteractable : public UInterface
@@ -29,7 +30,19 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Crew|Interact")
 	void Interact(APawn* InstigatorPawn);
 
-	/** Подсказка для HUD (краткий текст). */
+	/** Подсказка для HUD (краткий текст действия: «Сесть», «Взять»). */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Crew|Interact")
 	FText GetInteractPrompt(APawn* InstigatorPawn) const;
+
+	/** Имя на плашке подсказки. Пусто — на плашке только действие. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Crew|Interact")
+	FText GetInteractDisplayName(APawn* InstigatorPawn) const;
+
+	/** Мировая точка, от которой идёт линия подсказки. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Crew|Interact")
+	FVector GetPromptAnchorWorldLocation() const;
+
+	/** Примитив зоны подхода; фокус учитывает только overlap с этим компонентом. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Crew|Interact")
+	UPrimitiveComponent* GetInteractionPrimitive() const;
 };

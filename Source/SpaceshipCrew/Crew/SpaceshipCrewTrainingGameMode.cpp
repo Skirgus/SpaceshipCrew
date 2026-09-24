@@ -1,5 +1,6 @@
 #include "SpaceshipCrewTrainingGameMode.h"
 
+#include "EquippableItem.h"
 #include "ShipBuilder/ShipBlueprintRegistry.h"
 #include "ShipBuilder/ShipBlueprintTypes.h"
 #include "ShipBuilder/ShipBuilderDomainGlue.h"
@@ -111,6 +112,8 @@ ASpaceshipCrewTrainingGameMode::ASpaceshipCrewTrainingGameMode()
 {
 	DefaultPawnClass = ASpaceshipCrewCharacter::StaticClass();
 	PlayerControllerClass = ASpaceshipCrewTrainingPlayerController::StaticClass();
+	DemoPickupItemClass = TSoftClassPtr<AEquippableItem>(
+		FSoftObjectPath(TEXT("/Game/Blueprints/Items/BP_RepairTorch.BP_RepairTorch_C")));
 }
 
 void ASpaceshipCrewTrainingGameMode::InitGame(
@@ -149,6 +152,42 @@ void ASpaceshipCrewTrainingGameMode::RestartPlayer(AController* NewPlayer)
 		}
 		UE_LOG(LogTemp, Log, TEXT("EngineerTraining: pawn on TrainingVessel at %s"),
 			*Xform.GetLocation().ToString());
+	}
+
+	SpawnDemoPickupNearStart();
+}
+
+void ASpaceshipCrewTrainingGameMode::SpawnDemoPickupNearStart()
+{
+	if (bDemoPickupSpawned)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	UClass* ItemClass = DemoPickupItemClass.LoadSynchronous();
+	if (!ItemClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("EngineerTraining: demo pickup class missing (%s)"),
+			*DemoPickupItemClass.ToString());
+		return;
+	}
+
+	const FVector SpawnLoc = TrainingSpawnTransform.GetLocation()
+		+ TrainingSpawnTransform.GetRotation().RotateVector(FVector(120.0f, 40.0f, 20.0f));
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (AEquippableItem* Item = World->SpawnActor<AEquippableItem>(
+			ItemClass, SpawnLoc, TrainingSpawnTransform.Rotator(), Params))
+	{
+		bDemoPickupSpawned = true;
+		UE_LOG(LogTemp, Log, TEXT("EngineerTraining: spawned demo pickup %s at %s"),
+			*Item->GetName(), *SpawnLoc.ToString());
 	}
 }
 
